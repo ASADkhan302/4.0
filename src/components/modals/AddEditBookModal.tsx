@@ -132,8 +132,8 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
   const [shelfNo, setShelfNo] = useState<number>(1);
 
   // Media & Inventory
-  const [totalQuantity, setTotalQuantity] = useState<number>(3);
-  const [availableQuantity, setAvailableQuantity] = useState<number>(3);
+  const [totalQuantity, setTotalQuantity] = useState<number>(1);
+  const [availableQuantity, setAvailableQuantity] = useState<number>(1);
   const [bookImagePath, setBookImagePath] = useState<string>('');
 
   // Form UI states
@@ -268,8 +268,8 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       setShelfNo(chosenShelf);
       setDescription('');
       setBookImagePath('');
-      setTotalQuantity(3);
-      setAvailableQuantity(3);
+      setTotalQuantity(1);
+      setAvailableQuantity(1);
     }
 
     setErrorMessage(null);
@@ -282,6 +282,52 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       titleInputRef.current?.focus();
     }, 100);
   }, [bookToEdit, initialBarcode, isOpen]);
+
+  // Helper: Detect Duplicate Title or ISBN and auto-fill metadata with unique accession & barcode
+  const handleDetectDuplicateTitleOrIsbn = () => {
+    const allBooks = LibraryStorage.getBooks();
+    const cleanIsbn = isbn.replace(/[-\s]/g, '').trim().toLowerCase();
+    const cleanTitle = bookName.trim().toLowerCase();
+
+    if (!cleanIsbn && !cleanTitle) {
+      setErrorMessage('Please enter an ISBN or Title first to detect an existing book in the library.');
+      return;
+    }
+
+    const match = allBooks.find(b => {
+      if (cleanIsbn && b.isbn && b.isbn.replace(/[-\s]/g, '').toLowerCase() === cleanIsbn) return true;
+      if (cleanTitle && b.book_name && b.book_name.trim().toLowerCase() === cleanTitle) return true;
+      return false;
+    });
+
+    if (!match) {
+      setIsbnWarning('No existing copy found matching this Title or ISBN.');
+      return;
+    }
+
+    // Pre-fill bibliographic details from existing book
+    setBookName(match.book_name);
+    setAuthor(match.author || '');
+    setPublisher(match.publisher || 'ULM Press');
+    setCategory(match.category || 'Computer Science');
+    setEdition(match.edition || '1st Edition');
+    setPublicationYear(match.publication_year || 2024);
+    setLanguage(match.language || 'English');
+    setDeweyCallNumber(match.dewey_call_number || '005.133 ULM');
+    setShelf(match.shelf || 'ALM-01');
+    setAlmariId(match.almari_id || '');
+    setShelfNo(match.shelf_no || 1);
+    setDescription(match.description || '');
+
+    // Assign fresh next accession and unique barcode for this new copy
+    const nextAccInfo = BookSheetService.getNextAccessionNumber();
+    const nextAcc = nextAccInfo.accessionNo;
+    setAccessionNo(nextAcc);
+    setBarcode(BarcodeService.generateBarcode(nextAcc).barcode);
+    setIsDuplicateIsbn(true);
+    setIsbnWarning(`Copy detected of "${match.book_name}". Pre-filled metadata and assigned fresh Accession #${nextAcc}.`);
+    setErrorMessage(null);
+  };
 
   // ISBN checksum and duplicate checker
   useEffect(() => {
@@ -485,6 +531,22 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       titleInputRef.current?.focus();
       return;
     }
+    if (!author.trim()) {
+      setErrorMessage('Author is mandatory.');
+      return;
+    }
+    if (!accessionNo.trim()) {
+      setErrorMessage('Accession Number is mandatory.');
+      return;
+    }
+    if (!category.trim()) {
+      setErrorMessage('Category / Discipline is mandatory.');
+      return;
+    }
+    if (!shelf.trim() && !almariId) {
+      setErrorMessage('Almari / Shelf location is mandatory.');
+      return;
+    }
     if (!barcode.trim()) {
       setErrorMessage('Barcode / Accession is mandatory.');
       return;
@@ -510,7 +572,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       accession_no: accessionNo.trim(),
       isbn: isbn.trim(),
       book_name: bookName.trim(),
-      author: author.trim() || 'Anonymous / Organization',
+      author: author.trim(),
       publisher: publisher.trim(),
       place: place.trim(),
       binding: binding,
@@ -563,6 +625,51 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         setSaveState('idle');
         return;
       }
+    } else if (totalQuantity > 1) {
+      // Multiple duplicate copies: create each physical volume with unique accession & 13-digit barcode
+      const copiesCount = Math.min(50, Math.max(1, totalQuantity));
+      const allBooks = LibraryStorage.getBooks();
+      let maxExistingAcc = 0;
+      for (const b of allBooks) {
+        const num = parseInt((b.accession_no || '').replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num > maxExistingAcc && num < 50000000) {
+          maxExistingAcc = num;
+        }
+      }
+
+      for (let i = 0; i < copiesCount; i++) {
+        let copyAcc = '';
+        if (i === 0) {
+          copyAcc = accessionNo.trim();
+        } else {
+          maxExistingAcc++;
+          copyAcc = `ULM-${String(maxExistingAcc).padStart(5, '0')}`;
+        }
+
+        const copyBarcode = i === 0 && barcode.trim()
+          ? barcode.trim()
+          : `0092${String(maxExistingAcc).padStart(9, '0')}`;
+
+        const copyPayload = {
+          ...payload,
+          accession_no: copyAcc,
+          barcode: copyBarcode,
+          total_quantity: 1,
+          available_quantity: 1,
+        };
+
+        const res = onSave(copyPayload);
+        if (!res.success) {
+          setErrorMessage(res.message);
+          setSaveState('idle');
+          return;
+        }
+      }
+      setSaveState('success');
+      setTimeout(() => {
+        onClose();
+      }, 500);
+      return;
     } else {
       const res = onSave(payload);
       if (!res.success) {
@@ -631,14 +738,14 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="font-cinzel text-base sm:text-lg font-bold tracking-wider text-white">
+                <h3 className="font-display text-base sm:text-lg font-bold tracking-wider text-white">
                   {bookToEdit ? 'EDIT ACCESSION RECORD' : 'ACCESSION REGISTER · NEW VOLUME'}
                 </h3>
                 <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40">
                   {bookToEdit ? `RECORD #${accessionNo}` : `ACCESSION #${accessionNo}`}
                 </span>
               </div>
-              <p className="text-[11px] text-[#B3AABD] font-sans mt-0.5 flex items-center gap-2">
+              <p className="text-[11px] text-[#B3AABD] font-ui mt-0.5 flex items-center gap-2">
                 <span>University of Lakki Marwat</span>
                 <span className="text-[#4E4758]">·</span>
                 <span>Central Campus Library Accession Ledger</span>
@@ -646,7 +753,20 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Detect Duplicate Title/ISBN Helper */}
+            {!bookToEdit && (
+              <button
+                type="button"
+                onClick={handleDetectDuplicateTitleOrIsbn}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#541A72]/30 hover:bg-[#541A72]/50 text-[#E0B450] border border-[#BC881B]/40 text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                title="Detect existing copy by Title or ISBN, auto-fill details, and assign fresh Accession # and Barcode"
+              >
+                <Copy className="w-3.5 h-3.5 text-[#BC881B]" />
+                <span>Detect Duplicate Title/ISBN</span>
+              </button>
+            )}
+
             {/* Fast Entry Switch for Rapid Paper Ledger Transcription */}
             {!bookToEdit && (
               <label 
@@ -1448,8 +1568,9 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                     <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
                         <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">23</span>
-                        <span className="text-slate-200 truncate">Total Copies</span>
+                        <span className="text-slate-200 truncate">Copies / Quantity (1–50)</span>
                       </span>
+                      <span className="text-[10px] text-[#E0B450] font-mono">1–50 unique</span>
                     </label>
                     <div className="flex items-center h-10 border border-[#2B2730] rounded-lg overflow-hidden bg-[#121014]">
                       <button
@@ -1459,12 +1580,17 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       >
                         -
                       </button>
-                      <span className="flex-1 text-center font-mono font-bold text-sm text-[#F1F5F9]">
-                        {totalQuantity}
-                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={totalQuantity}
+                        onChange={(e) => setTotalQuantity(Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                        className="flex-1 w-16 bg-transparent text-center font-mono font-bold text-sm text-[#F1F5F9] focus:outline-none"
+                      />
                       <button
                         type="button"
-                        onClick={() => setTotalQuantity(totalQuantity + 1)}
+                        onClick={() => setTotalQuantity(Math.min(50, totalQuantity + 1))}
                         className="w-10 h-full text-slate-400 hover:text-white hover:bg-[#221F26] flex items-center justify-center font-bold text-base cursor-pointer transition-colors"
                       >
                         +

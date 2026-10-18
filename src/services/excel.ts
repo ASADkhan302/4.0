@@ -49,18 +49,19 @@ export function processRawExcelRows(
       return '';
     };
 
-    let accessionNo = pick('accession_no', 'accession_number', 'acc_no', 'accession', 'sr_no');
-    // If accession number is empty or repeated/colliding across sheets, auto-generate unique accession
-    if (!accessionNo || seenAccessions.has(accessionNo.toLowerCase())) {
-      accessionNo = String(currentTotal + i + 1).padStart(6, '0');
-      if (seenAccessions.has(accessionNo.toLowerCase())) {
-        accessionNo = `${accessionNo}_${i + 1}`;
-      }
+    const title = pick('title', 'book_title', 'name_of_book', 'book_name');
+    const author = pick('author', 'author_name', 'writer');
+    const accessionNo = pick('accession_no', 'accession_number', 'acc_no', 'accession', 'sr_no');
+
+    // Strict validation: Reject rows missing Title, Author, or Accession No
+    if (!title || !author || !accessionNo) {
+      continue;
+    }
+
+    if (seenAccessions.has(accessionNo.toLowerCase())) {
+      continue;
     }
     seenAccessions.add(accessionNo.toLowerCase());
-
-    const title = pick('title', 'book_title', 'name_of_book', 'book_name') || `Volume #${currentTotal + i + 1}`;
-    const author = pick('author', 'author_name', 'writer') || 'Unknown Author';
     const category = pick('category', 'discipline', 'subject', 'department') || 'General';
     const language = pick('language', 'lang') || 'English';
     const publisher = pick('publisher', 'publisher_name') || 'University of Lakki Marwat Press';

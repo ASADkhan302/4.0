@@ -41,6 +41,7 @@ interface AlmariViewProps {
   selectedCatalogBookIds?: Set<string>;
   onClearCatalogSelection?: () => void;
   onCatalogBooksUpdated?: (books: Book[], message: string, batchId?: string) => void;
+  onFilterCatalogByShelf?: (almariCode: string, shelfNo?: number) => void;
 }
 
 export const AlmariView: React.FC<AlmariViewProps> = ({
@@ -53,6 +54,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   selectedCatalogBookIds,
   onClearCatalogSelection,
   onCatalogBooksUpdated,
+  onFilterCatalogByShelf,
 }) => {
   const [almarisVersion, setAlmarisVersion] = useState(0);
   const almaris = useMemo(() => AlmariService.getAlmaris().filter(a => a.is_active), [almarisVersion]);
@@ -790,16 +792,31 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               </div>
             </div>
 
-            {/* Quick Search inside Almari overview */}
-            <div className="relative w-48 sm:w-60">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[var(--text-muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search almaris..."
-                className="w-full h-8 pl-8 pr-2.5 bg-[#221F26] border border-[var(--border-subtle)] rounded-[6px] text-[12px] text-white focus:outline-none focus:border-[var(--gold)]"
-              />
+            {/* Quick Actions: Add Almari and Search */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAlmariToEdit(null);
+                  setIsAddEditOpen(true);
+                }}
+                className="h-8 px-3 rounded-[6px] bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-ui font-semibold text-[12px] inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
+                title="Add New Almari / Cupboard"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden sm:inline">Add Almari</span>
+              </button>
+
+              <div className="relative w-40 sm:w-56">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search almaris..."
+                  className="w-full h-8 pl-8 pr-2.5 bg-[#221F26] border border-[var(--border-subtle)] rounded-[6px] text-[12px] text-white focus:outline-none focus:border-[var(--gold)]"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -889,35 +906,53 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               </div>
             </div>
 
-            {/* Almari Cards */}
+            {/* Almari Cards: Visual Bookcase Inspector */}
             {filteredAlmaris.map(alm => {
               const st = almariStats.perAlmari[alm.id] || { totalCopies: 0, totalTitles: 0, inAlmari: 0, onLoan: 0 };
               const almGroups = AlmariService.getGroupsForAlmari(alm.id);
               const almBooks = activeBooks.filter(b => b.almari_id === alm.id);
               const totalCap = AlmariService.getAlmariTotalCapacity(alm);
               const capPct = totalCap > 0 ? Math.round((st.totalCopies / totalCap) * 100) : 0;
+              const freeCap = Math.max(0, totalCap - st.totalCopies);
               const range = AlmariService.computeShelfRange(almBooks, totalCap);
+
+              const hallWing = alm.location || (alm.notes && alm.notes.includes('Wing') ? alm.notes : 'Main Hall');
+              const categoryBadge = alm.category || almGroups[0]?.name_en || 'General Stacks';
+              const healthStatus = st.totalCopies === 0 ? 'EMPTY' : capPct < 75 ? 'OPTIMAL' : capPct <= 90 ? 'NEAR FULL' : 'FULL';
+              const healthBadgeColor = st.totalCopies === 0
+                ? 'bg-slate-500/20 text-slate-300 border-slate-500/35'
+                : capPct < 75
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/35'
+                : capPct <= 90
+                ? 'bg-amber-500/20 text-[#E0B450] border-amber-500/35'
+                : 'bg-rose-500/20 text-rose-400 border-rose-500/35';
+
+              const shelfCount = Math.max(1, alm.shelf_count || 5);
+              const shelves = AlmariService.getShelvesForAlmari(alm.id);
 
               return (
                 <div
                   key={alm.id}
                   onClick={() => setSelectedAlmariId(alm.id)}
-                  className="p-5 rounded-[14px] bg-[#1A1A1A] border border-[var(--border-subtle)] hover:border-[var(--gold)]/70 transition-all flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.35)] cursor-pointer group"
+                  className="p-5 rounded-[14px] bg-[#1A1A1A] border border-[var(--border-subtle)] hover:border-[#BC881B]/70 transition-all flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.35)] cursor-pointer group"
                 >
-                  <div className="space-y-3">
-                    {/* Header: drawing, code, Urdu & English name */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-[10px] bg-[#221F26] border border-[#BC881B]/40 flex items-center justify-center text-[var(--gold-text)] shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="space-y-3.5">
+                    {/* Header: Drawing, Code, Title & Management Controls */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-[10px] bg-[#221F26] border border-[#BC881B]/40 flex items-center justify-center text-[#E0B450] shrink-0 group-hover:scale-105 transition-transform">
                           <Building2 className="w-5 h-5" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-[var(--gold-text)] text-[14px]">
-                              {alm.name_en} - {alm.code}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-[#E0B450] text-[14px]">
+                              {alm.code}
+                            </span>
+                            <span className="text-[13px] font-bold text-white truncate" title={alm.name_en}>
+                              {alm.name_en}
                             </span>
                           </div>
-                          <p className="text-[12px] text-[var(--text-muted)] font-urdu truncate" dir="auto">
+                          <p className="text-[11.5px] text-[var(--text-muted)] font-urdu truncate" dir="auto">
                             {alm.name_ur}
                           </p>
                         </div>
@@ -931,11 +966,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                             setAlmariToEdit(alm);
                             setIsAddEditOpen(true);
                           }}
-                          className="p-1 rounded bg-[#221F26] hover:bg-[#2B2730] text-[#B3AABD] hover:text-[#E0B450] border border-white/[0.08] transition-colors"
-                          title="Edit Almari settings"
+                          className="px-2 py-1 rounded bg-[#221F26] hover:bg-[#2B2730] text-[#B3AABD] hover:text-[#E0B450] border border-white/[0.08] text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                          title={`Edit Almari ${alm.code}`}
                           aria-label={`Edit Almari ${alm.code}`}
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit</span>
                         </button>
                         <button
                           type="button"
@@ -945,15 +981,25 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                             setIsDeleteModalOpen(true);
                           }}
                           className="p-1 rounded bg-[#221F26] hover:bg-rose-950/40 text-[#B3AABD] hover:text-rose-400 border border-white/[0.08] transition-colors"
-                          title="Delete Almari"
+                          title={`Delete Almari ${alm.code}`}
                           aria-label={`Delete Almari ${alm.code}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                          {alm.shelf_count} Shelves
-                        </span>
                       </div>
+                    </div>
+
+                    {/* Meta Badges: Hall/Wing + Category + Capacity Health Status */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#29658E]/20 text-[#6FA8D2] border border-[#29658E]/40" title="Physical Wing Location">
+                        {hallWing}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#541A72]/30 text-[#E0B450] border border-[#BC881B]/40" title="Stack Category">
+                        {categoryBadge}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider border ${healthBadgeColor}`} title="Capacity Health">
+                        {healthStatus}
+                      </span>
                     </div>
 
                     {/* Continuous Accession Range Badge */}
@@ -969,61 +1015,101 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                           ({range.gaps.length} gaps)
                         </span>
                       )}
-                      <span className="text-[#B3AABD] text-[11px]">{st.totalCopies} / {totalCap}</span>
+                      <span className="text-[#B3AABD] text-[11px]">{st.totalCopies} / {totalCap} Vol</span>
                     </div>
 
-                    {/* Group Chips in their respective group colors */}
-                    <div className="flex flex-wrap gap-1.5 min-h-[26px]">
-                      {almGroups.map(grp => (
-                        <span
-                          key={grp.id}
-                          className="px-2 py-0.5 rounded text-[11px] font-semibold border flex items-center gap-1.5"
-                          style={{
-                            backgroundColor: `${grp.color}15`,
-                            borderColor: `${grp.color}40`,
-                            color: grp.color,
-                          }}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: grp.color }} />
-                          {grp.name_en}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Numbers: How many and which */}
-                    <div className="p-3 bg-[#221F26] rounded-[10px] space-y-1 text-[12px]">
-                      <div className="flex justify-between font-semibold text-white">
-                        <span>{st.totalCopies} copies</span>
-                        <span>{st.totalTitles} titles</span>
+                    {/* 4 Live Counts on Every Almari Card */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-2 bg-[#221F26] rounded-[10px] text-center border border-white/[0.04]">
+                      <div className="p-1 rounded bg-[#171518]/60">
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase block tracking-wider">Total</span>
+                        <span className="font-mono font-bold text-white text-[13px] tabular-nums">{st.totalCopies}</span>
                       </div>
-                      <div className="flex justify-between text-[var(--text-muted)]">
-                        <span>In almari: {st.inAlmari}</span>
-                        <span className="text-amber-400">On loan: {st.onLoan}</span>
+                      <div className="p-1 rounded bg-[#171518]/60">
+                        <span className="text-[10px] text-emerald-400/90 uppercase block tracking-wider">Available</span>
+                        <span className="font-mono font-bold text-emerald-400 text-[13px] tabular-nums">{st.inAlmari}</span>
+                      </div>
+                      <div className="p-1 rounded bg-[#171518]/60">
+                        <span className="text-[10px] text-[#E0B450]/90 uppercase block tracking-wider">On Loan</span>
+                        <span className="font-mono font-bold text-[#E0B450] text-[13px] tabular-nums">{st.onLoan}</span>
+                      </div>
+                      <div className="p-1 rounded bg-[#171518]/60">
+                        <span className="text-[10px] text-slate-400 uppercase block tracking-wider">Free Cap</span>
+                        <span className="font-mono font-bold text-slate-300 text-[13px] tabular-nums">{freeCap}</span>
                       </div>
                     </div>
 
-                    {/* Capacity Bar: green below 70%, amber from 70%, danger from 90% */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
-                        <span>Capacity ({totalCap} total):</span>
-                        <span className="font-mono font-bold text-white">{capPct}%</span>
+                    {/* Interactive Shelf Rack Bars (Shelf 1 .. Shelf N) with 12-Slot Book Spines */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] font-semibold">
+                        <span>Shelf Rack Inspector ({shelfCount} Shelves)</span>
+                        <span className="text-[10px] text-slate-500">Click shelf to filter</span>
                       </div>
-                      <div className="w-full h-2 bg-[#2B2730] rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            capPct >= 90
-                              ? 'bg-rose-500'
-                              : capPct >= 70
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${Math.min(100, capPct)}%` }}
-                        />
+                      
+                      <div className="space-y-1 bg-[#151317] p-2 rounded-[10px] border border-white/[0.05]">
+                        {Array.from({ length: shelfCount }, (_, idx) => {
+                          const sNo = idx + 1;
+                          const sBooks = almBooks.filter(b => (b.shelf_no || 1) === sNo);
+                          const sCap = shelves.find(sh => sh.shelf_no === sNo)?.capacity || Math.max(1, Math.ceil(totalCap / shelfCount));
+                          const sPct = Math.round((sBooks.length / sCap) * 100);
+                          const filledSlots = Math.min(12, Math.ceil((sBooks.length / sCap) * 12));
+                          const sStatusColor = sPct > 90 ? 'text-rose-400' : sPct >= 75 ? 'text-[#E0B450]' : 'text-emerald-400';
+
+                          return (
+                            <div
+                              key={sNo}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onFilterCatalogByShelf) {
+                                  onFilterCatalogByShelf(alm.code, sNo);
+                                } else {
+                                  setSelectedAlmariId(alm.id);
+                                  setSelectedShelfFilter(sNo);
+                                }
+                              }}
+                              className="flex items-center justify-between gap-2 px-2 py-1 rounded-[6px] hover:bg-white/[0.06] transition-colors cursor-pointer group/shelf"
+                              title={`Click to filter catalog by ${alm.code} - Shelf ${sNo} (${sBooks.length}/${sCap} books)`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-[70px]">
+                                <span className="text-[11px] font-semibold text-slate-300 group-hover/shelf:text-white">
+                                  Shelf {sNo}
+                                </span>
+                              </div>
+
+                              {/* 12-Slot Book-Spine Occupancy Segments */}
+                              <div className="flex items-center gap-[2.5px] bg-black/50 px-1.5 py-0.5 rounded border border-white/[0.06]">
+                                {Array.from({ length: 12 }, (_, segIdx) => {
+                                  const isFilled = segIdx < filledSlots;
+                                  return (
+                                    <div
+                                      key={segIdx}
+                                      className={`w-1 h-3 rounded-[0.5px] transition-colors ${
+                                        isFilled
+                                          ? sPct > 90
+                                            ? 'bg-rose-400'
+                                            : sPct >= 75
+                                            ? 'bg-[#E0B450]'
+                                            : 'bg-emerald-400'
+                                          : 'bg-white/[0.08]'
+                                      }`}
+                                    />
+                                  );
+                                })}
+                              </div>
+
+                              <div className="flex items-center gap-1 text-[11px] font-mono shrink-0">
+                                <span className="text-slate-400">{sBooks.length}/{sCap}</span>
+                                <span className={`font-bold ${sStatusColor}`}>
+                                  {sPct}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Paste Books Here button if Catalog selection is active */}
-                    {selectedCatalogBookIds && selectedCatalogBookIds.size > 0 && (
+                    {/* Move Selected Books Action */}
+                    {selectedCatalogBookIds && selectedCatalogBookIds.size > 0 ? (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1032,17 +1118,49 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                           setPasteTargetShelfNo(1);
                           setIsPasteBulkModalOpen(true);
                         }}
-                        className="w-full py-2 bg-[#BC881B] hover:bg-[#D4A02A] text-[#1A1A1A] font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                        className="w-full py-2 bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                       >
                         <ClipboardPaste className="w-3.5 h-3.5" />
-                        <span>Paste {selectedCatalogBookIds.size} books here</span>
+                        <span>Move {selectedCatalogBookIds.size} Selected Books Here</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPasteTargetAlmariId(alm.id);
+                          setPasteTargetShelfNo(1);
+                          setIsPasteBulkModalOpen(true);
+                        }}
+                        className="w-full py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        title="Move books into this Almari"
+                      >
+                        <MoveRight className="w-3 h-3 text-[#BC881B]" />
+                        <span>Move Books to this Almari</span>
                       </button>
                     )}
                   </div>
 
-                  <div className="pt-3 border-t border-[var(--border-subtle)] mt-3 flex items-center justify-between text-[12px] text-[var(--gold-text)]">
-                    <span className="font-semibold">Open Cupboard View</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  {/* Card Footer: Open Cupboard View & View in Catalog */}
+                  <div className="pt-3 border-t border-[var(--border-subtle)] mt-3 flex items-center justify-between text-[12px]">
+                    <div className="flex items-center gap-1 text-[#E0B450] font-semibold group-hover:translate-x-0.5 transition-transform">
+                      <span>Open Cupboard View</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                    {onFilterCatalogByShelf && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onFilterCatalogByShelf(alm.code);
+                        }}
+                        className="text-[11px] font-semibold text-slate-400 hover:text-[#E0B450] flex items-center gap-1 hover:underline cursor-pointer"
+                        title={`Filter Catalog to ${alm.code}`}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>View Catalog</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );

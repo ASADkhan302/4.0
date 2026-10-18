@@ -316,6 +316,21 @@ export default function App() {
   }, [refreshTrueCount]);
 
   useEffect(() => {
+    // Purge any stuck test volume or invalid 9789694151053 accession if found in storage
+    try {
+      const stored = LibraryStorage.getBooks();
+      const hasStuckTest = stored.some(b => 
+        (b.accession_no && b.accession_no.includes('9789694151053')) || 
+        (b.book_name && b.book_name.includes('Verification Test Volume'))
+      );
+      if (hasStuckTest) {
+        const cleaned = stored.filter(b => 
+          !(b.accession_no && b.accession_no.includes('9789694151053')) && 
+          !(b.book_name && b.book_name.includes('Verification Test Volume'))
+        );
+        LibraryStorage.saveBooks(cleaned);
+      }
+    } catch (_) {}
     reloadData();
   }, [reloadData]);
 
@@ -882,14 +897,20 @@ export default function App() {
       <BookImportModal
         isOpen={isBookImportOpen}
         onClose={() => setIsBookImportOpen(false)}
-        onImportComplete={(batchId, count, bookIds) => {
+        onImportComplete={(batchId, count, bookIds, acceptedBooks) => {
+          if (acceptedBooks && acceptedBooks.length > 0) {
+            setBooks(prev => {
+              const existingIds = new Set(prev.map(b => b.id));
+              const fresh = acceptedBooks.filter(b => !existingIds.has(b.id));
+              return [...fresh, ...prev];
+            });
+            setDbTotalBooksCount(prev => prev + acceptedBooks.length);
+          }
           reloadData();
           showToast(`Successfully imported ${count} books from entry sheet.`);
           if (bookIds && bookIds.length > 0) {
             setBatchPrintBookIds(bookIds);
           }
-          // Do not close BookImportModal or auto-open BatchLabelPrintModal.
-          // Allows user to review completion and import another new sheet.
         }}
         onOpenLabelBatchPrint={(bookIds) => {
           setBatchPrintBookIds(bookIds);

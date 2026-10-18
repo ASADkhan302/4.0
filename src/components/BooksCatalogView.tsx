@@ -156,7 +156,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   };
 
   const handleDownloadBookCsvTemplate = () => {
-    const templateCsv = 'Barcode,ISBN,BookTitle,Author,Category,TotalCopies,Shelf,DeweyCallNumber,Publisher,Edition,Year,Language,DateAdded\r\n';
+    const templateCsv = 'AccessionNo,Barcode,ISBN,BookTitle,Author,Category,TotalCopies,Shelf,DeweyCallNumber,Publisher,Edition,Year,Language,DateAdded\r\nULM-00001,0092000000001,978-0131103627,The C Programming Language,Brian W. Kernighan,Computer Science,1,ALM-01 - Shelf 1,005.133 ULM,Prentice Hall,2nd Edition,1988,English,2024-01-15\r\n';
     const blob = new Blob([templateCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -348,6 +348,23 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   // Controlled pagination & GPU optimization (default 50 rows per page to prevent UI freezing on 4,000+ books)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
+
+  // Automatically reset active Catalog search/category/almari filters right after import finishes
+  const prevBooksCountRef = useRef(books.length);
+  useEffect(() => {
+    if (books.length > prevBooksCountRef.current) {
+      setSearchQuery('');
+      setSelectedCategory('ALL');
+      setSelectedStatus('ALL');
+      setSelectedLanguage('ALL');
+      setSelectedGroupFilter('ALL');
+      setSelectedAlmariFilter('ALL');
+      setDateFrom('');
+      setDateTo('');
+      setCurrentPage(1);
+    }
+    prevBooksCountRef.current = books.length;
+  }, [books.length]);
 
   // Reset to page 1 on search or filter change
   useEffect(() => {
@@ -755,8 +772,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               className="btn-primary h-10 px-4 rounded-[10px] text-[13px] font-bold inline-flex items-center gap-2 cursor-pointer shadow-md"
               title="Catalog a new reference volume"
             >
-              <Plus className="w-4 h-4 stroke-[3] shrink-0" />
-              <span className="btn-label">+ Add Book</span>
+              <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
+              <span className="btn-label">Add Book</span>
             </button>
           </div>
         </div>
@@ -825,6 +842,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               selectedCatalogBookIds={selectedBookIds}
               onClearCatalogSelection={handleClearSelection}
               onReloadAlmaris={() => setAlmarisRevision(r => r + 1)}
+              onFilterCatalogByShelf={(almariCode, shelfNo) => {
+                setSearchQuery(shelfNo ? `${almariCode} Shelf ${shelfNo}` : almariCode);
+                setViewMode('grid');
+              }}
               onCatalogBooksUpdated={(updated, msg, batchId) => {
                 if (onBooksUpdated) onBooksUpdated(updated, msg, batchId);
               }}

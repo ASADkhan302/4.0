@@ -76,12 +76,12 @@ const initialBooks = LibraryStorage.getBooks();
 
 assert(
   'Catalog Inventory',
-  'Initial catalog books count',
-  initialBooks.length >= 8,
+  'Initial catalog starts at zero data (0 reference volumes)',
+  initialBooks.length === 0,
   initialBooks.length,
-  '1 book',
-  '1,000,000 books',
-  `Catalog initialized with ${initialBooks.length} academic reference volumes.`
+  0,
+  0,
+  `Catalog verified starting cleanly with ${initialBooks.length} academic reference volumes.`
 );
 
 // Test 1.1: Add book with min copies (total = 1, available = 1)
@@ -211,8 +211,22 @@ assert(
 console.log('\n[SECTION 2] Circulation Desk, Loans, Stock Depletion & Returns');
 
 const todayStr = new Date().toISOString().split('T')[0];
-const borrowers = LibraryStorage.getBorrowers();
-const testBorrower = borrowers.find(b => b.status === 'active' && !LibraryStorage.getTransactions().some(t => t.borrower_id === b.id && t.status !== 'RETURNED' && t.due_date < todayStr)) || borrowers[2];
+let borrowers = LibraryStorage.getBorrowers();
+let testBorrower = borrowers.find(b => b.status === 'active' && !LibraryStorage.getTransactions().some(t => t.borrower_id === b.id && t.status !== 'RETURNED' && t.due_date < todayStr)) || borrowers[0];
+
+if (!testBorrower) {
+  const bRes = LibraryStorage.addBorrower({
+    name: 'Diagnostic Test Scholar',
+    barcode: 'ULM-BOR-TEST-001',
+    role: 'Student',
+    department: 'Computer Science',
+    status: 'active',
+    borrow_limit: 5,
+    email: 'test@ulm.edu.pk',
+    phone: '03001234567',
+  });
+  testBorrower = bRes.borrower || LibraryStorage.getBorrowers()[0];
+}
 const singleCopyBook = minBookRes.book!;
 
 // Test 2.1: Normal Loan Issuance - Decrement Available Copies
@@ -386,7 +400,7 @@ const sqlBooksRes = LibraryStorage.executeSql('SELECT * FROM books');
 assert(
   'SQLite WAL Engine',
   'SELECT query books table integrity',
-  !sqlBooksRes.isError && sqlBooksRes.rows.length >= 8,
+  !sqlBooksRes.isError && sqlBooksRes.rows.length >= 1,
   `${sqlBooksRes.rows.length} rows returned in ${sqlBooksRes.executionTimeMs}ms`,
   '1 row',
   '1,000,000 rows',
@@ -398,7 +412,7 @@ const sqlBorrowersRes = LibraryStorage.executeSql('SELECT * FROM borrowers');
 assert(
   'SQLite WAL Engine',
   'SELECT query borrowers table integrity',
-  !sqlBorrowersRes.isError && sqlBorrowersRes.rows.length >= 5,
+  !sqlBorrowersRes.isError && sqlBorrowersRes.rows.length >= 1,
   `${sqlBorrowersRes.rows.length} rows returned in ${sqlBorrowersRes.executionTimeMs}ms`,
   '1 row',
   '500,000 rows',
@@ -575,22 +589,22 @@ const resetLocation = LibraryStorage.getStorageLocation();
 
 assert(
   'First-Time Opening Reset',
-  'Reset restored exact baseline catalog volumes',
-  resetBooks.length >= 8,
+  'Reset restored exact zero-data catalog baseline',
+  resetBooks.length === 0,
   `${resetBooks.length} titles`,
-  8,
-  1000,
-  'All catalog records restored to factory baseline pristine state.'
+  0,
+  0,
+  'All catalog records reset cleanly to 0 volumes as specified in zero-data reset mandate.'
 );
 
 assert(
   'First-Time Opening Reset',
-  'Reset restored exact baseline borrower profiles',
-  resetBorrowers.length >= 6,
+  'Reset restored exact zero-data borrower profiles baseline',
+  resetBorrowers.length === 0,
   `${resetBorrowers.length} members`,
-  6,
-  1000,
-  'All student and faculty registries re-initialized.'
+  0,
+  0,
+  'All student and faculty registries re-initialized cleanly to 0 members.'
 );
 
 assert(
@@ -646,8 +660,8 @@ console.log('[SECTION 8] Dynamic Chart & Graph Reactivity on Data Mutations');
 // Test 8.1: Chart updates when adding a new book in a unique category
 const preAddBooks = LibraryStorage.getBooks();
 const newBook = LibraryStorage.addBook({
-  barcode: '9789999000001',
-  isbn: '978-9999000001',
+  barcode: '9789999000008',
+  isbn: '978-9999000008',
   book_name: 'Aerospace Propulsion Systems',
   author: 'Dr. Tariq Khan',
   publisher: 'ULM Engineering Press',

@@ -73,39 +73,36 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
   return (
     <>
       <header 
-        className="w-full flex items-center justify-between px-4 select-none z-50 shrink-0 relative transition-colors duration-150 border-b border-[var(--border)] bg-[var(--background)] text-[var(--text-primary)] h-11"
+        className="w-full flex items-center justify-between px-3 select-none z-50 shrink-0 relative transition-colors duration-150 border-b border-white/[0.08] bg-[#0B1220] text-slate-200 h-8"
       >
         {/* Subtle accent hairline across top */}
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--accent)]/40 to-transparent pointer-events-none" />
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#BC881B]/30 to-transparent pointer-events-none" />
 
-        {/* Left Section: Real ULM Crest Window Icon */}
+        {/* Left Section: Real ULM Crest Window Icon + "ULM Library" + Station */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative shrink-0 flex items-center justify-center p-[1px] rounded-full border border-[#BC881B]/40">
             <img 
               src={ULM_CREST_SRC} 
               alt="University of Lakki Marwat crest" 
-              width={18} 
-              height={18} 
-              className="w-[18px] h-[18px] object-contain select-none" 
+              width={16} 
+              height={16} 
+              className="w-4 h-4 object-contain select-none" 
             />
           </div>
-          <span className="text-[11px] font-mono text-[var(--text-muted)] hidden lg:inline">ULM LMS</span>
+          <span className="font-ui text-[12px] font-semibold text-slate-400">ULM Library</span>
+          <span className="text-[11px] text-slate-500 font-mono hidden md:inline">• {stationId}</span>
         </div>
 
-        {/* Center Section: Window Title with Cinzel font - Fluid Responsive Text */}
-        <div className="flex-1 text-center truncate max-w-[80%] mx-auto flex items-center justify-center gap-2 px-2 min-w-0">
-          <span className="font-cinzel text-[12px] sm:text-[14px] md:text-[16px] font-bold tracking-wider whitespace-nowrap truncate text-[var(--text-primary)]">
-            {universityName} <span className="text-[var(--text-muted)] font-normal mx-1.5 font-sans text-[11px] sm:text-[13px] md:text-[15px]">|</span> {libraryName}
-          </span>
-        </div>
+        {/* Center Section: Clean empty spacer (university title is prominently presented in the PrimaryHeader below) */}
+        <div className="flex-1 min-w-0" />
 
         {/* Right Section: Windows System Controls */}
-        <div className="flex items-center h-full -mr-4 shrink-0">
+        <div className="flex items-center h-full -mr-3 shrink-0">
           <button
             onClick={handleMinimize}
             title="Minimize"
             aria-label="Minimize"
-            className="h-10 w-11 flex items-center justify-center transition-colors duration-150 text-[var(--text-muted)] hover:bg-black/5 dark:hover:bg-[#1E293B] hover:text-[var(--text-primary)]"
+            className="h-8 w-10 flex items-center justify-center transition-colors duration-150 text-slate-400 hover:bg-white/[0.08] hover:text-white"
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
@@ -114,7 +111,7 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
             onClick={handleMaximize}
             title={isMaximized ? "Restore Down" : "Maximize"}
             aria-label={isMaximized ? "Restore Down" : "Maximize"}
-            className="h-10 w-11 flex items-center justify-center transition-colors duration-150 text-[var(--text-muted)] hover:bg-black/5 dark:hover:bg-[#1E293B] hover:text-[var(--text-primary)]"
+            className="h-8 w-10 flex items-center justify-center transition-colors duration-150 text-slate-400 hover:bg-white/[0.08] hover:text-white"
           >
             {isMaximized ? (
               <Copy className="w-3 h-3 rotate-180" />
@@ -127,7 +124,7 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
             onClick={handleClose}
             title="Close"
             aria-label="Close"
-            className="h-10 w-12 flex items-center justify-center transition-colors duration-150 text-[var(--text-muted)] hover:bg-[#DC2626] hover:text-[#F1F5F9]"
+            className="h-8 w-11 flex items-center justify-center transition-colors duration-150 text-slate-400 hover:bg-[#DC2626] hover:text-white"
           >
             <X className="w-3.5 h-3.5" />
           </button>

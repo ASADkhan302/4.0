@@ -422,19 +422,72 @@ export class LibraryStorage {
     }
   }
 
+  static async persistBooksToIndexedDB(books: Book[]): Promise<void> {
+    if (typeof indexedDB === 'undefined') return;
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('ulm_library_idb_v1', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('books')) {
+            db.createObjectStore('books', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('loans')) {
+            db.createObjectStore('loans', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('borrowers')) {
+            db.createObjectStore('borrowers', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('books')) {
+            db.close();
+            resolve();
+            return;
+          }
+          const tx = db.transaction('books', 'readwrite');
+          const store = tx.objectStore('books');
+          store.clear();
+          for (let i = 0; i < books.length; i++) {
+            store.put(books[i]);
+          }
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); resolve(); };
+        };
+        req.onerror = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
   static saveBooks(books: Book[]): void {
     this.booksCache = books;
 
     if (typeof window !== 'undefined') {
       if (books.length === 0) {
         localStorage.setItem('ulm_database_cleared', 'true');
+        localStorage.setItem('ulm_initialized_empty', 'true');
         void this.clearAllDatabaseStores();
         this.notifyMutation();
         return;
       }
       try {
         localStorage.removeItem('ulm_database_cleared');
+        localStorage.removeItem('ulm_initialized_empty');
       } catch (_) {}
+
+      // Safe localStorage persistence with QuotaExceededError protection
+      try {
+        const cacheSlice = books.slice(0, 200);
+        localStorage.setItem(STORAGE_KEYS.BOOKS, JSON.stringify(cacheSlice));
+      } catch (quotaErr) {
+        console.warn('[ULM-Storage] localStorage quota reached, persisting to IndexedDB:', quotaErr);
+      }
+
+      // Persist full dataset to IndexedDB (supports unlimited volumes)
+      void this.persistBooksToIndexedDB(books);
 
       // Persist exclusively to SQLite / IndexedDB asynchronous storage engine (zero 5MB quota)
       if (window.ulmLibraryApi) {
@@ -705,10 +758,18 @@ export class LibraryStorage {
    */
   static addBooksBatch(newBooks: Book[]): { success: boolean; count: number } {
     if (!newBooks || newBooks.length === 0) return { success: true, count: 0 };
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('ulm_database_cleared');
+        localStorage.removeItem('ulm_initialized_empty');
+      } catch (_) {}
+    }
     const books = this.getBooks();
-    const combined = [...newBooks, ...books];
+    const existingIds = new Set(books.map(b => b.id));
+    const uniqueNew = newBooks.filter(b => !existingIds.has(b.id));
+    const combined = [...uniqueNew, ...books];
     this.saveBooks(combined);
-    return { success: true, count: newBooks.length };
+    return { success: true, count: uniqueNew.length };
   }
 
   /**

@@ -17,6 +17,7 @@ import {
   Ban
 } from 'lucide-react';
 import { ImporterEngine, ImportPreviewReport, CleanedBookRow, RowProblem } from '../../services/importerEngine';
+import { SmartBookImporter, SmartImportResult } from '../../services/smartBookImporter';
 import { StagedImportEngine, StagedImportProgressUpdate } from '../../services/stagedImportEngine';
 import { AlmariService } from '../../services/almariService';
 import { ImportJob } from '../../types/library';
@@ -25,7 +26,7 @@ import { LibraryStorage } from '../../services/storage';
 interface BookImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportComplete: (batchId: string, importedCount: number, bookIds: string[]) => void;
+  onImportComplete: (batchId: string, importedCount: number, bookIds: string[], acceptedBooks?: import('../../types/library').Book[]) => void;
   onOpenLabelBatchPrint?: (bookIds: string[]) => void;
 }
 
@@ -40,6 +41,8 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
   const [progressMsg, setProgressMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [smartResult, setSmartResult] = useState<SmartImportResult | null>(null);
+  const [showRejectedDetails, setShowRejectedDetails] = useState(false);
   const [previewReport, setPreviewReport] = useState<ImportPreviewReport | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'ERRORS' | 'DUPLICATES' | 'WARNINGS'>('ALL');
   const [lastBatchResult, setLastBatchResult] = useState<{ batchId: string; count: number; bookIds: string[] } | null>(null);
@@ -60,6 +63,8 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
     setProgressMsg('');
     setErrorMsg(null);
     setPreviewReport(null);
+    setSmartResult(null);
+    setShowRejectedDetails(false);
     setSelectedFilter('ALL');
     shouldCancelRef.current.current = false;
   };
@@ -68,11 +73,11 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
     setErrorMsg(null);
     setStage('parsing');
     setProgressPct(10);
-    setProgressMsg('Reading file buffer...');
+    setProgressMsg('Scanning spreadsheet structure & auto-detecting headers...');
 
     try {
       const buffer = await file.arrayBuffer();
-      const report = await ImporterEngine.parseEntrySheet(
+      const res = await SmartBookImporter.importSpreadsheet(
         buffer,
         file.name,
         (pct, msg) => {
@@ -80,15 +85,23 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
           setProgressMsg(msg);
         }
       );
-      if (!report || report.readyRows.length === 0) {
-        setErrorMsg('0 books found: the sheet is empty. Enter books in the sheet and import again.');
+
+      if (!res.success && res.acceptedCount === 0) {
+        setErrorMsg(res.message || '0 books found: all rows were rejected or the sheet is empty.');
         setStage('upload');
         return;
       }
-      setPreviewReport(report);
-      setStage('preview');
+
+      setSmartResult(res);
+      setLastBatchResult({
+        batchId: 'batch_' + Date.now(),
+        count: res.acceptedCount,
+        bookIds: res.acceptedBooks.map(b => b.id),
+      });
+      setStage('complete');
+      onImportComplete('batch_' + Date.now(), res.acceptedCount, res.acceptedBooks.map(b => b.id), res.acceptedBooks);
     } catch (err: any) {
-      setErrorMsg(err.message || '0 books found: the sheet is empty. Enter books in the sheet and import again.');
+      setErrorMsg(err.message || '0 books found: the sheet is empty or has invalid columns.');
       setStage('upload');
     }
   };
@@ -384,20 +397,21 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white tracking-wide">
-                    Choose Excel Book Entry Sheet (.xlsx) or drag &amp; drop
+                    Choose Excel / CSV Sheet (.xlsx, .xls, .csv) or drag &amp; drop
                   </p>
                   <p className="text-xs text-[#B3AABD] mt-1">
-                    Accepts standard macro-free .xlsx files (up to 50 MB, 100,000 rows).
+                    Auto-detects title banner rows, fuzzy-matches columns, and assigns barcodes.
                   </p>
                 </div>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx"
+                  accept=".xlsx,.xls,.csv"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) handleFileSelected(file);
+                    e.target.value = '';
                   }}
                 />
               </div>
@@ -665,82 +679,103 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
             </div>
           )}
 
-          {/* STAGE: COMPLETE */}
+          {/* STAGE: COMPLETE (Import Summary Modal) */}
           {stage === 'complete' && lastBatchResult && (
-            <div className="py-8 flex flex-col items-center justify-center space-y-5 text-center">
+            <div className="py-6 flex flex-col items-center justify-center space-y-5 text-center">
               <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
                 <Check className="w-8 h-8 stroke-[2.5]" />
               </div>
-              <div className="space-y-1 max-w-md">
-                <h3 className="text-base font-bold text-white">Import Successfully Committed!</h3>
+
+              <div className="space-y-1 max-w-lg">
+                <h3 className="text-lg font-bold text-white">Import Summary Report</h3>
                 <p className="text-xs text-[#B3AABD]">
-                  Added <strong>{lastBatchResult.count.toLocaleString()}</strong> books to SQLite catalog with automatic barcodes and updated search collations.
+                  File: <strong className="text-white">{smartResult?.fileName || 'Spreadsheet'}</strong> (Sheet: {smartResult?.sheetName || 'Default'})
                 </p>
-                <p className="text-[11px] font-mono text-[#BC881B] pt-1">
-                  Batch ID: {lastBatchResult.batchId}
-                </p>
-                {undoStatusMsg && (
-                  <p className="text-xs text-rose-300 bg-rose-500/10 p-2 rounded border border-rose-500/30 mt-2">
-                    {undoStatusMsg}
-                  </p>
-                )}
               </div>
 
-              {/* Prompt for New Sheet / Add More Data */}
-              <div className="w-full max-w-lg p-5 rounded-xl bg-gradient-to-b from-emerald-950/30 via-[#1C271E]/50 to-emerald-950/20 border border-emerald-500/30 shadow-lg flex flex-col items-center text-center space-y-3">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                  <span>Add More Books From a New Sheet?</span>
+              {/* Status Badges */}
+              <div className="w-full max-w-lg grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex items-center gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300 block">Accepted &amp; Cataloged</span>
+                    <span className="text-lg font-bold text-white tabular-nums">
+                      {smartResult ? smartResult.acceptedCount.toLocaleString() : lastBatchResult.count.toLocaleString()} Valid Books
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-[#C5BCCF] max-w-md">
-                  All <strong>{lastBatchResult.count.toLocaleString()}</strong> books have been imported into the catalog. If you have another Excel (.xlsx, .xls) or CSV sheet, you can select and add it right now.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleReset();
-                      setTimeout(() => {
-                        fileInputRef.current?.click();
-                      }, 50);
-                    }}
-                    className="px-5 py-2.5 rounded-[10px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <UploadCloud className="w-4 h-4" />
-                    <span>Select &amp; Import New Sheet</span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="px-4 py-2.5 rounded-[10px] bg-white/[0.06] hover:bg-white/[0.12] text-[#D8D2DE] hover:text-white text-xs font-semibold uppercase tracking-wider border border-white/10 transition-colors cursor-pointer"
-                  >
-                    <span>Upload Screen</span>
-                  </button>
+                <div className={`p-4 rounded-xl border flex items-center gap-3 ${
+                  smartResult && smartResult.rejectedCount > 0
+                    ? 'bg-amber-950/40 border-amber-500/40'
+                    : 'bg-white/[0.04] border-white/10'
+                }`}>
+                  <AlertTriangle className={`w-6 h-6 shrink-0 ${
+                    smartResult && smartResult.rejectedCount > 0 ? 'text-amber-400' : 'text-slate-400'
+                  }`} />
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B3AABD] block">Rejected Incomplete</span>
+                    <span className="text-lg font-bold text-white tabular-nums">
+                      {smartResult ? smartResult.rejectedCount.toLocaleString() : '0'} Rows
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Secondary Actions & On-demand Batch Labels */}
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              {/* Expandable Rejected Rows Table */}
+              {smartResult && smartResult.rejectedRows.length > 0 && (
+                <div className="w-full max-w-lg text-left space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-300">
+                      Rejected Incomplete Rows ({smartResult.rejectedRows.length}):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectedDetails(!showRejectedDetails)}
+                      className="text-xs text-[#BC881B] hover:underline cursor-pointer"
+                    >
+                      {showRejectedDetails ? 'Hide Details ▲' : 'View Details ▼'}
+                    </button>
+                  </div>
+
+                  {showRejectedDetails && (
+                    <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#120F16] text-xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-white/[0.06] text-[#B3AABD] text-[11px] uppercase tracking-wider sticky top-0">
+                          <tr>
+                            <th className="p-2 border-b border-white/10">Row #</th>
+                            <th className="p-2 border-b border-white/10">Accession No</th>
+                            <th className="p-2 border-b border-white/10">Title</th>
+                            <th className="p-2 border-b border-white/10">Author</th>
+                            <th className="p-2 border-b border-white/10">Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.06] text-slate-200">
+                          {smartResult.rejectedRows.map((rej, idx) => (
+                            <tr key={idx} className="hover:bg-white/[0.02]">
+                              <td className="p-2 font-mono text-amber-400">{rej.rowNumber}</td>
+                              <td className="p-2 font-mono text-[11px] text-[#BC881B]">{rej.accessionNo || '(None)'}</td>
+                              <td className="p-2 truncate max-w-[120px]" title={rej.title}>{rej.title}</td>
+                              <td className="p-2 truncate max-w-[100px]" title={rej.author}>{rej.author}</td>
+                              <td className="p-2 text-rose-300">{rej.reason}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Primary Actions */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={handleDownloadShelvingList}
-                  className="px-4 py-2.5 rounded-[10px] bg-[#541A72] hover:bg-[#6D2394] text-white text-xs font-semibold uppercase tracking-wider border border-[#A66BC9]/40 flex items-center gap-2 shadow cursor-pointer transition-colors"
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-[10px] bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#141214] font-bold text-xs uppercase tracking-wider shadow-md cursor-pointer transition-all hover:scale-105"
                 >
-                  <Layers className="w-4 h-4 text-[#C084FC]" />
-                  <span>Download Shelving List</span>
+                  Close &amp; View Catalog
                 </button>
-
-                {previewReport && previewReport.problems.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadProblemReport}
-                    className="px-4 py-2.5 rounded-[10px] bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 text-xs font-semibold uppercase tracking-wider border border-amber-500/30 flex items-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Problem Report</span>
-                  </button>
-                )}
 
                 {onOpenLabelBatchPrint && (
                   <button
@@ -749,29 +784,29 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
                       onClose();
                       onOpenLabelBatchPrint(lastBatchResult.bookIds);
                     }}
-                    className="px-4 py-2.5 rounded-[10px] bg-[#BC881B]/20 hover:bg-[#BC881B]/30 text-[#E0B450] font-semibold text-xs uppercase tracking-wider border border-[#BC881B]/40 hover:border-[#BC881B]/60 transition-colors flex items-center gap-2 cursor-pointer"
-                    title="Print labels for this batch now, or use the Batch Labels button in the catalog anytime"
+                    className="px-4 py-2.5 rounded-[10px] bg-[#541A72] hover:bg-[#6D2394] text-white text-xs font-semibold uppercase tracking-wider border border-[#A66BC9]/40 flex items-center gap-2 cursor-pointer transition-colors"
                   >
                     <Printer className="w-4 h-4 text-[#E0B450]" />
-                    <span>Batch Labels ({lastBatchResult.count} Books)</span>
+                    <span>Print Barcode Labels</span>
                   </button>
                 )}
 
                 <button
                   type="button"
-                  onClick={handleUndoImport}
-                  className="px-4 py-2.5 rounded-[10px] bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+                  onClick={handleReset}
+                  className="px-4 py-2.5 rounded-[10px] bg-white/[0.06] hover:bg-white/[0.12] text-[#D8D2DE] hover:text-white text-xs font-semibold uppercase tracking-wider border border-white/10 transition-colors cursor-pointer"
                 >
-                  Undo This Import
+                  Import Another Sheet
                 </button>
-
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 rounded-[10px] bg-white/[0.10] hover:bg-white/[0.18] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  Done &amp; View Catalog
-                </button>
+                {handleUndoImport && (
+                  <button
+                    type="button"
+                    onClick={handleUndoImport}
+                    className="px-4 py-2.5 rounded-[10px] bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Undo This Import
+                  </button>
+                )}
               </div>
             </div>
           )}

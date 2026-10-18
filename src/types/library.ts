@@ -210,6 +210,8 @@ export interface Almari {
   name_ur: string;
   shelf_count: number;
   books_per_shelf: number; // Guidance capacity
+  location?: string;
+  category?: string;
   notes?: string;
   is_active: boolean;
   name_locked?: boolean;

@@ -9,12 +9,11 @@
   :root {
     color-scheme: dark;
 
-    --font-cinzel: 'Cinzel', Georgia, serif;
-    --font-cinzel-decorative: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
-    --font-display-serif: 'Playfair Display', Georgia, serif;
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
-    --font-urdu: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', serif;
+    --font-urdu: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif;
+    --font-sans: var(--font-ui);
 
     /* ULM BRAND PALETTE TOKENS */
     /* Surfaces */
@@ -156,25 +155,35 @@
     border-color: var(--border-control) !important;
   }
 
+  .font-display {
+    font-family: var(--font-display) !important;
+  }
+  .font-ui {
+    font-family: var(--font-ui) !important;
+  }
+  .font-mono {
+    font-family: var(--font-mono) !important;
+  }
+  .font-urdu {
+    font-family: var(--font-urdu) !important;
+  }
+
   html {
     scroll-behavior: smooth;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-size: 14px;
+    font-variant-numeric: lining-nums tabular-nums;
   }
 
   body {
-    font-family: var(--font-sans);
+    font-family: var(--font-ui);
     background-color: var(--background);
     color: var(--text-primary);
     overflow: hidden;
+    font-variant-numeric: lining-nums tabular-nums;
     transition: background-color var(--transition), color var(--transition);
-  }
-
-  /* Universal typography minimum: nothing below 12px */
-  * {
-    min-font-size: 12px;
   }
 }
 
