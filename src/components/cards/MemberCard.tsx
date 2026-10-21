@@ -2,6 +2,7 @@ import React from 'react';
 import { Wifi, Shield, Award, CheckCircle } from 'lucide-react';
 import { Borrower } from '../../types/library';
 import { ULM_CREST_SRC, ULM_CREST_LOGO_SRC, ULM_CREST_WATERMARK_SRC } from '../../assets/brand/crestData';
+import { ULM_CREST_LOGO } from '../../constants/branding';
 
 export interface MemberCardProps {
   member: Partial<Borrower> | null;
@@ -159,22 +160,13 @@ export const MemberCard: React.FC<MemberCardProps> = ({
             }}
           />
 
-          {/* Authentic ULM Crest Watermark Centered Behind Content (14% institutional opacity) */}
-          <div 
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[160px] h-[160px] pointer-events-none select-none z-1 flex items-center justify-center opacity-[0.14]" 
+          {/* Subtle Corner Watermark (Rule 1-C) */}
+          <img
+            src={ULM_CREST_LOGO}
+            alt=""
             aria-hidden="true"
-          >
-            <img 
-              src={ULM_CREST_LOGO_SRC} 
-              alt="University of Lakki Marwat crest watermark" 
-              width={160} 
-              height={160} 
-              className="w-full h-full object-contain pointer-events-none select-none" 
-              style={{ 
-                imageRendering: '-webkit-optimize-contrast' 
-              }}
-            />
-          </div>
+            className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08] z-0"
+          />
 
           {/* Small Lanyard-Slot Pill Centered Above Card (simulated punched slot) */}
           {showLanyardSlot && (
@@ -186,27 +178,22 @@ export const MemberCard: React.FC<MemberCardProps> = ({
             <>
               {/* HEADER ROW */}
               <div className="relative z-10 flex items-center justify-between pb-1.5 border-b border-[#d99e32]/35">
-                {/* Official Crest (about 9.5mm high) & University Titles */}
+                {/* Official Crest & University Titles */}
                 <div className="flex items-center gap-2">
-                  <div className="relative shrink-0 flex items-center justify-center p-[1px] rounded-full bg-gradient-to-br from-[#d99e32]/30 via-transparent to-[#d99e32]/15 border border-[#d99e32]/50 shadow-[0_0_6px_rgba(217,158,50,0.3)]">
+                  <div className="relative shrink-0 flex items-center justify-center p-[1px] rounded-lg bg-[#131B2E] border border-[#d99e32]/50 shadow-[0_0_6px_rgba(217,158,50,0.3)]">
                     <img 
-                      src={ULM_CREST_SRC} 
-                      alt="University of Lakki Marwat crest" 
-                      width={38} 
-                      height={38} 
-                      className="w-[38px] h-[38px] max-w-[9.5mm] max-h-[9.5mm] object-contain shrink-0 select-none drop-shadow-sm" 
-                      style={{ imageRendering: '-webkit-optimize-contrast' }}
+                      src={ULM_CREST_LOGO} 
+                      alt="ULM Crest" 
+                      className="w-9 h-9 object-contain flex-shrink-0 select-none drop-shadow-sm" 
                     />
                   </div>
 
                   <div>
                     <h1 className="font-cinzel text-white uppercase font-bold tracking-wider text-[10px] leading-tight drop-shadow-xs">
-                      University of Lakki Marwat
+                      UNIVERSITY OF LAKKI MARWAT
                     </h1>
-                    <p className="text-[#f6b84a] font-mono text-[7px] font-bold tracking-[0.15em] uppercase leading-none mt-0.5 flex items-center gap-1">
-                      <span>Central Campus Library</span>
-                      <span className="text-[#d99e32]/80">•</span>
-                      <span>Smart ID</span>
+                    <p className="text-[#f6b84a] font-mono text-[7px] font-bold tracking-[0.14em] uppercase leading-none mt-0.5 flex items-center gap-1">
+                      <span>LIBRARY MEMBERSHIP CARD</span>
                     </p>
                   </div>
                 </div>

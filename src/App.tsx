@@ -24,7 +24,9 @@ import { BarcodePrintModal } from './components/modals/BarcodePrintModal';
 import { DeleteBookConfirmModal } from './components/modals/DeleteBookConfirmModal';
 import { DeleteBorrowerConfirmModal } from './components/modals/DeleteBorrowerConfirmModal';
 import { StorageLocationModal } from './components/modals/StorageLocationModal';
+import { StorageSetupModal } from './components/modals/StorageSetupModal';
 import { BookImportModal } from './components/modals/BookImportModal';
+import { ExcelImportModal } from './components/modals/ExcelImportModal';
 import { BatchLabelPrintModal } from './components/modals/BatchLabelPrintModal';
 import { DataFilesDiffModal } from './components/modals/DataFilesDiffModal';
 import { WelcomeLibraryModal } from './components/modals/WelcomeLibraryModal';
@@ -39,7 +41,14 @@ import { LibraryDataFilesService, ExternalChangesSummary } from './services/libr
 import { BarcodeService } from './services/barcodeService';
 import { BookSheetService } from './services/bookSheetService';
 import { LibraryFolderService } from './services/libraryFolderService';
-import { runSafeLocalStorageMigration, getTrueDatabaseBookCount } from './services/libraryStorageAndMigration';
+import { 
+  runSafeLocalStorageMigration, 
+  getTrueDatabaseBookCount, 
+  computeNextSerial,
+  resetEntireDatabaseToZero 
+} from './services/libraryStorageAndMigration';
+import { initDisplayAndThemeSystem } from './services/displayResolutionManager';
+import { ULM_CREST_LOGO } from './constants/branding';
 import { ULM_CREST_LOGO_SRC, ULM_CREST_WATERMARK_SRC } from './assets/brand/crestData';
 
 export default function App() {
@@ -126,6 +135,16 @@ export default function App() {
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
   const [waitingSheetCount, setWaitingSheetCount] = useState<number>(0);
 
+  // Rule 1: Mandatory Setup Gate on First Install or Post-Reset
+  const [isStorageSetupModalOpen, setIsStorageSetupModalOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('ulm_data_folder_config_v1');
+    }
+    return false;
+  });
+  const [isStorageSetupResetMode, setIsStorageSetupResetMode] = useState(false);
+  const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
+
   // App opening animation state
   const [showSplash, setShowSplash] = useState<boolean>(true);
   const [isAppEntered, setIsAppEntered] = useState<boolean>(false);
@@ -140,6 +159,11 @@ export default function App() {
         setDbTotalBooksCount(count);
       }
     } catch (_) {}
+  }, []);
+
+  // Initialize Display Resolution Manager & Liquid Glass Theme Orchestrator
+  useEffect(() => {
+    initDisplayAndThemeSystem();
   }, []);
 
   // Initialize BookSheetService and monitor waiting items
@@ -199,6 +223,13 @@ export default function App() {
   const handleSplashComplete = useCallback(async () => {
     setShowSplash(false);
     setIsAppEntered(true);
+
+    const hasFolderConfig = typeof window !== 'undefined' && !!localStorage.getItem('ulm_data_folder_config_v1');
+    if (!hasFolderConfig) {
+      setIsStorageSetupResetMode(false);
+      setIsStorageSetupModalOpen(true);
+      return;
+    }
 
     const folderStatus = await LibraryFolderService.init();
     if (folderStatus.status === 'first_run') {
@@ -294,7 +325,7 @@ export default function App() {
     }, toastRemainingRef.current);
   };
 
-  // Reload all data from local repository & persistent DB
+  // Reload all data from local repository & persistent DB directly (Rule 2-4)
   const reloadData = useCallback(async () => {
     try {
       const isCleared = typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true';
@@ -304,9 +335,15 @@ export default function App() {
       } else {
         const dbBooks = await LibraryStorage.loadAllBooksFromDb();
         setBooks(dbBooks);
+        if (dbBooks && dbBooks.length > 0) {
+          const serialInfo = computeNextSerial(dbBooks);
+          try {
+            localStorage.setItem('ulm_highest_serial_number_v1', String(serialInfo.maxSerial));
+          } catch (_) {}
+        }
       }
     } catch (_) {
-      setBooks(LibraryStorage.getBooks());
+      setBooks([]);
     }
     setBorrowers(LibraryStorage.getBorrowers());
     setTransactions(LibraryStorage.getTransactions());
@@ -626,17 +663,33 @@ export default function App() {
 
         {/* WORKSPACE VIEW (Screen switch: 120ms fade out, 200ms 6px upward slide and fade) */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 relative overflow-hidden">
-          {/* Static ULM Crest Watermark Layer */}
-          <div className="watermark pointer-events-none select-none z-0 print:hidden" aria-hidden="true">
-            <img
-              src={ULM_CREST_LOGO_SRC}
-              alt="University of Lakki Marwat crest watermark"
-              width={640}
-              height={640}
-              className="w-full h-full object-contain pointer-events-none select-none"
-              style={{ imageRendering: '-webkit-optimize-contrast' }}
-            />
+          {/* Ambient Refractive Background Orbs + Official ULM Crest Watermark */}
+          <div className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden print:hidden" aria-hidden="true">
+            {/* 1. ULM Royal Amethyst Orb (top-left) */}
+            <div className="w-[580px] h-[580px] rounded-full ulm-ambient-purple-orb absolute -top-48 -left-48 pointer-events-none opacity-80" />
+            {/* 2. ULM 24K Liquid Gold Orb (bottom-right) */}
+            <div className="w-[640px] h-[640px] rounded-full ulm-ambient-gold-orb absolute -bottom-56 -right-56 pointer-events-none opacity-75" />
+            {/* 3. Campus Sky Cyan Orb (top-right) */}
+            <div className="w-[520px] h-[520px] rounded-full ulm-ambient-cyan-orb absolute -top-32 right-1/4 pointer-events-none opacity-70" />
+            {/* 4. Emerald Scholar Mist Orb (bottom-left) */}
+            <div className="w-[480px] h-[480px] rounded-full ulm-ambient-emerald-orb absolute -bottom-36 left-1/3 pointer-events-none opacity-65" />
+            {/* 5. Liquid Amber Orb (center) */}
+            <div className="w-[500px] h-[500px] rounded-full ulm-ambient-amber-orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+
+            {/* Official ULM Crest Watermark Layer */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <img
+                src={ULM_CREST_LOGO}
+                alt=""
+                aria-hidden="true"
+                className="w-[440px] h-[440px] object-contain filter drop-shadow-[0_0_32px_rgba(188,136,27,0.22)] transition-opacity duration-300"
+                style={{ opacity: 'var(--ulm-crest-opacity, 0.075)' }}
+              />
+            </div>
           </div>
+
+          {/* Eye-Comfort Glare Veil Layer */}
+          <div className="fixed inset-0 pointer-events-none z-50 ulm-eye-glare-veil" aria-hidden="true" />
 
           <main 
             key={activeTab}
@@ -665,7 +718,7 @@ export default function App() {
               setIsAddEditOpen(true);
             }}
             onPrintBarcode={(book) => setBookForPrint(book)}
-            onOpenImportBookEntrySheet={() => setIsBookImportOpen(true)}
+            onOpenImportBookEntrySheet={() => setIsExcelImportModalOpen(true)}
             onOpenBatchLabelPrint={() => {
               setBatchPrintBookIds([]);
               setIsBatchLabelPrintOpen(true);
@@ -772,20 +825,12 @@ export default function App() {
             onResetDemoData={handleResetDemoData}
             onClearDemoData={handleClearDemoData}
             onResetToZeroComplete={async () => {
-              try {
-                localStorage.setItem('ulm_database_cleared', 'true');
-                localStorage.removeItem('ulm_books');
-                localStorage.removeItem('ulm_lms_books');
-                localStorage.removeItem('books');
-                localStorage.removeItem('ulm_first_open_thumbnail_boot_cache_v1');
-              } catch (_) {}
+              await resetEntireDatabaseToZero();
               setBooks([]);
               setDbTotalBooksCount(0);
-              await LibraryStorage.clearAllDatabaseStores();
-              await reloadData();
-              setBooks([]);
-              setDbTotalBooksCount(0);
-              showToast('Library reset to zero. Pre-reset backup saved.');
+              setIsStorageSetupResetMode(true);
+              setIsStorageSetupModalOpen(true);
+              showToast('Library reset to zero. Please configure Library Data Folder.');
             }}
             onPlayBootAnimation={handleReplaySplash}
             onOpenStorageModal={() => setIsStorageModalOpen(true)}
@@ -915,6 +960,27 @@ export default function App() {
         onOpenLabelBatchPrint={(bookIds) => {
           setBatchPrintBookIds(bookIds);
           setIsBatchLabelPrintOpen(true);
+        }}
+      />
+
+      {/* Permanent Excel Import Modal with 250-row Chunks & Strict Series (Rule 2 & 4) */}
+      <ExcelImportModal
+        isOpen={isExcelImportModalOpen}
+        onClose={() => setIsExcelImportModalOpen(false)}
+        onImportComplete={(importedCount) => {
+          reloadData();
+          showToast(`Successfully imported ${importedCount.toLocaleString()} books directly to persistent storage.`);
+        }}
+      />
+
+      {/* Mandatory First-Install & Post-Reset Storage Setup Gate (Rule 1) */}
+      <StorageSetupModal
+        isOpen={isStorageSetupModalOpen}
+        isResetMode={isStorageSetupResetMode}
+        onConfigured={(_path) => {
+          setIsStorageSetupModalOpen(false);
+          reloadData();
+          showToast('Library data folder configured & Master Excel initialized.');
         }}
       />
 

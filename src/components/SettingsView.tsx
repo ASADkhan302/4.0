@@ -27,7 +27,8 @@ import {
   ShieldAlert,
   Layers,
   Library,
-  FileCode
+  FileCode,
+  Palette
 } from 'lucide-react';
 import { CoreSystemDocService } from '../services/coreSystemDocService';
 import { SystemSettings, LinkedSheetInfo } from '../types/library';
@@ -40,10 +41,12 @@ import { LibraryFolderService } from '../services/libraryFolderService';
 import { RealStorageService, StorageStatus } from '../services/realStorageService';
 import { ResetToZeroService, UndoResetMeta } from '../services/resetToZeroService';
 import { ResetToZeroModal } from './modals/ResetToZeroModal';
-import { ULM_CREST_SRC } from '../assets/brand/crestData';
+import { syncMasterExcelRegister, downloadMasterExcelRegister } from '../services/libraryStorageAndMigration';
+import { ULM_CREST_LOGO } from '../constants/branding';
 import { ButtonAuditPanel } from './ui/ButtonAuditPanel';
 import { GroupsSettingsTab } from './settings/GroupsSettingsTab';
 import { AlmarisSettingsTab } from './settings/AlmarisSettingsTab';
+import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab';
 
 interface SettingsViewProps {
   settings: SystemSettings;
@@ -75,7 +78,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmClearDemo, setConfirmClearDemo] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'groups' | 'almaris'>('system');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'appearance' | 'groups' | 'almaris'>('system');
 
   // Barcode & Transfer Actions State
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -603,6 +606,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setActiveSettingsTab('appearance')}
+            className={`px-4 py-2 rounded-[8px] text-[13px] font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+              activeSettingsTab === 'appearance'
+                ? 'bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40'
+                : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            <Palette className="w-4 h-4" />
+            Liquid Glass, Theme & Resolution (تھیم اور ڈسپلے)
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveSettingsTab('groups')}
             className={`px-4 py-2 rounded-[8px] text-[13px] font-semibold transition-all flex items-center gap-2 cursor-pointer ${
               activeSettingsTab === 'groups'
@@ -627,6 +642,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
 
+        {activeSettingsTab === 'appearance' && (
+          <AppearanceSettingsTab />
+        )}
+
         {activeSettingsTab === 'groups' && (
           <GroupsSettingsTab />
         )}
@@ -645,47 +664,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* Workstation Diagnostics & Boot Animation Ceremony */}
-        {onPlayBootAnimation && (
-          <div className="bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/[0.08] rounded-[16px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)] flex flex-wrap items-center justify-between gap-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-[#541A72]" />
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-[10px] bg-[#541A72]/25 border border-[#A66BC9]/30 flex items-center justify-center text-[#C084FC] shrink-0 shadow-2xs">
-                <Sparkles className="w-5 h-5 stroke-[2]" />
-              </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>App Opening Animation Ceremony</span>
-                </h3>
-                <p className="text-xs text-[#B3AABD] mt-0.5">
-                  Play the university workstation boot sequence and diagnostic seal animation.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onPlayBootAnimation}
-              className="px-4 h-10 rounded-[10px] bg-[#541A72]/25 hover:bg-[#541A72]/45 text-[#E9D5FF] border border-[#541A72]/50 hover:border-[#A66BC9]/70 text-xs font-semibold uppercase tracking-wider flex items-center gap-2 hover:-translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
-            >
-              <span>⚡ Play Boot Intro</span>
-            </button>
-          </div>
-        )}
-
         {/* Settings > About Application & Institutional Crest */}
         <div className="bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/[0.08] rounded-[16px] p-5 sm:p-6 shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)] relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#541A72]" />
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
-            {/* Crest 96px with Refined Institutional Gold Styling */}
-            <div className="relative shrink-0 flex items-center justify-center p-1.5 rounded-full bg-gradient-to-br from-[#BC881B]/25 via-transparent to-[#BC881B]/15 border border-[#BC881B]/40 shadow-[0_0_20px_rgba(188,136,27,0.25)]">
+            {/* Crest with Refined Institutional Styling */}
+            <div className="relative shrink-0 flex items-center justify-center p-1.5 rounded-2xl bg-[#131B2E] border border-[#BC881B]/40 shadow-[0_0_20px_rgba(188,136,27,0.25)]">
               <img
-                src={ULM_CREST_SRC}
-                alt="University of Lakki Marwat crest"
-                width={96}
-                height={96}
-                className="w-24 h-24 object-contain drop-shadow-md select-none"
-                style={{ imageRendering: '-webkit-optimize-contrast' }}
+                src={ULM_CREST_LOGO}
+                alt="University of Lakki Marwat Crest"
+                width={88}
+                height={88}
+                className="w-20 h-20 sm:w-22 sm:h-22 object-contain drop-shadow-md select-none"
               />
             </div>
 
@@ -699,51 +689,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-[#E7E2EC] leading-relaxed">
-                Enterprise Library Management System with offline SQLite transaction engine, C++20 Win32 native performance architecture, multi-user file synchronization, and Code-128 barcode circulation desk.
+                Central Campus Library Management System with offline SQLite transaction engine, multi-user file synchronization, and Code-128 barcode circulation desk.
               </p>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 pt-1 text-[11px] font-mono text-[#B3AABD]">
-                <span>Build: 2026.1 Enterprise</span>
+                <span>Build: 2026.1 Enterprise Desktop</span>
                 <span>•</span>
-                <span>Lakki Marwat, KPK, Pakistan</span>
+                <span>Lakki Marwat, Khyber Pakhtunkhwa, Pakistan</span>
                 <span>•</span>
                 <span>Copyright © 2026 University of Lakki Marwat</span>
-              </div>
-              <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowButtonAudit(!showButtonAudit)}
-                  className="px-3 py-1.5 rounded-[8px] bg-[#BC881B]/20 hover:bg-[#BC881B]/35 border border-[#BC881B]/40 text-[#E0B450] text-xs font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{showButtonAudit ? 'Hide UI Audit' : '🔍 UI System Audit'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadCoreDoc}
-                  className="px-3 py-1.5 rounded-[8px] bg-[#541A72]/25 hover:bg-[#541A72]/40 border border-[#A66BC9]/30 text-[#D8B4FE] text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                  title="Download docs/ULM_LMS_CORE_SYSTEM.md"
-                >
-                  <FileCode className="w-3.5 h-3.5 text-[#C084FC]" />
-                  <span>Download Core System Spec (.md)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyCoreDoc}
-                  className="px-3 py-1.5 rounded-[8px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-[#E0D8E6] text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                  title="Copy full non-UI system specification & LLM prompt to clipboard"
-                >
-                  {copiedCoreDoc ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                      <span className="text-emerald-400 font-bold">Prompt Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-[#B3AABD]" />
-                      <span>Copy Core System Prompt</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           </div>
@@ -1355,6 +1308,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </>
                   )}
                 </button>
+
+                {/* 1-Click Master Excel Sync / Download (Rule 3) */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await syncMasterExcelRegister();
+                      await downloadMasterExcelRegister();
+                    } catch (e: any) {
+                      setLocationNotice(`Master Excel sync notice: ${e.message}`);
+                    }
+                  }}
+                  className="px-3.5 h-10 rounded-[10px] text-xs font-semibold uppercase tracking-wider border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  title="Auto-Sync & Download Live Master Excel Register (ULM_Master_Books_Register.xlsx)"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span>Sync Master Excel (.xlsx)</span>
+                </button>
               </div>
 
               {/* Location Notification Banner */}
@@ -1634,15 +1605,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Action 2: [Reset to zero] */}
+              {/* Action 2: [Reset App / Clear All Data] (Rule 1-3) */}
               <div className="p-4 rounded-[12px] bg-rose-500/[0.03] border border-rose-500/25 hover:border-rose-500/40 transition-colors flex flex-col justify-between space-y-3">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <ShieldAlert className="w-4 h-4 text-rose-400" />
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Action 2: Reset to Zero</h4>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Action 2: Reset App / Clear All Data</h4>
                   </div>
                   <p className="text-xs text-[#B3AABD] leading-relaxed">
-                    Deletes <strong>ALL</strong> library data: books and copies, barcodes, members, photos, loans, fines, import batches, search caches, and write queues. Next accession resets to 1 (ULM-00001). Generates a verified pre-reset backup first.
+                    Clears SQLite and IndexedDB tables, removes folder configuration and serial keys, resets catalog to strictly 0 books (zero dummy/seed data), and immediately opens the Library Data Folder &amp; Master Excel Setup Gate.
                   </p>
                 </div>
 
@@ -1651,10 +1622,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="button"
                     onClick={() => setIsResetToZeroModalOpen(true)}
                     className="flex items-center gap-2 px-4 h-10 rounded-[10px] border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer hover:-translate-y-0.5 active:scale-[0.98]"
-                    title="Safely wipe database with pre-reset backup"
+                    title="Reset app, purge all data to zero, and configure fresh folder"
                   >
                     <Trash2 className="w-4 h-4 text-rose-400" />
-                    <span>Reset to Zero</span>
+                    <span>Reset App / Clear All Data</span>
                   </button>
                 </div>
               </div>

@@ -78,18 +78,11 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
         {/* Subtle accent hairline across top */}
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#BC881B]/30 to-transparent pointer-events-none" />
 
-        {/* Left Section: Real ULM Crest Window Icon + "ULM Library" + Station */}
+        {/* Left Section: Clean window title without crest icon */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="relative shrink-0 flex items-center justify-center p-[1px] rounded-full border border-[#BC881B]/40">
-            <img 
-              src={ULM_CREST_SRC} 
-              alt="University of Lakki Marwat crest" 
-              width={16} 
-              height={16} 
-              className="w-4 h-4 object-contain select-none" 
-            />
-          </div>
-          <span className="font-ui text-[12px] font-semibold text-slate-400">ULM Library</span>
+          <span className="font-sans text-[12px] font-medium text-slate-300 select-none">
+            ULM Library — Central Campus Workstation
+          </span>
           <span className="text-[11px] text-slate-500 font-mono hidden md:inline">• {stationId}</span>
         </div>
 

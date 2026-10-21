@@ -417,13 +417,13 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               title={
                 <div className="flex items-center gap-2">
                   <StatusPill label="Entry sheet" variant="gold" />
-                  <span className="text-base font-bold text-white">Book Entry Sheet Import</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-white">Book Entry Sheet Import</span>
                 </div>
               }
               hairlineColor="#BC881B"
             >
               <div className="space-y-4 pt-1">
-                <p className="text-[13px] text-[#E7E2EC] leading-relaxed">
+                <p className="text-[13px] text-slate-700 dark:text-[#E7E2EC] leading-relaxed">
                   The official <strong>ULM_Book_Entry_Sheet.xlsx</strong> spreadsheet contains 3,000 pre-formatted rows for entering library acquisitions with dropdown validations.
                   Physical barcodes and accession identifiers are assigned automatically upon import.
                 </p>
@@ -467,13 +467,13 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               title={
                 <div className="flex items-center gap-2">
                   <StatusPill label="High-scale" variant="blue" />
-                  <span className="text-base font-bold text-white">Full-Library Scaling & Live Database Recount</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-white">Full-Library Scaling & Live Database Recount</span>
                 </div>
               }
               hairlineColor="#29658E"
             >
               <div className="space-y-4 pt-1">
-                <p className="text-[13px] text-[#E7E2EC] leading-relaxed">
+                <p className="text-[13px] text-slate-700 dark:text-[#E7E2EC] leading-relaxed">
                   Test and verify high-scale operation beyond 5,000 books. Bulk-insert <strong>+25,000 test books</strong> in non-blocking 500-record chunks or trigger an instant count synchronization across the native SQLite / IndexedDB database engine.
                 </p>
 
@@ -541,17 +541,17 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
             {/* Horizontal 3-Step Stepper with connecting line and numbered badges */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
               {/* Step 1 */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-sm dark:shadow-md">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-[#BC881B]/20 border border-[#BC881B]/40 text-[#E0B450] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/10 dark:bg-[#BC881B]/20 border border-amber-500/30 dark:border-[#BC881B]/40 text-amber-700 dark:text-[#E0B450] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                       1
                     </div>
-                    <h4 className="text-[14px] font-bold text-white uppercase tracking-wider font-cinzel">
+                    <h4 className="text-[14px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-cinzel">
                       Step 1: Export from this PC
                     </h4>
                   </div>
-                  <p className="text-[12px] text-[#B3AABD] leading-relaxed">
+                  <p className="text-[12px] text-slate-600 dark:text-[#B3AABD] leading-relaxed">
                     Packages all local library records, active borrower accounts, book barcodes, and SQLite database tables into a single Transfer ZIP archive.
                   </p>
                 </div>
@@ -568,38 +568,38 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               </div>
 
               {/* Step 2 */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-sm dark:shadow-md">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-[#29658E]/20 border border-[#29658E]/40 text-[#6FA8D2] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 dark:bg-[#29658E]/20 border border-blue-500/30 dark:border-[#29658E]/40 text-blue-700 dark:text-[#6FA8D2] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                       2
                     </div>
-                    <h4 className="text-[14px] font-bold text-white uppercase tracking-wider font-cinzel">
+                    <h4 className="text-[14px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-cinzel">
                       Step 2: Install app on new PC
                     </h4>
                   </div>
-                  <p className="text-[12px] text-[#B3AABD] leading-relaxed">
+                  <p className="text-[12px] text-slate-600 dark:text-[#B3AABD] leading-relaxed">
                     Copy the Transfer ZIP to a USB flash drive. Launch the LMS application on the destination computer and open this Migration screen.
                   </p>
                 </div>
 
-                <div className="p-2.5 rounded-[8px] bg-white/[0.04] text-[11px] font-mono text-[#B3AABD] text-center border border-white/[0.06]">
+                <div className="p-2.5 rounded-[8px] bg-slate-100 dark:bg-white/[0.04] text-[11px] font-mono text-slate-700 dark:text-[#B3AABD] text-center border border-slate-200 dark:border-white/[0.06]">
                   Ready on Destination Workstation
                 </div>
               </div>
 
               {/* Step 3 */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-5 flex flex-col justify-between space-y-4 relative overflow-hidden shadow-sm dark:shadow-md">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-[#541A72]/30 border border-[#A66BC9]/40 text-[#C084FC] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-purple-500/15 dark:bg-[#541A72]/30 border border-purple-500/30 dark:border-[#A66BC9]/40 text-purple-700 dark:text-[#C084FC] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                       3
                     </div>
-                    <h4 className="text-[14px] font-bold text-white uppercase tracking-wider font-cinzel">
+                    <h4 className="text-[14px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-cinzel">
                       Step 3: Restore on new PC
                     </h4>
                   </div>
-                  <p className="text-[12px] text-[#B3AABD] leading-relaxed">
+                  <p className="text-[12px] text-slate-600 dark:text-[#B3AABD] leading-relaxed">
                     Select the Transfer ZIP archive from your USB drive to restore library data, active circulation loans, and user configuration.
                   </p>
                 </div>
@@ -627,11 +627,11 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
             </div>
 
             {/* Collapsed Card 1: Advanced: Master Migration files (CSV / JSON) */}
-            <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] overflow-hidden shadow-md">
+            <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] overflow-hidden shadow-sm dark:shadow-md">
               <button
                 type="button"
                 onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   {isAdvancedOpen ? (
@@ -892,18 +892,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
             {/* Card grid (auto-fill minmax(260px, 1fr), gap 16): All same height */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {/* 1. Master LibraryData.xlsx */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-sm dark:shadow-md">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-[10px] bg-[#BC881B]/15 border border-[#BC881B]/30 text-[#E0B450] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-amber-500/10 dark:bg-[#BC881B]/15 border border-amber-500/30 dark:border-[#BC881B]/30 text-amber-700 dark:text-[#E0B450] flex items-center justify-center shrink-0">
                       <FileSpreadsheet className="w-5 h-5" />
                     </div>
                     <StatusPill label="XLSX" variant="gold" />
                   </div>
-                  <h4 className="text-[16px] font-semibold text-white leading-tight">
+                  <h4 className="text-[16px] font-semibold text-slate-900 dark:text-white leading-tight">
                     LibraryData.xlsx
                   </h4>
-                  <p className="text-[13px] text-[#B3AABD] line-clamp-2 leading-snug">
+                  <p className="text-[13px] text-slate-600 dark:text-[#B3AABD] line-clamp-2 leading-snug">
                     Comprehensive multi-sheet workbook containing catalog, members, circulation, and audit logs.
                   </p>
                 </div>
@@ -919,18 +919,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               </div>
 
               {/* 2. Books & Copies CSV */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-sm dark:shadow-md">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-[10px] bg-[#29658E]/15 border border-[#29658E]/30 text-[#6FA8D2] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-blue-500/10 dark:bg-[#29658E]/15 border border-blue-500/30 dark:border-[#29658E]/30 text-blue-700 dark:text-[#6FA8D2] flex items-center justify-center shrink-0">
                       <BookOpen className="w-5 h-5" />
                     </div>
                     <StatusPill label="CSV" variant="blue" />
                   </div>
-                  <h4 className="text-[16px] font-semibold text-white leading-tight">
+                  <h4 className="text-[16px] font-semibold text-slate-900 dark:text-white leading-tight">
                     Books & Copies
                   </h4>
-                  <p className="text-[13px] text-[#B3AABD] line-clamp-2 leading-snug">
+                  <p className="text-[13px] text-slate-600 dark:text-[#B3AABD] line-clamp-2 leading-snug">
                     Barcodes, accession numbers, Dewey call numbers, shelf locations, and availability stock.
                   </p>
                 </div>
@@ -946,18 +946,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               </div>
 
               {/* 3. Campus Members CSV */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-sm dark:shadow-md">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-[10px] bg-[#541A72]/25 border border-[#A66BC9]/30 text-[#C084FC] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-purple-500/15 dark:bg-[#541A72]/25 border border-purple-500/30 dark:border-[#A66BC9]/30 text-purple-700 dark:text-[#C084FC] flex items-center justify-center shrink-0">
                       <Users className="w-5 h-5" />
                     </div>
                     <StatusPill label="CSV" variant="purple" />
                   </div>
-                  <h4 className="text-[16px] font-semibold text-white leading-tight">
+                  <h4 className="text-[16px] font-semibold text-slate-900 dark:text-white leading-tight">
                     Campus Members
                   </h4>
-                  <p className="text-[13px] text-[#B3AABD] line-clamp-2 leading-snug">
+                  <p className="text-[13px] text-slate-600 dark:text-[#B3AABD] line-clamp-2 leading-snug">
                     Student IDs, department affiliations, academic degree programs, and contact profiles.
                   </p>
                 </div>
@@ -973,18 +973,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               </div>
 
               {/* 4. Circulation Ledger CSV */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-sm dark:shadow-md">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-[10px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <Clock className="w-5 h-5" />
                     </div>
                     <StatusPill label="CSV" variant="green" />
                   </div>
-                  <h4 className="text-[16px] font-semibold text-white leading-tight">
+                  <h4 className="text-[16px] font-semibold text-slate-900 dark:text-white leading-tight">
                     Circulation Ledger
                   </h4>
-                  <p className="text-[13px] text-[#B3AABD] line-clamp-2 leading-snug">
+                  <p className="text-[13px] text-slate-600 dark:text-[#B3AABD] line-clamp-2 leading-snug">
                     Complete loan transaction history, checkout dates, return dates, and overdue records.
                   </p>
                 </div>
@@ -1000,18 +1000,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
               </div>
 
               {/* 5. System Audit Trail CSV */}
-              <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-md">
+              <div className="rounded-[14px] bg-white/95 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-4 flex flex-col justify-between space-y-3.5 shadow-sm dark:shadow-md">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-[10px] bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
                       <FileText className="w-5 h-5" />
                     </div>
                     <StatusPill label="CSV" variant="amber" />
                   </div>
-                  <h4 className="text-[16px] font-semibold text-white leading-tight">
+                  <h4 className="text-[16px] font-semibold text-slate-900 dark:text-white leading-tight">
                     System Audit Trail
                   </h4>
-                  <p className="text-[13px] text-[#B3AABD] line-clamp-2 leading-snug">
+                  <p className="text-[13px] text-slate-600 dark:text-[#B3AABD] line-clamp-2 leading-snug">
                     Chronological activity ledger, staff logins, record updates, and administrative modifications.
                   </p>
                 </div>

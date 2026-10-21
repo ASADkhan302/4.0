@@ -521,9 +521,9 @@ export class LibraryStorage {
   }
 
   static prependBook(newBook: Book, books: Book[]): void {
-    books.unshift(newBook);
-    this.booksCache = books;
-    this.saveBooks(books);
+    const nextList = [newBook, ...(books || [])];
+    this.booksCache = nextList;
+    this.saveBooks(nextList);
     this.notifyMutation();
   }
 
@@ -1529,9 +1529,11 @@ export class LibraryStorage {
     } catch {
       // ignore
     }
-    this.booksCache = INITIAL_BOOKS;
+    this.booksCache = [];
     try {
       localStorage.removeItem(STORAGE_KEYS.BOOKS);
+      localStorage.setItem('ulm_initialized_empty', 'true');
+      localStorage.setItem('ulm_database_cleared', 'true');
     } catch {}
     localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(INITIAL_BORROWERS));
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));

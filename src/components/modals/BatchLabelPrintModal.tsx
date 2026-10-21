@@ -513,8 +513,8 @@ export const BatchLabelPrintModal: React.FC<BatchLabelPrintModalProps> = ({
                       </p>
                     </div>
 
-                    {/* Vector Barcode rendering */}
-                    <div className="barcode-box bg-white px-1 py-0.5 flex flex-col items-center justify-center">
+                    {/* Vector Barcode rendering (Locked Optical Barcode Safe-Pad) */}
+                    <div className="barcode-box bg-white px-1 py-0.5 flex flex-col items-center justify-center ulm-barcode-safepad">
                       <div className="h-7 w-full flex items-center justify-center">
                         <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 24">
                           <rect x="0" y="0" width="100" height="24" fill="#ffffff" />

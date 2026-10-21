@@ -150,10 +150,10 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-300">
       
       {/* Top Banner with Quick Actions */}
-      <div className="bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 shadow-2xs flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
               <BarChart3 className="w-3.5 h-3.5" />
               <span>Catalog Visual Analytics</span>
             </span>
@@ -161,10 +161,10 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
               {totalTitles} Registered Academic Titles
             </span>
           </div>
-          <h3 className="text-lg font-bold text-[#F1F5F9] font-cinzel">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-[#F1F5F9] font-cinzel">
             Campus Catalog Holdings & Stock Breakdown
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             Interactive chart view mapping discipline distributions, physical volume allocations, and shelf utilization.
           </p>
         </div>
@@ -191,10 +191,10 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Discipline Volumes Bar Chart (2 cols) */}
-        <div className="lg:col-span-2 bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-[#1E293B] pb-3">
+        <div className="lg:col-span-2 bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
             <div>
-              <h4 className="text-sm font-bold text-[#F1F5F9] flex items-center gap-2">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-[#F1F5F9] flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-amber-500" />
                 <span>Volumes by Academic Discipline (Available vs Issued)</span>
               </h4>
@@ -231,8 +231,8 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
                   contentStyle={chartTheme.tooltipStyle}
                   cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
                 />
-                <Bar dataKey="available" name="Available Copies" fill="#10B981" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
-                <Bar dataKey="issued" name="Issued Copies" fill="#F59E0B" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
+                <Bar dataKey="available" name="Available Copies" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
+                <Bar dataKey="issued" name="Issued Copies" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -258,10 +258,10 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
         </div>
 
         {/* Shelf Stock Donut Gauge (1 col) */}
-        <div className="bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4 flex flex-col justify-between">
+        <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E293B] pb-3">
-              <h4 className="text-sm font-bold text-[#F1F5F9] flex items-center gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-[#F1F5F9] flex items-center gap-2">
                 <PieChartIcon className="w-4 h-4 text-emerald-500" />
                 <span>Inventory Availability Rate</span>
               </h4>
@@ -301,7 +301,7 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
 
             {/* Center Gauge Callout */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-2xl font-bold font-mono text-[#F1F5F9]">
+              <span className="text-2xl font-bold font-mono text-slate-900 dark:text-[#F1F5F9]">
                 {totalCopies}
               </span>
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -329,9 +329,9 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Publication Eras Chart */}
-        <div className="bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E293B] pb-3">
-            <h4 className="text-sm font-bold text-[#F1F5F9] flex items-center gap-2">
+        <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-[#F1F5F9] flex items-center gap-2">
               <Calendar className="w-4 h-4 text-sky-500" />
               <span>Publication Era & Vintage Timeline</span>
             </h4>
@@ -353,8 +353,8 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
                   contentStyle={chartTheme.tooltipStyle}
                   cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }}
                 />
-                <Bar dataKey="copies" name="Physical Volumes" fill="#3B82F6" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
-                <Bar dataKey="count" name="Unique Titles" fill="#8B5CF6" radius={[4, 4, 0, 0]} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
+                <Bar dataKey="copies" name="Physical Volumes" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
+                <Bar dataKey="count" name="Unique Titles" fill="#8B5CF6" radius={[4, 4, 0, 0]} maxBarSize={44} isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -364,9 +364,9 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
         </div>
 
         {/* Shelf & Stack Location Distribution */}
-        <div className="bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E293B] pb-3">
-            <h4 className="text-sm font-bold text-[#F1F5F9] flex items-center gap-2">
+        <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-[#F1F5F9] flex items-center gap-2">
               <MapPin className="w-4 h-4 text-purple-500" />
               <span>Library Stacks & Shelf Density</span>
             </h4>
@@ -382,7 +382,7 @@ export const CatalogChartsView: React.FC<CatalogChartsViewProps> = ({
                 className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-[#334155] flex flex-col justify-between"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-[#F1F5F9]">
+                  <span className="font-mono text-xs font-bold text-slate-900 dark:text-[#F1F5F9]">
                     {shelf.shelf}
                   </span>
                   <MapPin className="w-3 h-3 text-amber-500" />

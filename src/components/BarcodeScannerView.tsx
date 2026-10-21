@@ -26,6 +26,7 @@ import {
 import { Book, Transaction, Borrower } from '../types/library';
 import { playSuccessBarcodeBeep, playErrorBeep } from '../services/audio';
 import { LibraryStorage } from '../services/storage';
+import { ULM_CREST_LOGO } from '../constants/branding';
 
 interface BarcodeScannerViewProps {
   books: Book[];
@@ -254,28 +255,28 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   };
 
   return (
-    <div className="flex-1 w-full bg-[#0B1220] px-4 sm:px-6 lg:px-8 py-5 sm:py-6 overflow-y-auto space-y-6">
+    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 overflow-y-auto space-y-6">
       <div className="max-w-[1280px] mx-auto space-y-6">
 
         {/* Top Header Card */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-[#151C2C] border border-[#BC881B]/30 rounded-xl p-4 sm:p-5 shadow-sm transition-colors">
+        <div className="flex flex-wrap items-center justify-between gap-4 ulm-liquid-glass rounded-xl p-4 sm:p-5 shadow-sm transition-all">
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2 font-display">
-              <QrCode className="w-5 h-5 text-[#BC881B]" />
+            <h2 className="text-base sm:text-lg font-bold text-[var(--text-strong)] flex items-center gap-2 font-display">
+              <QrCode className="w-5 h-5 text-royal-gold" />
               <span>Barcode Scanner &amp; Hardware Station</span>
             </h2>
-            <p className="text-xs text-[#B3AABD] mt-1 font-ui">
-              Unified lookup: Scans both Book Barcodes and Student/Faculty Card IDs (e.g. ULM-STD-001, STD-...).
+            <p className="text-xs text-[var(--text-muted)] mt-1 font-ui">
+              Unified laser lookup: Scans both Book Barcodes (0092...) and Student/Faculty Cards (ULM-STD-..., STD-...).
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium font-ui transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium font-ui transition-all cursor-pointer ${
                 soundEnabled 
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
-                  : 'bg-white/[0.04] border-white/10 text-slate-400'
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' 
+                  : 'bg-white/[0.04] border-white/10 text-[var(--text-muted)]'
               }`}
             >
               {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
@@ -284,10 +285,10 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
             <button
               onClick={() => setAutoSubmit(!autoSubmit)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium font-ui transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium font-ui transition-all cursor-pointer ${
                 autoSubmit 
                   ? 'bg-[#BC881B]/20 border-[#BC881B]/40 text-[#E0B450]' 
-                  : 'bg-white/[0.04] border-white/10 text-slate-400'
+                  : 'bg-white/[0.04] border-white/10 text-[var(--text-muted)]'
               }`}
             >
               <span>Auto-Enter: {autoSubmit ? 'ON' : 'OFF'}</span>
@@ -296,21 +297,21 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
         </div>
 
         {/* Scanner Laser Input Centerpiece */}
-        <div className={`bg-[#151C2C] border-2 border-white/10 focus-within:border-[#BC881B] rounded-2xl p-6 sm:p-8 shadow-sm relative overflow-hidden transition-all ${
+        <div className={`ulm-liquid-glass rounded-2xl p-6 sm:p-8 shadow-sm relative overflow-hidden transition-all ${
           isScanSuccessFlash ? 'ring-4 ring-emerald-500/50' : ''
         }`}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="text-center space-y-1">
-              <span className="text-xs font-mono font-bold text-[#E0B450] uppercase tracking-wider">
+              <span className="text-xs font-mono font-bold text-royal-gold uppercase tracking-wider">
                 POINT USB SCANNER OR TYPE BARCODE / MEMBER CARD ID
               </span>
-              <p className="text-xs text-[#B3AABD] font-ui">
-                Ready for Book Barcode (0092...) or Borrower ID (ULM-STD-..., ULM-FAC-...).
+              <p className="text-xs text-[var(--text-muted)] font-ui">
+                Ready for physical barcode scanners (Symbol/Honeywell/Datalogic) or manual keyboard accession entry.
               </p>
             </div>
 
-            <div className="max-w-xl mx-auto flex items-center bg-[#0B1220] border-2 border-[#BC881B]/40 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 rounded-xl p-1.5 transition-all shadow-md">
-              <BarcodeIcon className="w-5 h-5 text-[#BC881B] ml-3 shrink-0 pointer-events-none" />
+            <div className="max-w-xl mx-auto flex items-center bg-white/40 dark:bg-[#0B1220]/70 border-2 border-[#BC881B]/50 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 rounded-xl p-1.5 transition-all shadow-md">
+              <BarcodeIcon className="w-5 h-5 text-royal-gold ml-3 shrink-0 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
@@ -322,7 +323,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                   }
                 }}
                 placeholder="[ Scan book barcode or borrower card ID ]"
-                className="flex-1 h-11 bg-transparent border-0 text-center text-base sm:text-lg font-mono font-bold text-white placeholder:text-slate-500 tracking-wider focus:outline-none focus:ring-0 px-3"
+                className="flex-1 h-11 bg-transparent border-0 text-center text-base sm:text-lg font-mono font-bold text-[var(--text-strong)] placeholder:text-[var(--text-muted)] tracking-wider focus:outline-none focus:ring-0 px-3"
               />
               <button
                 type="submit"
@@ -335,13 +336,13 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
           </form>
 
           {/* Quick Test Barcodes */}
-          <div className="mt-5 pt-4 border-t border-white/[0.08] flex flex-wrap items-center justify-center gap-2.5">
-            <span className="text-[11px] font-mono text-[#B3AABD]">Quick Test Scans:</span>
+          <div className="mt-5 pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-center gap-2.5">
+            <span className="text-[11px] font-mono text-[var(--text-muted)]">Quick Test Scans:</span>
             {activeBorrowersList.slice(0, 2).map(b => (
               <button
                 key={b.id}
                 onClick={() => handleTestScan(b.barcode || b.university_id || b.student_id)}
-                className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-[11px] font-mono text-indigo-300 border border-indigo-500/30 tracking-wide transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-[11px] font-mono text-indigo-400 border border-indigo-500/30 tracking-wide transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <CreditCard className="w-3 h-3 text-indigo-400" />
                 <span>Card: {b.barcode || b.university_id || b.name}</span>
@@ -351,7 +352,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               <button
                 key={b.id}
                 onClick={() => handleTestScan(b.barcode)}
-                className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-mono text-slate-300 border border-white/10 tracking-wide transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-mono text-[var(--text-strong)] border border-[var(--border-subtle)] tracking-wide transition-colors cursor-pointer"
               >
                 Book: {b.barcode} ({b.book_name.slice(0, 12)}...)
               </button>
@@ -359,29 +360,185 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
           </div>
         </div>
 
-        {/* ---------------- SECTION 9: BORROWER STATUS CARD ---------------- */}
-        {scanState === 'BORROWER_FOUND' && foundBorrower && (
-          <div className="bg-[#151C2C] border-2 border-[#BC881B]/50 rounded-xl p-5 sm:p-6 shadow-xl space-y-5 animate-in fade-in duration-150">
-            {/* Header: Member Identity & Status Badge */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-[#541A72]/40 border border-[#BC881B]/40 flex items-center justify-center text-[#E0B450] shrink-0 shadow-sm">
-                  <GraduationCap className="w-6 h-6 stroke-[2]" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-bold text-white font-display">
-                      {foundBorrower.name}
-                    </h3>
-                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/35">
-                      Card ID: {foundBorrower.barcode || foundBorrower.university_id || foundBorrower.student_id}
-                    </span>
+        {/* ---------------- SECTION: 2-COLUMN LIVE BORROWER ID CARD + SCANNED BOOK DESK (IDLE STATE) ---------------- */}
+        {scanState === 'IDLE' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200">
+            {/* Column 1: Live Borrower ID Card Preview Desk */}
+            <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 text-slate-900 dark:text-white rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between shadow-sm">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[var(--border-subtle)]">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-5 h-5 text-royal-gold" />
+                    <h3 className="font-bold text-[15px] text-slate-900 dark:text-white">Live Borrower ID Card Desk</h3>
                   </div>
-                  <p className="text-xs text-[#B3AABD] font-ui mt-0.5">
-                    Role: <strong className="text-white capitalize">{foundBorrower.role}</strong> · Dept: <strong className="text-white">{foundBorrower.department}</strong> · Program: {foundBorrower.program}
-                  </p>
+                  <span className="text-[11px] font-mono text-slate-600 dark:text-[var(--text-muted)] bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded">
+                    Hardware Scanner Ready
+                  </span>
                 </div>
+
+                {activeBorrowersList.length > 0 ? (
+                  <div className="mt-4 p-4 rounded-xl ulm-preserve-dark border border-[#BC881B]/40 relative overflow-hidden shadow-lg">
+                    {/* Background Crest Watermark */}
+                    <img 
+                      src={ULM_CREST_LOGO} 
+                      alt="" 
+                      className="absolute -right-4 -bottom-4 w-32 h-32 object-contain opacity-10 pointer-events-none" 
+                    />
+                    
+                    <div className="flex items-start justify-between gap-3 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center shrink-0">
+                          <img src={ULM_CREST_LOGO} alt="ULM" className="w-10 h-10 object-contain" />
+                        </div>
+                        <div>
+                          <p className="font-serif font-bold text-base text-amber-200 leading-tight">
+                            {activeBorrowersList[0].name}
+                          </p>
+                          <p className="text-[11px] text-slate-300 font-mono mt-0.5">
+                            {activeBorrowersList[0].department} · {(activeBorrowersList[0].role || 'STUDENT').toUpperCase()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        {activeBorrowersList[0].status}
+                      </span>
+                    </div>
+
+                    {/* Member Barcode in Locked Safe-Pad */}
+                    <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-3 relative z-10">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-mono block">CARD ACCESSION / ID</span>
+                        <span className="font-mono text-xs font-bold text-amber-300">
+                          {activeBorrowersList[0].university_id || activeBorrowersList[0].barcode || 'ULM-STD-001'}
+                        </span>
+                      </div>
+                      <div className="ulm-barcode-safepad px-3 py-1 flex items-center gap-1 select-none">
+                        <BarcodeIcon className="w-4 h-4 text-black shrink-0" />
+                        <span className="font-mono text-xs font-bold tracking-widest text-black">
+                          {activeBorrowersList[0].barcode || 'ULM-STD-001'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-muted)] py-6 text-center">No borrower records in database.</p>
+                )}
               </div>
+
+              {activeBorrowersList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleTestScan(activeBorrowersList[0].barcode || activeBorrowersList[0].university_id || activeBorrowersList[0].student_id)}
+                  className="w-full h-10 rounded-xl bg-[#BC881B]/15 hover:bg-[#BC881B]/25 text-royal-gold border border-[#BC881B]/40 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Simulate Scanner Reading Member Card</span>
+                </button>
+              )}
+            </div>
+
+            {/* Column 2: Live Scanned Book Desk Preview */}
+            <div className="bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 text-slate-900 dark:text-white rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between shadow-sm">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-royal-gold" />
+                    <h3 className="font-bold text-[15px] text-[var(--text-strong)]">Live Scanned Book Desk</h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] bg-white/10 px-2 py-0.5 rounded">
+                    Catalog Hot-Scan Ready
+                  </span>
+                </div>
+
+                {books.length > 0 ? (
+                  <div className="mt-4 p-4 rounded-xl border border-[var(--border-subtle)] bg-white/30 dark:bg-[#0B1220]/60 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-16 rounded bg-[#141214] border border-[#BC881B]/30 flex items-center justify-center text-royal-gold shrink-0">
+                        <BookOpen className="w-6 h-6 stroke-[1.5]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold bg-blue-500/15 text-blue-500 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                            {books[0].category}
+                          </span>
+                          <span className="text-[11px] font-mono text-royal-gold font-bold">
+                            #{books[0].accession_no || books[0].barcode}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-[14px] text-[var(--text-strong)] line-clamp-1 mt-1" title={books[0].book_name}>
+                          {books[0].book_name}
+                        </h4>
+                        <p className="text-xs text-[var(--text-muted)] truncate">by {books[0].author}</p>
+                      </div>
+                    </div>
+
+                    {/* Book Barcode in Locked Safe-Pad */}
+                    <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between gap-3">
+                      <div className="text-[11px] text-[var(--text-muted)] font-mono">
+                        Shelf: <span className="font-semibold text-[var(--text-strong)]">{books[0].shelf || 'ALM-01'}</span> · Row {books[0].row || '1'}
+                      </div>
+                      <div className="ulm-barcode-safepad px-3 py-1 flex items-center gap-1.5 select-none">
+                        <BarcodeIcon className="w-4 h-4 text-black shrink-0" />
+                        <span className="font-mono text-xs font-bold tracking-widest text-black">
+                          {books[0].barcode}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-muted)] py-6 text-center">No catalog books available.</p>
+                )}
+              </div>
+
+              {books.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleTestScan(books[0].barcode)}
+                  className="w-full h-10 rounded-xl bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <BarcodeIcon className="w-4 h-4" />
+                  <span>Test Scan Book Barcode (#{books[0].accession_no || books[0].barcode})</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- SECTION: BORROWER STATUS CARD ---------------- */}
+        {scanState === 'BORROWER_FOUND' && foundBorrower && (
+          <div className="bg-[#151C2C] border-2 border-[#BC881B]/50 rounded-xl p-5 sm:p-6 shadow-xl space-y-5 animate-in fade-in duration-150 relative overflow-hidden">
+            {/* User Card Background Watermark */}
+            <img
+              src={ULM_CREST_LOGO}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08]"
+            />
+
+            <div className="relative z-10 space-y-5">
+              {/* Header: Member Identity & Status Badge */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center flex-shrink-0">
+                    <img src={ULM_CREST_LOGO} alt="ULM Crest" className="w-9 h-9 object-contain flex-shrink-0" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#BC881B] font-mono block">
+                      UNIVERSITY OF LAKKI MARWAT — LIBRARY MEMBERSHIP CARD
+                    </span>
+                    <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
+                      <h3 className="text-base sm:text-lg font-bold text-white font-display">
+                        {foundBorrower.name}
+                      </h3>
+                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/35">
+                        Card ID: {foundBorrower.barcode || foundBorrower.university_id || foundBorrower.student_id}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#B3AABD] font-ui mt-0.5">
+                      Role: <strong className="text-white capitalize">{foundBorrower.role}</strong> · Dept: <strong className="text-white">{foundBorrower.department}</strong> · Program: {foundBorrower.program}
+                    </p>
+                  </div>
+                </div>
 
               {/* Status Badge */}
               <div>
@@ -547,6 +704,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               >
                 Scan Another Member or Book
               </button>
+            </div>
             </div>
           </div>
         )}

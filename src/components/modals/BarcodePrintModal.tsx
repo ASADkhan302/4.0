@@ -122,10 +122,10 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         <div className="p-6 bg-[#0E0D10] flex flex-col items-center justify-center space-y-3">
           <span className="text-xs font-mono text-[#B3AABD]">Standard 63.5 × 38.1 mm Adhesive Spine Label:</span>
 
-          {/* Printable Sticker Container */}
+          {/* Printable Sticker Container (Locked Optical Barcode Safe-Pad) */}
           <div 
             id="printable-barcode-label"
-            className="w-72 bg-white text-slate-950 p-4 rounded-lg shadow-md border-2 border-slate-300 space-y-2 text-center select-none"
+            className="w-72 bg-white text-slate-950 p-4 rounded-lg shadow-md border-2 border-slate-300 space-y-2 text-center select-none ulm-barcode-safepad"
           >
             {/* Header */}
             <div className="border-b border-slate-300 pb-1.5 flex items-center justify-center gap-1.5">

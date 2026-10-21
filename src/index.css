@@ -1797,6 +1797,298 @@ html.no-watermark .watermark {
   }
 }
 
+/* ==========================================================================
+   ULM ULTRA-TRANSPARENT CRYSTAL LIQUID GLASS & DUAL-THEME ENGINE
+   (72%–82% Pure Transparency, 28px Blur, Specular Crystal Edges & 5 Vivid Orbs)
+   ========================================================================== */
+
+:root {
+  --ulm-blur: 28px;
+  --ulm-saturate: 240%;
+  --ulm-glass-alpha: 0.24; /* 76% Pure Transparency */
+}
+
+html.light-theme {
+  color-scheme: light;
+  --canvas: #F4F7FB;
+  --surface-1: rgba(255, 255, 255, 0.24);
+  --surface-2: rgba(255, 255, 255, 0.34);
+  --surface-3: rgba(255, 255, 255, 0.44);
+  --border-subtle: rgba(148, 163, 184, 0.25);
+  --border-field: rgba(148, 163, 184, 0.40);
+
+  --text-strong: #0F172A;
+  --text-body: #1E293B;
+  --text-muted: #475569;
+
+  --gold-text: #8F4F00;
+  --text-accent: #8F4F00;
+
+  --background: var(--canvas);
+  --card: var(--surface-1);
+  --card-foreground: var(--text-body);
+  --surface: var(--surface-1);
+  --surface-secondary: var(--surface-2);
+
+  --text-primary: var(--text-strong);
+  --text-secondary: var(--text-body);
+  --text-placeholder: var(--text-muted);
+
+  --border: var(--border-subtle);
+  --border-hover: var(--border-field);
+  --border-control: var(--border-field);
+  --control-bg: rgba(255, 255, 255, 0.50);
+
+  /* Ultra-Clear Crystal Glass Tokens */
+  --ulm-glass-bg: rgba(255, 255, 255, var(--ulm-glass-alpha, 0.24));
+  --ulm-glass-elevated: rgba(255, 255, 255, calc(var(--ulm-glass-alpha, 0.24) + 0.10));
+  --ulm-glass-border: rgba(255, 255, 255, 0.88);
+  --ulm-glass-border-outer: rgba(148, 163, 184, 0.28);
+  --ulm-glass-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0.18) 38%,
+    rgba(255, 255, 255, 0.04) 65%,
+    rgba(212, 150, 26, 0.12) 100%
+  );
+  --ulm-glass-shadow:
+    inset 0 2px 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 1.5px 0 1px 0 rgba(255, 255, 255, 0.70),
+    0 18px 40px -12px rgba(15, 23, 42, 0.10),
+    0 4px 16px -2px rgba(84, 26, 114, 0.06);
+}
+
+html.dark, html:not(.light-theme) {
+  color-scheme: dark;
+  --canvas: #070B14;
+  --surface-1: rgba(15, 23, 42, 0.28);
+  --surface-2: rgba(30, 41, 59, 0.38);
+  --surface-3: rgba(51, 65, 85, 0.48);
+  --border-subtle: rgba(255, 255, 255, 0.10);
+  --border-field: rgba(255, 255, 255, 0.18);
+
+  --text-strong: #F8FAFC;
+  --text-body: #CBD5E1;
+  --text-muted: #94A3B8;
+
+  --gold-text: #FFD147;
+  --text-accent: #FFD147;
+
+  --background: var(--canvas);
+  --card: var(--surface-1);
+  --card-foreground: var(--text-body);
+  --surface: var(--surface-1);
+  --surface-secondary: var(--surface-2);
+
+  --text-primary: var(--text-strong);
+  --text-secondary: var(--text-body);
+  --text-placeholder: var(--text-muted);
+
+  --border: var(--border-subtle);
+  --border-hover: var(--border-field);
+  --border-control: var(--border-field);
+  --control-bg: rgba(15, 23, 42, 0.60);
+
+  /* Deep Cosmos Liquid Glass Tokens */
+  --ulm-glass-bg: rgba(15, 23, 42, var(--ulm-glass-alpha, 0.28));
+  --ulm-glass-elevated: rgba(30, 41, 59, calc(var(--ulm-glass-alpha, 0.28) + 0.10));
+  --ulm-glass-border: rgba(255, 255, 255, 0.26);
+  --ulm-glass-border-outer: rgba(255, 255, 255, 0.12);
+  --ulm-glass-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.24) 0%,
+    rgba(255, 255, 255, 0.05) 45%,
+    rgba(188, 136, 27, 0.10) 100%
+  );
+  --ulm-glass-shadow:
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.42),
+    inset 1px 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 20px 44px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* Authentic Ultra-Transparent Crystal Liquid Glass */
+.ulm-liquid-glass {
+  background-color: var(--ulm-glass-bg) !important;
+  background-image: var(--ulm-glass-sheen) !important;
+  backdrop-filter: blur(var(--ulm-blur, 28px)) saturate(var(--ulm-saturate, 240%)) contrast(104%) !important;
+  -webkit-backdrop-filter: blur(var(--ulm-blur, 28px)) saturate(var(--ulm-saturate, 240%)) contrast(104%) !important;
+  border: 1.5px solid var(--ulm-glass-border) !important;
+  box-shadow: var(--ulm-glass-shadow) !important;
+  transition: backdrop-filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 5 Vivid Ambient Refractive Background Orbs */
+.ulm-ambient-purple-orb {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.45) 0%, rgba(84, 26, 114, 0.22) 45%, transparent 70%);
+  filter: blur(65px);
+}
+
+.ulm-ambient-gold-orb {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.40) 0%, rgba(188, 136, 27, 0.18) 45%, transparent 70%);
+  filter: blur(65px);
+}
+
+.ulm-ambient-cyan-orb {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.35) 0%, transparent 70%);
+  filter: blur(65px);
+}
+
+.ulm-ambient-amber-orb {
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.38) 0%, rgba(147, 51, 234, 0.18) 50%, transparent 70%);
+  filter: blur(65px);
+}
+
+.ulm-ambient-emerald-orb {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.28) 0%, transparent 70%);
+  filter: blur(65px);
+}
+
+/* Locked Hardware Barcode Safe-Pad (Scanner Friendly) */
+.ulm-barcode-safepad,
+.ulm-barcode-safe-pad {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+  border: 1.5px solid #CBD5E1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 0.65rem !important;
+}
+
+.ulm-barcode-safepad *,
+.ulm-barcode-safe-pad * {
+  color: #000000 !important;
+}
+
+.ulm-barcode-safepad svg,
+.ulm-barcode-safe-pad svg,
+.ulm-barcode-safepad rect,
+.ulm-barcode-safe-pad rect,
+.ulm-barcode-safepad path,
+.ulm-barcode-safe-pad path {
+  fill: #000000 !important;
+}
+
+/* High-Contrast Burnished Royal Gold Typography */
+.text-royal-gold {
+  color: var(--gold-text, #8F4F00) !important;
+  font-weight: 700 !important;
+}
+
+html.light-theme .text-royal-gold {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 12px rgba(217, 144, 18, 0.22);
+}
+
+html.dark .text-royal-gold {
+  text-shadow: 0 0 12px rgba(255, 209, 71, 0.25);
+}
+
+/* ============================================================================
+   ULM DUAL-THEME (WHITE GLASS & DARK GLASS) COMPLETE CONTRAST ENGINE
+   ============================================================================ */
+html.light-theme {
+  --ulm-page-bg: #EEF2F7;
+  --ulm-card-bg: rgba(255, 255, 255, 0.92);
+  --ulm-card-elevated: rgba(248, 250, 252, 0.96);
+  --ulm-input-bg: #FFFFFF;
+  --ulm-border-subtle: rgba(15, 23, 42, 0.12);
+  --ulm-border-strong: rgba(15, 23, 42, 0.22);
+  --ulm-text-primary: #0F172A;
+  --ulm-text-secondary: #334155;
+  --ulm-text-muted: #475569;
+  --ulm-gold-accent: #8F4F00;
+}
+
+html.light-theme body {
+  background: linear-gradient(135deg, #F1F5F9 0%, #E6EDF5 50%, #F5F2EB 100%) !important;
+  color: #0F172A !important;
+}
+
+/* 1A. Convert ALL hardcoded dark backgrounds to crisp White Glass in Light Mode —
+       EXCEPT intentional dark previews marked .ulm-preserve-dark */
+html.light-theme [class*="bg-[#0"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-[#1"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-[#2"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-slate-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-zinc-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-neutral-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-gray-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *) {
+  background-color: var(--ulm-card-bg) !important;
+  background-image: linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.88) 100%) !important;
+  border-color: var(--ulm-border-subtle) !important;
+  color: var(--ulm-text-primary) !important;
+  box-shadow: 0 8px 24px -6px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Inner panels, Shelf Rack Inspector boxes, and table headers in Light Mode */
+html.light-theme [class*="bg-slate-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
+html.light-theme [class*="bg-zinc-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *) {
+  background-color: #F1F5F9 !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  color: #0F172A !important;
+}
+
+/* 1B. Fix ALL white/light text classes on White Glass surfaces */
+html.light-theme .text-white:not(.ulm-preserve-dark *):not([class*="bg-purple-"]):not([class*="bg-[#541A72]"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-amber-6"]),
+html.light-theme .text-slate-50:not(.ulm-preserve-dark *),
+html.light-theme .text-slate-100:not(.ulm-preserve-dark *),
+html.light-theme .text-slate-200:not(.ulm-preserve-dark *),
+html.light-theme .text-zinc-100:not(.ulm-preserve-dark *),
+html.light-theme .text-zinc-200:not(.ulm-preserve-dark *) {
+  color: #0F172A !important;
+}
+
+html.light-theme .text-slate-300:not(.ulm-preserve-dark *),
+html.light-theme .text-zinc-300:not(.ulm-preserve-dark *) {
+  color: #1E293B !important;
+}
+
+html.light-theme .text-slate-400:not(.ulm-preserve-dark *),
+html.light-theme .text-slate-500:not(.ulm-preserve-dark *),
+html.light-theme .text-zinc-400:not(.ulm-preserve-dark *),
+html.light-theme .text-zinc-500:not(.ulm-preserve-dark *) {
+  color: #475569 !important;
+}
+
+/* 1C. Form Inputs, Selects & Textareas in Light Mode */
+html.light-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.light-theme select,
+html.light-theme textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1.5px solid #CBD5E1 !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+html.light-theme input::placeholder,
+html.light-theme textarea::placeholder {
+  color: #64748B !important;
+}
+html.light-theme label {
+  color: #1E293B !important;
+  font-weight: 700 !important;
+}
+
+/* 1D. Intentional Dark Previews (.ulm-preserve-dark) */
+.ulm-preserve-dark {
+  background: linear-gradient(145deg, #0F172A 0%, #1E1B4B 55%, #2E1065 100%) !important;
+  color: #F8FAFC !important;
+  border-color: rgba(188, 136, 27, 0.55) !important;
+}
+html.light-theme .ulm-preserve-dark h1,
+html.light-theme .ulm-preserve-dark h2,
+html.light-theme .ulm-preserve-dark h3,
+html.light-theme .ulm-preserve-dark h4,
+html.light-theme .ulm-preserve-dark p,
+html.light-theme .ulm-preserve-dark span,
+html.light-theme .ulm-preserve-dark div {
+  color: #F8FAFC !important;
+}
+html.light-theme .ulm-preserve-dark .ulm-cover-gold {
+  color: #FDE68A !important;
+}
+
+
+
 
 
 

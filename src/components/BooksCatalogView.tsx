@@ -28,8 +28,11 @@ import {
   Sparkles,
   CheckSquare,
   Check,
-  Library
+  Library,
+  Filter,
+  SlidersHorizontal
 } from 'lucide-react';
+import { ULM_CREST_LOGO } from '../constants/branding';
 import { Book, Transaction } from '../types/library';
 import { CatalogChartsView } from './catalog/CatalogChartsView';
 import { AlmariView } from './catalog/AlmariView';
@@ -37,6 +40,7 @@ import { AlmariErrorBoundary } from './catalog/AlmariErrorBoundary';
 import { BulkAssignModal } from './modals/BulkAssignModal';
 import { KpiCard } from './shared/SharedCards';
 import { AlmariService } from '../services/almariService';
+import { parseSerialNumber } from '../services/libraryStorageAndMigration';
 import { sortBooksCatalog } from '../utils/almariSortUtils';
 import { CountUp } from '@/components/ui/count-up';
 import { CardSkeleton, TableSkeleton } from '@/components/ui/skeleton';
@@ -90,7 +94,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [selectedAlmariFilter, setSelectedAlmariFilter] = useState('ALL');
   const [almarisRevision, setAlmarisRevision] = useState(0);
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'chart' | 'almari'>(initialViewMode || 'grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'chart' | 'almari'>(initialViewMode || 'list');
+  const [isSecondaryFiltersOpen, setIsSecondaryFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (initialViewMode) {
@@ -277,11 +282,11 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           const timeB = b.created_at || '';
           if (timeA !== timeB) return timeB.localeCompare(timeA);
 
-          // Tie 2: accession no. (numeric if possible, then string)
-          const numA = parseInt(((a.barcode || '').match(/\d+/) || ['0'])[0], 10);
-          const numB = parseInt(((b.barcode || '').match(/\d+/) || ['0'])[0], 10);
+          // Tie 2: accession no. (strict numeric series)
+          const numA = parseSerialNumber(a.accession_no || a.barcode);
+          const numB = parseSerialNumber(b.accession_no || b.barcode);
           if (numA !== numB) return numB - numA;
-          return (b.barcode || '').localeCompare(a.barcode || '');
+          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
         }
 
         if (sortBy === 'oldest_added') {
@@ -294,25 +299,25 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           const timeB = b.created_at || '';
           if (timeA !== timeB) return timeA.localeCompare(timeB);
 
-          // Tie 2: accession no. (numeric if possible, then string)
-          const numA = parseInt(((a.barcode || '').match(/\d+/) || ['0'])[0], 10);
-          const numB = parseInt(((b.barcode || '').match(/\d+/) || ['0'])[0], 10);
+          // Tie 2: accession no. (strict numeric series)
+          const numA = parseSerialNumber(a.accession_no || a.barcode);
+          const numB = parseSerialNumber(b.accession_no || b.barcode);
           if (numA !== numB) return numA - numB;
-          return (a.barcode || '').localeCompare(b.barcode || '');
+          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
         }
 
         if (sortBy === 'accession') {
-          const numA = parseInt(((a.barcode || '').match(/\d+/) || ['0'])[0], 10);
-          const numB = parseInt(((b.barcode || '').match(/\d+/) || ['0'])[0], 10);
+          const numA = parseSerialNumber(a.accession_no || a.barcode);
+          const numB = parseSerialNumber(b.accession_no || b.barcode);
           if (numA !== numB) return numA - numB;
-          return (a.barcode || '').localeCompare(b.barcode || '');
+          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
         }
 
         if (sortBy === 'accession_desc') {
-          const numA = parseInt(((a.barcode || '').match(/\d+/) || ['0'])[0], 10);
-          const numB = parseInt(((b.barcode || '').match(/\d+/) || ['0'])[0], 10);
+          const numA = parseSerialNumber(a.accession_no || a.barcode);
+          const numB = parseSerialNumber(b.accession_no || b.barcode);
           if (numA !== numB) return numB - numA;
-          return (b.barcode || '').localeCompare(a.barcode || '');
+          return (b.accession_no || b.barcode || '').localeCompare(a.accession_no || a.barcode || '', undefined, { numeric: true });
         }
 
         if (sortBy === 'title') {
@@ -403,383 +408,368 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     );
   };
 
+  const activeSecondaryFilterCount = (selectedStatus !== 'ALL' && selectedStatus !== '' ? 1 : 0) +
+    (selectedGroupFilter !== 'ALL' && selectedGroupFilter !== '' ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0);
+
   return (
-    <div className="flex-1 w-full bg-fluent-matrix px-6 sm:px-8 py-7 overflow-y-auto space-y-7">
-      <div className="max-w-[1920px] mx-auto space-y-7">
+    <div className="flex-1 w-full bg-transparent px-6 py-5 overflow-y-auto space-y-5">
+      <div className="max-w-[1920px] mx-auto space-y-5">
         
-        {/* Operational Collection Metrics (Restyled Shared KPI Cards with Playfair Display) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {/* Card 1: Cataloged Titles */}
-          <KpiCard
-            label="Cataloged Titles"
-            value={totalTitles}
-            note="Distinct records"
-            icon={BookOpen}
-            iconColor="#E0B450"
-            accentColor="#BC881B"
-            accentBarColor="#BC881B"
-            subLabel={`Across ${categories.length} academic disciplines`}
-          />
-
-          {/* Card 2: Physical Volumes */}
-          <KpiCard
-            label="Physical Volumes"
-            value={totalCopies}
-            note="Physical items"
-            icon={Layers}
-            iconColor="#A66BC9"
-            accentColor="#541A72"
-            accentBarColor="#A66BC9"
-            percentBar={{
-              value: totalCopies,
-              max: totalCopies,
-              color: 'linear-gradient(90deg, #541A72, #A66BC9)',
-            }}
-            fractionTooltip={`${totalCopies.toLocaleString()} total physical inventory items`}
-          />
-
-          {/* Card 3: Shelf Availability */}
-          <KpiCard
-            label="Shelf Availability"
-            value={totalAvailable}
-            note="Available now"
-            icon={CheckCircle2}
-            iconColor="#34D399"
-            accentColor="#10B981"
-            accentBarColor="#34D399"
-            percentBar={{
-              value: totalAvailable,
-              max: totalCopies,
-              color: 'linear-gradient(90deg, #059669, #34D399)',
-            }}
-            fractionTooltip={`${totalAvailable.toLocaleString()} / ${totalCopies.toLocaleString()} volumes on shelf`}
-          />
-
-          {/* Card 4: Active Loans */}
-          <KpiCard
-            label="Active Loans"
-            value={activeBorrowed}
-            note={overdueCount > 0 ? `${overdueCount} overdue` : 'On loan'}
-            icon={Clock}
-            iconColor={activeBorrowed > 0 ? '#E0B450' : '#A66BC9'}
-            accentColor="#BC881B"
-            accentBarColor="#541A72"
-            isGoldNumber={activeBorrowed > 0}
-            isDanger={overdueCount > 0}
-            percentBar={{
-              value: activeBorrowed,
-              max: totalCopies > 0 ? totalCopies : 1,
-              color: overdueCount > 0 ? 'linear-gradient(90deg, #F43F5E, #FB7185)' : 'linear-gradient(90deg, #BC881B, #E0B450)',
-            }}
-            fractionTooltip={`${activeBorrowed.toLocaleString()} of ${totalCopies.toLocaleString()} volumes currently checked out`}
-          />
-        </div>
-
-        {/* Filter & Search Action Bar */}
-        <div className="bg-[#1E1B22]/90 backdrop-blur-md border border-white/[0.08] rounded-[16px] p-3 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)] flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Wide search input field with keyboard shortcut and clear action */}
-          <div className="relative flex-1 min-w-[260px] sm:min-w-[320px]">
-            <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-150 ${
-              isSearchFocused ? 'text-[#BC881B]' : 'text-[#B3AABD]'
-            }`} />
-            <input
-              ref={searchInputRef}
-              id="catalog-search-input"
-              name="catalogSearch"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && searchQuery) {
-                  e.stopPropagation();
-                  setSearchQuery('');
-                }
-              }}
-              placeholder="Search title, author, barcode, accession, ISBN..."
-              aria-label="Search catalog books"
-              autoComplete="off"
-              spellCheck={false}
-              className={`w-full h-10 bg-[#141214] hover:bg-[#1A181C] focus:bg-[#141214] border rounded-[10px] pl-10 pr-10 py-2 text-[13px] text-white placeholder:text-[#8E8698] transition-all duration-150 shadow-[0_1px_3px_rgba(0,0,0,0.3)] ${
-                isSearchFocused
-                  ? 'border-[#BC881B] ring-2 ring-[#BC881B]/25 outline-none'
-                  : 'border-white/[0.08] hover:border-white/[0.18]'
-              }`}
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  searchInputRef.current?.focus();
-                }}
-                className="w-6 h-6 flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B3AABD] hover:text-white hover:bg-white/[0.1] transition-colors cursor-pointer rounded-[5px]"
-                title="Clear search (Esc)"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            ) : !isSearchFocused ? (
-              <div
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] bg-white/[0.05] border border-white/[0.08] text-[10px] font-mono text-[#8E8698] pointer-events-none select-none"
-              >
-                <span>/</span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Center: Dropdown selects */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Category select */}
-            <div className="w-48 min-w-[170px]">
-              <CustomSelect
-                value={selectedCategory}
-                onChange={(val) => setSelectedCategory(val)}
-                options={[
-                  { value: 'ALL', label: 'All Disciplines' },
-                  ...categories.map(c => ({ value: c, label: c }))
-                ]}
-                searchable
-                variant="dark"
+        {/* Only render KPI metrics and Catalog Toolbar when NOT in dedicated Almari View */}
+        {viewMode !== 'almari' && (
+          <>
+            {/* Operational Collection Metrics (Unified Institutional Surfaces - Rule 4) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard
+                label="Cataloged Titles"
+                value={totalTitles}
+                note="Distinct records"
+                icon={BookOpen}
+                subLabel={`Across ${categories.length} academic disciplines`}
+              />
+              <KpiCard
+                label="Physical Volumes"
+                value={totalCopies}
+                note="Physical items"
+                icon={Layers}
+                subLabel="Total holdings in campus collection"
+              />
+              <KpiCard
+                label="Shelf Availability"
+                value={totalAvailable}
+                note="Available now"
+                icon={CheckCircle2}
+                subLabel={`${totalAvailable.toLocaleString()} / ${totalCopies.toLocaleString()} volumes on shelf`}
+              />
+              <KpiCard
+                label="Active Loans"
+                value={activeBorrowed}
+                note={overdueCount > 0 ? `${overdueCount} overdue` : 'On loan'}
+                icon={Clock}
+                isGoldNumber={activeBorrowed > 0}
+                isDanger={overdueCount > 0}
+                subLabel={overdueCount > 0 ? `${overdueCount} books require overdue follow-up` : 'Currently checked out to members'}
               />
             </div>
 
-            {/* Status select */}
-            <div className="w-40 min-w-[145px]">
-              <CustomSelect
-                value={selectedStatus}
-                onChange={(val) => setSelectedStatus(val)}
-                options={[
-                  { value: 'ALL', label: 'All Copies' },
-                  { value: 'AVAILABLE', label: 'Available Now', badge: 'Ready' },
-                  { value: 'LOANED', label: 'Fully Loaned', badge: 'Out' }
-                ]}
-                variant="dark"
-              />
-            </div>
+            {/* Decluttered 2-Row Filter & Search Action Bar (Rule 5) */}
+            <div className="ulm-liquid-glass rounded-xl p-3.5 space-y-3 shadow-xs">
+              {/* Row 1: Search & Primary Filters */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Search Input */}
+                <div className="relative flex-1 min-w-[260px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    id="catalog-search-input"
+                    name="catalogSearch"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setIsSearchFocused(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && searchQuery) {
+                        e.stopPropagation();
+                        setSearchQuery('');
+                      }
+                    }}
+                    placeholder="Search title, author, barcode, accession, ISBN..."
+                    aria-label="Search catalog books"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={`w-full h-10 bg-[#0B1220] hover:bg-[#0E1525] focus:bg-[#0B1220] border rounded-lg pl-10 pr-8 text-[13px] text-white placeholder:text-slate-400 transition-colors ${
+                      isSearchFocused
+                        ? 'border-[#BC881B] ring-1 ring-[#BC881B] outline-none'
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        searchInputRef.current?.focus();
+                      }}
+                      className="w-5 h-5 flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      title="Clear search"
+                      aria-label="Clear search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-            {/* Language filter select */}
-            <div className="w-40 min-w-[145px]">
-              <CustomSelect
-                value={selectedLanguage}
-                onChange={(val) => setSelectedLanguage(val)}
-                options={[
-                  { value: 'ALL', label: 'All Languages' },
-                  { value: 'English', label: 'English' },
-                  { value: 'Urdu', label: 'Urdu (اردو)', badge: 'Nastaliq' },
-                  { value: 'Arabic', label: 'Arabic' },
-                  { value: 'Pashto', label: 'Pashto' },
-                ]}
-                variant="dark"
-              />
-            </div>
+                {/* 4 Clean Select Dropdowns */}
+                {/* 1. Discipline */}
+                <div className="w-44 min-w-[150px]">
+                  <CustomSelect
+                    value={selectedCategory}
+                    onChange={(val) => setSelectedCategory(val)}
+                    options={[
+                      { value: 'ALL', label: 'All Disciplines' },
+                      ...categories.map(c => ({ value: c, label: c }))
+                    ]}
+                    searchable
+                    variant="dark"
+                  />
+                </div>
 
-            {/* Group filter select */}
-            <div className="w-44 min-w-[150px]">
-              <CustomSelect
-                value={selectedGroupFilter}
-                onChange={(val) => setSelectedGroupFilter(val)}
-                options={[
-                  { value: 'ALL', label: 'All Groups' },
-                  { value: 'NO_GROUP', label: 'No group (Unassigned)' },
-                  ...AlmariService.getGroups().map(g => ({ value: g.id, label: g.name_en }))
-                ]}
-                searchable
-                variant="dark"
-              />
-            </div>
+                {/* 2. Language (Rule 5: Clean labels, never Nastaliq overflowing) */}
+                <div className="w-36 min-w-[130px]">
+                  <CustomSelect
+                    value={selectedLanguage}
+                    onChange={(val) => setSelectedLanguage(val)}
+                    options={[
+                      { value: 'ALL', label: 'All Languages' },
+                      { value: 'English', label: 'English' },
+                      { value: 'Urdu', label: 'Urdu (اردو)' },
+                      { value: 'Pashto', label: 'Pashto (پښتو)' },
+                    ]}
+                    variant="dark"
+                  />
+                </div>
 
-            {/* Almari filter select */}
-            <div className="w-44 min-w-[150px]">
-              <CustomSelect
-                value={selectedAlmariFilter}
-                onChange={(val) => setSelectedAlmariFilter(val)}
-                options={[
-                  { value: 'ALL', label: 'All Almaris' },
-                  { value: 'NO_ALMARI', label: 'No almari' },
-                  ...AlmariService.getAlmaris().filter(a => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name_en}` }))
-                ]}
-                searchable
-                variant="dark"
-              />
-            </div>
+                {/* 3. Almari */}
+                <div className="w-40 min-w-[140px]">
+                  <CustomSelect
+                    value={selectedAlmariFilter}
+                    onChange={(val) => setSelectedAlmariFilter(val)}
+                    options={[
+                      { value: 'ALL', label: 'All Almaris' },
+                      { value: 'NO_ALMARI', label: 'No Almari' },
+                      ...AlmariService.getAlmaris().filter(a => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name_en}` }))
+                    ]}
+                    searchable
+                    variant="dark"
+                  />
+                </div>
 
-            {/* Sort select */}
-            <div className="w-56 min-w-[210px]">
-              <CustomSelect
-                value={sortBy}
-                onChange={(val) => handleSortChange(val)}
-                options={[
-                  { value: 'newest_added', label: 'Sort: Newest Added' },
-                  { value: 'oldest_added', label: 'Sort: Oldest Added' },
-                  { value: 'almari_order', label: 'Sort: Almari order' },
-                  { value: 'group_then_almari', label: 'Sort: Group, then Almari' },
-                  { value: 'dewey_decimal', label: 'Sort: Call number (Dewey)' },
-                  { value: 'shelf_location', label: 'Sort: Shelf location' },
-                  { value: 'accession', label: 'Sort: Accession (Asc)' },
-                  { value: 'accession_desc', label: 'Sort: Accession (Desc)' },
-                  { value: 'title', label: 'Sort: Title (A-Z / الف تا ے)' },
-                  { value: 'title_desc', label: 'Sort: Title (Z-A / ے تا الف)' },
-                  { value: 'author', label: 'Sort: Author (A-Z)' },
-                  { value: 'author_desc', label: 'Sort: Author (Z-A)' },
-                  { value: 'copies', label: 'Sort: Total Copies' },
-                  { value: 'year', label: 'Sort: Publication Year' }
-                ]}
-                variant="dark"
-              />
-            </div>
+                {/* 4. Sort */}
+                <div className="w-44 min-w-[150px]">
+                  <CustomSelect
+                    value={sortBy}
+                    onChange={(val) => handleSortChange(val)}
+                    options={[
+                      { value: 'newest_added', label: 'Sort: Newest Added' },
+                      { value: 'oldest_added', label: 'Sort: Oldest Added' },
+                      { value: 'almari_order', label: 'Sort: Almari Order' },
+                      { value: 'group_then_almari', label: 'Sort: Group & Almari' },
+                      { value: 'dewey_decimal', label: 'Sort: Call # (Dewey)' },
+                      { value: 'accession', label: 'Sort: Accession (Asc)' },
+                      { value: 'accession_desc', label: 'Sort: Accession (Desc)' },
+                      { value: 'title', label: 'Sort: Title (A-Z)' },
+                      { value: 'author', label: 'Sort: Author (A-Z)' },
+                    ]}
+                    variant="dark"
+                  />
+                </div>
 
-            {/* Date Added Filter Range */}
-            <div className="h-10 flex items-center gap-2 bg-[#141214] border border-white/[0.08] rounded-[10px] px-3 text-[12px]">
-              <Calendar className="w-4 h-4 text-[#BC881B] shrink-0" />
-              <span className="text-[12px] text-[#B3AABD] font-mono">Added:</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                title="Date Added From"
-                className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
-              />
-              <span className="text-[12px] text-[#B3AABD] font-mono px-0.5">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                title="Date Added To"
-                className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
-              />
-              {(dateFrom || dateTo) && (
+                {/* Secondary Filters Popover Button */}
                 <button
                   type="button"
-                  onClick={() => { setDateFrom(''); setDateTo(''); }}
-                  className="w-8 h-8 min-w-[32px] min-h-[32px] flex items-center justify-center text-[#B3AABD] hover:text-white cursor-pointer ml-0.5 rounded-[6px]"
-                  title="Clear date range"
-                  aria-label="Clear date range"
+                  onClick={() => setIsSecondaryFiltersOpen(!isSecondaryFiltersOpen)}
+                  className={`h-10 px-3.5 rounded-lg border text-[13px] font-medium flex items-center gap-2 transition-colors cursor-pointer shrink-0 ${
+                    isSecondaryFiltersOpen || activeSecondaryFilterCount > 0
+                      ? 'bg-[#151C2C] border-[#BC881B] text-[#E0B450]'
+                      : 'bg-[#0B1220] border-white/10 text-slate-300 hover:bg-[#151C2C] hover:text-white'
+                  }`}
+                  title="Toggle more filters (copies, groups, date added)"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Filters</span>
+                  {activeSecondaryFilterCount > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-[#BC881B] text-slate-950 font-bold text-[11px] flex items-center justify-center">
+                      {activeSecondaryFilterCount}
+                    </span>
+                  )}
                 </button>
+              </div>
+
+              {/* Secondary Filters Popover Panel */}
+              {isSecondaryFiltersOpen && (
+                <div className="p-3 bg-[#0B1220] border border-white/10 rounded-xl flex flex-wrap items-center gap-3 animate-in fade-in">
+                  {/* Copies / Availability */}
+                  <div className="w-40 min-w-[140px]">
+                    <CustomSelect
+                      value={selectedStatus}
+                      onChange={(val) => setSelectedStatus(val)}
+                      options={[
+                        { value: 'ALL', label: 'All Copies' },
+                        { value: 'AVAILABLE', label: 'Available Now' },
+                        { value: 'LOANED', label: 'Fully Loaned' }
+                      ]}
+                      variant="dark"
+                    />
+                  </div>
+
+                  {/* Group Filter */}
+                  <div className="w-44 min-w-[150px]">
+                    <CustomSelect
+                      value={selectedGroupFilter}
+                      onChange={(val) => setSelectedGroupFilter(val)}
+                      options={[
+                        { value: 'ALL', label: 'All Groups' },
+                        { value: 'NO_GROUP', label: 'Unassigned Group' },
+                        ...AlmariService.getGroups().map(g => ({ value: g.id, label: g.name_en }))
+                      ]}
+                      searchable
+                      variant="dark"
+                    />
+                  </div>
+
+                  {/* Date Added Range */}
+                  <div className="h-10 flex items-center gap-2 bg-[#0E1525] border border-white/10 rounded-lg px-3 text-[12px]">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-slate-400 font-mono text-[11px]">From:</span>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
+                    />
+                    <span className="text-slate-400 font-mono text-[11px] px-0.5">To:</span>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
+                    />
+                    {(dateFrom || dateTo) && (
+                      <button
+                        type="button"
+                        onClick={() => { setDateFrom(''); setDateTo(''); }}
+                        className="p-1 text-slate-400 hover:text-white cursor-pointer rounded"
+                        title="Clear date range"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {activeSecondaryFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStatus('ALL');
+                        setSelectedGroupFilter('ALL');
+                        setDateFrom('');
+                        setDateTo('');
+                      }}
+                      className="text-xs text-[#BC881B] hover:underline font-medium cursor-pointer ml-auto"
+                    >
+                      Reset Secondary Filters
+                    </button>
+                  )}
+                </div>
               )}
+
+              {/* Row 2: View Switcher & Secondary Actions (Rule 5) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-white/[0.06]">
+                {/* Left: Segmented View Switcher */}
+                <div className="bg-[#0B1220] p-1 rounded-lg border border-white/10 inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    aria-pressed={viewMode === 'list'}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      viewMode === 'list' 
+                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                    title="Switch to Table List View"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>List View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    aria-pressed={viewMode === 'grid'}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      viewMode === 'grid' 
+                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                    title="Switch to Card Grid View"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Grid View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('almari')}
+                    aria-pressed={(viewMode as string) === 'almari'}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      (viewMode as string) === 'almari' 
+                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                    title="Switch to Almari & Shelves Visual View"
+                  >
+                    <Library className="w-3.5 h-3.5" />
+                    <span>Almari View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('chart')}
+                    aria-pressed={viewMode === 'chart'}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      viewMode === 'chart' 
+                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                    title="Switch to Analytics View"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Analytics</span>
+                  </button>
+                </div>
+
+                {/* Right: Quiet Secondary Actions (No duplicate Add Book, no neon button fills) */}
+                <div className="flex items-center gap-2">
+                  {onOpenImportBookEntrySheet && (
+                    <button
+                      type="button"
+                      onClick={onOpenImportBookEntrySheet}
+                      className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Upload a .xlsx or .csv file to validate and add books"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>Import Excel/CSV</span>
+                    </button>
+                  )}
+
+                  {onOpenBatchLabelPrint && (
+                    <button
+                      type="button"
+                      onClick={onOpenBatchLabelPrint}
+                      className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Batch Barcode Labels Generator"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>Batch Labels</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadBookCsvTemplate}
+                    className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Download official catalog CSV template"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>CSV Template</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Right: Grid/List toggle + CSV Template + Add Book */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="h-10 flex items-center bg-[#141214] border border-white/[0.08] rounded-[10px] p-1 gap-1">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                aria-pressed={viewMode === 'grid'}
-                className={`btn-segmented flex items-center gap-1.5 px-3 h-8 rounded-[8px] text-[12px] font-semibold transition-all duration-150 cursor-pointer ${
-                  viewMode === 'grid' 
-                    ? 'btn-selected bg-[#BC881B] text-[#1A1A1A] font-bold shadow-[0_2px_8px_rgba(188,136,27,0.35)]' 
-                    : 'text-[#B3AABD] hover:text-white hover:bg-white/[0.05]'
-                }`}
-                title="Switch to Card Grid View"
-                aria-label="Grid View"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="btn-label">Grid View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                aria-pressed={viewMode === 'list'}
-                className={`btn-segmented flex items-center gap-1.5 px-3 h-8 rounded-[8px] text-[12px] font-semibold transition-all duration-150 cursor-pointer ${
-                  viewMode === 'list' 
-                    ? 'btn-selected bg-[#BC881B] text-[#1A1A1A] font-bold shadow-[0_2px_8px_rgba(188,136,27,0.35)]' 
-                    : 'text-[#B3AABD] hover:text-white hover:bg-white/[0.05]'
-                }`}
-                title="Switch to Table List View"
-                aria-label="List View"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span className="btn-label">List View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('chart')}
-                aria-pressed={viewMode === 'chart'}
-                className={`btn-segmented flex items-center gap-1.5 px-3 h-8 rounded-[8px] text-[12px] font-semibold transition-all duration-150 cursor-pointer ${
-                  viewMode === 'chart' 
-                    ? 'btn-selected bg-[#BC881B] text-[#1A1A1A] font-bold shadow-[0_2px_8px_rgba(188,136,27,0.35)]' 
-                    : 'text-[#B3AABD] hover:text-white hover:bg-white/[0.05]'
-                }`}
-                title="Switch to Interactive Chart Analytics View"
-                aria-label="Chart View"
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span className="btn-label">Chart View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('almari')}
-                aria-pressed={viewMode === 'almari'}
-                className={`btn-segmented flex items-center gap-1.5 px-3 h-8 rounded-[8px] text-[12px] font-semibold transition-all duration-150 cursor-pointer ${
-                  viewMode === 'almari' 
-                    ? 'btn-selected bg-[#BC881B] text-[#1A1A1A] font-bold shadow-[0_2px_8px_rgba(188,136,27,0.35)]' 
-                    : 'text-[#B3AABD] hover:text-white hover:bg-white/[0.05]'
-                }`}
-                title="Switch to Almari & Shelves Visual View"
-                aria-label="Almari View"
-              >
-                <Library className="w-3.5 h-3.5" />
-                <span className="btn-label">Almari View</span>
-              </button>
-            </div>
-
-            {/* Batch Barcode Labels Generator */}
-            {onOpenBatchLabelPrint && (
-              <button
-                type="button"
-                onClick={onOpenBatchLabelPrint}
-                className="btn-secondary h-10 px-3.5 rounded-[10px] font-semibold text-[13px] inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs bg-[#BC881B]/15 hover:bg-[#BC881B]/25 text-[#E0B450] hover:text-white border border-[#BC881B]/40 hover:border-[#BC881B]/70 shadow-[0_2px_8px_rgba(188,136,27,0.12)] active:scale-[0.98]"
-                title="Print batch thermal barcode labels for cataloged volumes"
-              >
-                <Printer className="w-4 h-4 text-[#E0B450] shrink-0" />
-                <span className="btn-label hidden sm:inline">Batch Labels</span>
-              </button>
-            )}
-
-            {/* Book Entry Sheet Importer */}
-            {onOpenImportBookEntrySheet && (
-              <button
-                type="button"
-                onClick={onOpenImportBookEntrySheet}
-                className="btn-secondary h-10 px-3.5 rounded-[10px] font-semibold text-[13px] inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-white border border-emerald-500/40 hover:border-emerald-500/70 shadow-[0_2px_8px_rgba(16,185,129,0.12)] active:scale-[0.98]"
-                title="Import catalog from ULM_Book_Entry_Sheet.xlsx"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="btn-label hidden sm:inline">Import Sheet</span>
-              </button>
-            )}
-
-            {/* CSV Template Download */}
-            <button
-              type="button"
-              onClick={handleDownloadBookCsvTemplate}
-              className="btn-ghost h-10 px-3.5 rounded-[10px] font-semibold text-[13px] inline-flex items-center gap-2 transition-all border border-white/[0.12] cursor-pointer shadow-xs"
-              title="Download official catalog CSV template with DateAdded column"
-            >
-              <Download className="w-4 h-4 text-[#BC881B] shrink-0" />
-              <span className="btn-label hidden md:inline">CSV Template</span>
-            </button>
-
-            {/* Add Book Button matching header primary */}
-            <button
-              type="button"
-              onClick={onOpenAddBook}
-              className="btn-primary h-10 px-4 rounded-[10px] text-[13px] font-bold inline-flex items-center gap-2 cursor-pointer shadow-md"
-              title="Catalog a new reference volume"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
-              <span className="btn-label">Add Book</span>
-            </button>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Floating/Sticky Selection Bar for Catalog Placement */}
-        {selectedBookIds.size > 0 && (
+        {selectedBookIds.size > 0 && viewMode !== 'almari' && (
           <div className="bg-[#221F26] border border-[#BC881B] rounded-[14px] p-3 sm:p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.6)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-[#BC881B] text-[#1A1A1A] font-extrabold flex items-center justify-center font-mono text-sm">
@@ -925,7 +915,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <div
                   key={book.id}
                   style={{ animationDelay: `${Math.min((idx % 12) * 35, 300)}ms`, contentVisibility: 'auto', containIntrinsicSize: '0 320px' }}
-                  className="book-card-enter rounded-[14px] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/[0.08] shadow-[0_4px_20px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)] overflow-hidden flex flex-col justify-between group transition-all duration-200 relative hover:-translate-y-[3px] hover:border-[#BC881B]/50 hover:shadow-[0_10px_28px_rgba(0,0,0,0.5),0_0_16px_rgba(188,136,27,0.2)] h-full"
+                  className="book-card-enter rounded-[14px] ulm-liquid-glass overflow-hidden flex flex-col justify-between group transition-all duration-200 relative hover:-translate-y-[3px] hover:border-[#BC881B] h-full"
                 >
                   {/* Selection Checkbox */}
                   <button
@@ -937,7 +927,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     className={`absolute top-2.5 right-2.5 z-20 w-6 h-6 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
                       selectedBookIds.has(book.id)
                         ? 'bg-[#BC881B] border-[#BC881B] text-[#1A1A1A] shadow-sm'
-                        : 'bg-[#141214]/80 border-white/20 text-transparent hover:border-[#BC881B] hover:text-white/40'
+                        : 'bg-white/40 dark:bg-[#141214]/80 border-[var(--border-subtle)] text-transparent hover:border-[#BC881B] hover:text-royal-gold'
                     }`}
                     title={selectedBookIds.has(book.id) ? 'Deselect book' : 'Select book for Almari placement'}
                   >
@@ -985,19 +975,19 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <div className="space-y-1">
                           {/* Badges row with wrap support */}
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center text-[11px] font-semibold text-[#6FA8D2] bg-[#29658E]/20 border border-[#29658E]/40 px-2 py-0.5 rounded-[6px] shrink-0">
+                            <span className="inline-flex items-center text-[11px] font-semibold text-blue-500 dark:text-[#6FA8D2] bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded-[6px] shrink-0">
                               {book.category}
                             </span>
                             {(book.language === 'Urdu' || isArabicOrUrduScript(book.book_name)) ? (
-                              <span className="inline-flex items-center text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-700/60 px-2 py-0.5 rounded-[6px] shrink-0">
+                              <span className="inline-flex items-center text-[11px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-[6px] shrink-0">
                                 اردو · Nastaliq
                               </span>
                             ) : (
-                              <span className="inline-flex items-center text-[11px] font-mono text-[#B3AABD] shrink-0">
+                              <span className="inline-flex items-center text-[11px] font-mono text-[var(--text-muted)] shrink-0">
                                 {book.language || 'English'}
                               </span>
                             )}
-                            <span className="inline-flex items-center text-[11px] font-mono font-semibold text-[#E0B450] bg-[#BC881B]/15 border border-[#BC881B]/30 px-2 py-0.5 rounded-[6px] shrink-0">
+                            <span className="inline-flex items-center text-[11px] font-mono font-semibold text-royal-gold bg-[#BC881B]/15 border border-[#BC881B]/30 px-2 py-0.5 rounded-[6px] shrink-0">
                               {book.edition}
                             </span>
                           </div>
@@ -1007,7 +997,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             onClick={() => onSelectBook(book)}
                             dir="auto"
                             style={{ unicodeBidi: 'plaintext' }}
-                            className={`font-bold text-white hover:text-[#E0B450] transition-colors mt-1 line-clamp-2 cursor-pointer min-h-[38px] ${
+                            className={`font-bold text-[var(--text-strong)] hover:text-royal-gold transition-colors mt-1 line-clamp-2 cursor-pointer min-h-[38px] ${
                               isArabicOrUrduScript(book.book_name) ? 'font-urdu text-[15px] leading-[2.1]' : 'text-[14px] leading-snug'
                             }`}
                             title={book.book_name}
@@ -1015,7 +1005,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             {book.book_name}
                           </h4>
                           {book.title_roman && (
-                            <p className="text-[11px] text-[#E0B450]/80 font-mono truncate" title={book.title_roman}>
+                            <p className="text-[11px] text-royal-gold/80 font-mono truncate" title={book.title_roman}>
                               ({book.title_roman})
                             </p>
                           )}
@@ -1024,21 +1014,21 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                           <p 
                             dir="auto"
                             style={{ unicodeBidi: 'plaintext' }}
-                            className={`text-[12px] text-[#B3AABD] truncate ${
+                            className={`text-[12px] text-[var(--text-muted)] truncate ${
                               isArabicOrUrduScript(book.author) ? 'font-urdu leading-[2]' : ''
                             }`}
                             title={book.author}
                           >
-                            by <span className="text-white font-medium">{book.author}</span>
+                            by <span className="text-[var(--text-strong)] font-medium">{book.author}</span>
                             {book.author_roman && (
-                              <span className="text-[11px] text-[#B3AABD] font-mono ml-1">· {book.author_roman}</span>
+                              <span className="text-[11px] text-[var(--text-muted)] font-mono ml-1">· {book.author_roman}</span>
                             )}
                           </p>
                         </div>
 
-                        {/* Call number & Shelf location with pin icon (never hidden behind Added row) */}
+                        {/* Call number & Shelf location with pin icon */}
                         <div 
-                          className="text-[12px] text-[#B3AABD] flex items-center gap-1.5 pt-1"
+                          className="text-[12px] text-[var(--text-muted)] flex items-center gap-1.5 pt-1"
                           title={`${book.shelf} · Row ${book.row}`}
                         >
                           <MapPin className="w-3.5 h-3.5 text-[#29658E] shrink-0" />
@@ -1047,27 +1037,23 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Metadata Bottom Rows Container (pinned at bottom, equal row heights) */}
-                    <div className="space-y-2 mt-auto pt-1">
-                      {/* Metadata Row: Date Added & Dewey call number */}
-                      <div className="flex items-center justify-between text-[12px] bg-[#141214]/80 rounded-[8px] px-3 py-1.5 border border-white/[0.06] h-[36px]">
-                        <div className="truncate flex items-center gap-1.5 text-[#B3AABD] font-mono">
-                          <Calendar className="w-3.5 h-3.5 text-[#BC881B] shrink-0" />
+                    {/* Sleek Unified Crystal Glass Shelf Bar (Replaces 3 nested boxes) */}
+                    <div className="bg-white/10 dark:bg-black/25 rounded-xl p-2.5 border border-[var(--border-subtle)] space-y-2 mt-auto">
+                      <div className="flex items-center justify-between text-[11.5px] font-mono">
+                        <div className="truncate flex items-center gap-1.5 text-[var(--text-muted)]">
+                          <Calendar className="w-3.5 h-3.5 text-royal-gold shrink-0" />
                           <span>Added:</span>
-                          <span className="text-white font-medium">{formatDisplayDate(book.date_added || book.created_at)}</span>
+                          <span className="text-[var(--text-strong)] font-medium">{formatDisplayDate(book.date_added || book.created_at)}</span>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <span className="text-[#E0B450] font-mono text-[11px] font-semibold bg-[#BC881B]/15 px-2 py-0.5 rounded-[6px] border border-[#BC881B]/25">
-                            {book.dewey_call_number}
-                          </span>
-                        </div>
+                        <span className="text-royal-gold font-mono text-[11px] font-semibold bg-[#BC881B]/15 px-2 py-0.5 rounded-[6px] border border-[#BC881B]/25">
+                          {book.dewey_call_number}
+                        </span>
                       </div>
 
-                      {/* Barcode Visual Strip & Monospace String */}
-                      <div className="flex items-center justify-between gap-2 bg-[#141214]/80 rounded-[8px] px-3 py-1.5 border border-white/[0.06] h-[36px]">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <BarcodeIcon className="w-4 h-4 text-[#B3AABD] shrink-0" />
-                          <span className="font-mono text-[12px] text-white font-semibold tracking-wider truncate">
+                      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <BarcodeIcon className="w-4 h-4 text-royal-gold shrink-0" />
+                          <span className="font-mono text-[12px] text-[var(--text-strong)] font-bold tracking-wider truncate">
                             {book.barcode}
                           </span>
                         </div>
@@ -1077,29 +1063,24 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Availability Status & Capacity Bar (equal height) */}
+                    {/* Availability Status & Capacity Bar */}
                     <div className="flex items-center justify-between h-[36px] pt-0.5">
                       {!isAvailable ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[12px] font-semibold">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[12px] font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                          <span>Unavailable (0 copies)</span>
-                        </div>
-                      ) : isLowStock ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[12px] font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                          <span>Low Stock ({book.available_quantity} copies)</span>
+                          <span>0 Available (All Issued)</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[12px] font-semibold">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[12px] font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Available ({book.available_quantity} copies)</span>
+                          <span>{book.available_quantity} Available</span>
                         </div>
                       )}
                       <div className="flex flex-col items-end gap-1">
-                        <span className="text-[12px] text-[#B3AABD] font-mono tabular-nums">
+                        <span className="text-[12px] text-[var(--text-muted)] font-mono tabular-nums">
                           {issuedCount} issued / {book.total_quantity} total
                         </span>
-                        <div className="w-20 bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
+                        <div className="w-20 bg-white/20 dark:bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-[#BC881B] rounded-full transition-all duration-300" 
                             style={{ width: `${capacityPercent}%` }} 
@@ -1173,10 +1154,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         ) : (
           /* List View: Wide table on desktop, automatically switches to compact cards on narrow / restored screens (< 1024px) */
           <>
-            <div className="hidden lg:block bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-xl overflow-hidden shadow-2xs">
+            <div className="hidden lg:block ulm-liquid-glass rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                  <thead className="bg-slate-50 dark:bg-[#020617] text-slate-600 dark:text-slate-400 uppercase font-mono-code text-[11px] border-b border-slate-200 dark:border-[#1E293B]">
+                <table className="w-full text-left text-xs text-[var(--text-body)]">
+                  <thead className="bg-black/10 dark:bg-black/30 text-[var(--text-strong)] uppercase font-mono-code text-[11px] border-b border-[var(--border-subtle)]">
                     <tr>
                       <th className="py-3 px-3 text-center w-10">
                       <input
@@ -1202,9 +1183,9 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       <div className="flex items-center gap-1">
                         <span>Date Added</span>
                         {sortBy === 'newest_added' ? (
-                          <ArrowDown className="w-3 h-3 text-amber-400" />
+                          <ArrowDown className="w-3 h-3 text-royal-gold" />
                         ) : sortBy === 'oldest_added' ? (
-                          <ArrowUp className="w-3 h-3 text-amber-400" />
+                          <ArrowUp className="w-3 h-3 text-royal-gold" />
                         ) : (
                           <ArrowUpDown className="w-3 h-3 text-slate-500" />
                         )}
@@ -1217,14 +1198,14 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-[#1E293B]">
+                <tbody className="divide-y divide-[var(--border-subtle)]">
                   {paginatedBooks.map((book) => {
                     const isAvailable = book.available_quantity > 0;
                     const issued = book.total_quantity - book.available_quantity;
                     const isUrduBook = book.language === 'Urdu' || isArabicOrUrduScript(book.book_name);
 
                     return (
-                      <tr key={book.id} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 52px' }} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors min-h-[48px] h-[52px]">
+                      <tr key={book.id} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 52px' }} className="hover:bg-slate-100/80 dark:hover:bg-slate-800/40 border-b border-slate-200/70 dark:border-white/5 transition-colors min-h-[48px] h-[52px]">
                         <td className="py-3 px-3 text-center">
                           <input
                             type="checkbox"
@@ -1235,15 +1216,15 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-7 h-9 rounded bg-slate-800 border border-slate-700 shrink-0 overflow-hidden flex items-center justify-center font-cinzel text-[8px] text-amber-300 font-bold">
-                              {book.book_name.slice(0, 3)}
+                            <div className="w-7 h-9 rounded bg-white/20 dark:bg-slate-800 border border-[var(--border-subtle)] shrink-0 overflow-hidden flex items-center justify-center font-serif text-[10px] text-royal-gold font-bold">
+                              {isUrduBook ? <BookOpen className="w-3.5 h-3.5 text-royal-gold" /> : (book.book_name || 'ULM').slice(0, 2).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <p 
                                 onClick={() => onSelectBook(book)}
                                 dir="auto"
                                 style={{ unicodeBidi: 'plaintext' }}
-                                className={`font-semibold text-[#F1F5F9] hover:text-amber-600 dark:hover:text-amber-300 cursor-pointer truncate max-w-xs md:max-w-md ${
+                                className={`font-semibold text-[var(--text-strong)] hover:text-royal-gold cursor-pointer truncate max-w-xs md:max-w-md ${
                                   isArabicOrUrduScript(book.book_name) ? 'font-urdu text-[15px] leading-[2.1]' : ''
                                 }`}
                                 title={book.book_name}
@@ -1289,8 +1270,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                           )}
                         </td>
                         <td className="py-3 px-4 font-mono-code">
-                          <p className="text-[#F1F5F9] font-medium">{book.barcode}</p>
-                          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">{book.dewey_call_number}</p>
+                          <p className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">{book.barcode}</p>
+                          <p className="font-mono text-[11px] font-semibold text-amber-700 dark:text-amber-400 mt-0.5">{book.dewey_call_number}</p>
                         </td>
                         <td className="py-3 px-4 font-mono-code text-[11px] text-slate-300 whitespace-nowrap">
                           {formatDisplayDate(book.date_added || book.created_at)}
@@ -1368,7 +1349,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <div 
                   key={book.id} 
                   style={{ contentVisibility: 'auto', containIntrinsicSize: '0 100px' }}
-                  className="rounded-[12px] bg-[#1E1B22] border border-white/[0.08] p-3.5 flex flex-col gap-2.5 shadow-sm hover:border-[#BC881B]/40 transition-colors"
+                  className="rounded-[12px] ulm-liquid-glass p-3.5 flex flex-col gap-2.5 shadow-sm hover:border-[#BC881B] transition-all"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2.5 min-w-0">

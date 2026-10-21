@@ -222,8 +222,12 @@ if (!testBorrower) {
     department: 'Computer Science',
     status: 'active',
     borrow_limit: 5,
-    email: 'test@ulm.edu.pk',
+    university_id: 'ULM-BOR-TEST-001',
+    student_id: 'ULM-BOR-TEST-001',
+    program: 'BSCS',
+    joined_date: '2024-01-01',
     phone: '03001234567',
+    email: 'test@ulm.edu.pk',
   });
   testBorrower = bRes.borrower || LibraryStorage.getBorrowers()[0];
 }

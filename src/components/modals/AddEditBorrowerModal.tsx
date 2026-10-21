@@ -715,19 +715,19 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       >
         {/* Dynamic Modal Container (Adapts from single column up to 2-column wide layout) */}
         <div 
-          className="w-full max-w-[1140px] bg-[#0B1220] border border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-all text-slate-200"
+          className="w-full max-w-[1140px] bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-all text-slate-900 dark:text-slate-200"
         >
           {/* Header */}
-          <div className="px-5 sm:px-6 py-3.5 bg-[#020617] border-b border-[#334155] flex items-center justify-between">
+          <div className="px-5 sm:px-6 py-3.5 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-[#334155] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <UserPlus className="w-4 h-4 text-amber-500" />
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                <UserPlus className="w-4 h-4 text-amber-600 dark:text-amber-500" />
               </div>
               <div>
-                <h2 id="borrower-dialog-title" className="text-sm sm:text-base font-bold text-[#F1F5F9] font-cinzel leading-tight tracking-wide">
+                <h2 id="borrower-dialog-title" className="text-sm sm:text-base font-bold text-slate-900 dark:text-[#F1F5F9] font-cinzel leading-tight tracking-wide">
                   {isEditMode ? 'Edit Library Borrower Profile' : 'Enroll Borrower (Add Person)'}
                 </h2>
-                <p className="text-[10.5px] text-slate-400 font-sans mt-0.5">
+                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
                   Institutional Registration · Smart CR80 Member Identification System
                 </p>
               </div>
@@ -827,7 +827,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       </button>
                     </div>
                   </div>
-                  <div className="overflow-x-auto w-full flex justify-center py-1">
+                  <div className="overflow-x-auto w-full flex justify-center py-1 ulm-preserve-dark rounded-xl">
                     <MemberCard member={previewMember} side={previewSide} />
                   </div>
                 </div>
@@ -1473,31 +1473,31 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
             </div>
 
             {/* RIGHT COLUMN: DEDICATED LIVE CARD PREVIEW (Wide Windows: lg+) */}
-            <div className="hidden lg:flex w-[440px] bg-[#070B14] border-l border-[#334155] p-5 flex-col items-center justify-between shrink-0">
+            <div className="hidden lg:flex w-[440px] bg-slate-50 dark:bg-[#070B14] border-l border-slate-200 dark:border-[#334155] p-5 flex-col items-center justify-between shrink-0">
               <div className="w-full space-y-4">
                 {/* Preview Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-amber-400" />
+                    <CreditCard className="w-4 h-4 text-amber-500" />
                     <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-white font-cinzel leading-none">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-cinzel leading-none">
                         Live Card Preview
                       </h4>
-                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
                         Updates in real-time as you type
                       </p>
                     </div>
                   </div>
 
                   {/* Side Switcher */}
-                  <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800 text-xs">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
                     <button
                       type="button"
                       onClick={() => setPreviewSide('front')}
                       className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
                         previewSide === 'front'
                           ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                       }`}
                     >
                       Front
@@ -1508,7 +1508,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
                         previewSide === 'back'
                           ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                       }`}
                     >
                       Back
@@ -1517,7 +1517,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                 </div>
 
                 {/* Scaled Preview Wrapper (Center 398 × 227 card) */}
-                <div className="py-2 flex justify-center items-center">
+                <div className="py-2 flex justify-center items-center ulm-preserve-dark rounded-xl">
                   <div className="transition-transform duration-200 hover:scale-[1.02]">
                     <MemberCard member={previewMember} side={previewSide} />
                   </div>

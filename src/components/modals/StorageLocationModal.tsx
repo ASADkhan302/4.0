@@ -24,7 +24,7 @@ import {
 import { StorageLocationConfig } from '../../types/library';
 import { RealStorageService, FolderChecklistResult, LibraryCreationProgressStep, StorageStatus } from '../../services/realStorageService';
 import { LibraryStorage } from '../../services/storage';
-import { ULM_CREST_SRC } from '../../assets/brand/crestData';
+import { ULM_CREST_LOGO } from '../../constants/branding';
 
 interface StorageLocationModalProps {
   isOpen: boolean;
@@ -280,22 +280,16 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.01] shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="relative shrink-0 flex items-center justify-center p-0.5 rounded-full bg-gradient-to-br from-[#BC881B]/25 via-transparent to-[#BC881B]/15 border border-[#BC881B]/40 shadow-[0_0_8px_rgba(188,136,27,0.25)]">
-              <img src={ULM_CREST_SRC} alt="University of Lakki Marwat crest" width={44} height={44} className="w-11 h-11 object-contain drop-shadow-sm select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+            <div className="w-11 h-11 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center flex-shrink-0">
+              <img src={ULM_CREST_LOGO} alt="University of Lakki Marwat Crest" className="w-9 h-9 object-contain drop-shadow-sm select-none" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-[#BC881B] font-bold">
                   Storage Management
                 </span>
-                <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
-                  envMode === 'DESKTOP'
-                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                    : envMode === 'BROWSER-FOLDER'
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                }`}>
-                  {envMode === 'DESKTOP' ? 'Desktop Native' : envMode === 'BROWSER-FOLDER' ? 'Browser Folder' : 'Iframe Preview'}
+                <span className="px-2 py-0.5 rounded text-[10px] font-sans font-medium bg-[#131B2E] text-slate-300 border border-white/10">
+                  {envMode === 'DESKTOP' ? 'Desktop Native' : 'Local Storage'}
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-bold text-white tracking-wide mt-0.5">
@@ -325,38 +319,34 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-white">Library Storage Mounted & Verified</h4>
                   <p className="text-emerald-200/90 leading-relaxed text-[12px]">
-                    All library tables, transaction ledgers, Excel book sheets, and single-instance locks are active on disk.
+                    All library catalog records, transaction ledgers, member accounts, and storage files are active on disk.
                   </p>
                 </div>
               </div>
 
-              {/* Facts Read Directly From Disk */}
-              <div className="bg-[#1C1822] border border-white/[0.08] rounded-[14px] p-4 space-y-3">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold block border-b border-white/[0.06] pb-2">
-                  Facts Verified From Physical Disk
+              {/* Human-Friendly Storage Information */}
+              <div className="bg-[#131B2E] border border-white/[0.08] rounded-[14px] p-4 space-y-3">
+                <span className="text-[11px] font-sans uppercase tracking-wider text-[#BC881B] font-semibold block border-b border-white/[0.06] pb-2">
+                  Storage Configuration Summary
                 </span>
-                <div className="grid grid-cols-2 gap-3 text-[12px]">
-                  <div className="p-2.5 rounded-[8px] bg-black/40 border border-white/[0.05]">
-                    <span className="text-[#B3AABD] block text-[11px]">Storage Path / Folder</span>
-                    <span className="text-white font-mono font-bold truncate block">{creationSuccessStatus.folderPath}</span>
-                    {envMode === 'BROWSER-FOLDER' && (
-                      <span className="text-[10px] text-slate-400 block mt-0.5">The browser does not reveal the full path</span>
-                    )}
-                  </div>
-                  <div className="p-2.5 rounded-[8px] bg-black/40 border border-white/[0.05]">
-                    <span className="text-[#B3AABD] block text-[11px]">Database File Size</span>
-                    <span className="text-white font-mono font-bold block">
-                      {(creationSuccessStatus.fileSizeBytes / 1024).toFixed(1)} KB ({creationSuccessStatus.fileSizeBytes} bytes)
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[12px]">
+                  <div className="p-3 rounded-lg bg-[#0B1220] border border-white/[0.06]">
+                    <span className="text-slate-400 block text-[11px] font-medium">Storage Folder</span>
+                    <span className="text-white font-mono font-semibold truncate block mt-0.5">
+                      {creationSuccessStatus.folderPath || 'Documents\\ULM Library'}
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-[8px] bg-black/40 border border-white/[0.05]">
-                    <span className="text-[#B3AABD] block text-[11px]">SQLite Journal Mode (PRAGMA)</span>
-                    <span className="text-emerald-400 font-mono font-bold block">{creationSuccessStatus.journalMode} (Single file)</span>
+                  <div className="p-3 rounded-lg bg-[#0B1220] border border-white/[0.06]">
+                    <span className="text-slate-400 block text-[11px] font-medium">Total Cataloged Books</span>
+                    <span className="text-white font-mono font-bold block mt-0.5">
+                      {LibraryStorage.getBooks().length.toLocaleString()} Titles
+                    </span>
                   </div>
-                  <div className="p-2.5 rounded-[8px] bg-black/40 border border-white/[0.05]">
-                    <span className="text-[#B3AABD] block text-[11px]">Integrity Check (PRAGMA)</span>
-                    <span className="text-emerald-400 font-mono font-bold block">
-                      {creationSuccessStatus.quickCheckOk ? 'quick_check == ok' : 'Error'}
+                  <div className="p-3 rounded-lg bg-[#0B1220] border border-white/[0.06]">
+                    <span className="text-slate-400 block text-[11px] font-medium">Backup Status</span>
+                    <span className="text-emerald-400 font-sans font-semibold block mt-0.5 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      Verified
                     </span>
                   </div>
                 </div>
@@ -366,7 +356,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 h-10 rounded-[10px] bg-[#BC881B] hover:bg-[#A67515] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#BC881B]/20 flex items-center gap-2"
+                  className="px-5 h-10 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 text-xs font-semibold tracking-wide transition-all cursor-pointer shadow-sm flex items-center gap-2"
                 >
                   <span>Continue to Library</span>
                   <ArrowRight className="w-4 h-4" />

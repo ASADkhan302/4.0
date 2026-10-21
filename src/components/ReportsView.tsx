@@ -44,6 +44,7 @@ import { PanelCard, KpiCard } from './shared/SharedCards';
 import { StatusPill } from './shared/StatusPill';
 import { DataTable, ColumnDef } from './shared/DataTable';
 import CustomSelect from './ui/CustomSelect';
+import { ULM_CREST_LOGO } from '../constants/branding';
 
 export type ReportTabId = 'overview' | 'circulation' | 'collection' | 'overdue' | 'health';
 export type TimePeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
@@ -603,7 +604,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         {/* Header Card with ONE gold primary button (Print Official Report) */}
         <PageHeaderCard
           title="Campus Library Analytics & Inventory Audit"
-          subtitle={`Updated ${lastUpdatedTime} · Real database aggregates with zero synthetic padding.`}
+          subtitle="Inventory summary, circulation activity, and overdue reports."
           icon={BarChart3}
           actions={
             <div className="flex flex-wrap items-center gap-2.5">
@@ -795,8 +796,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           }}
                         />
                         <Legend wrapperStyle={{ fontSize: '11px', color: '#B3AABD' }} />
-                        <Bar dataKey="issued" name="Issued" fill="#BC881B" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="returned" name="Returned" fill="#34D399" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="issued" name="Issued" fill="#BC881B" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                        <Bar dataKey="returned" name="Returned" fill="#34D399" radius={[4, 4, 0, 0]} maxBarSize={44} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -831,7 +832,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                             fontSize: '12px',
                           }}
                         />
-                        <Bar dataKey="count" name="Overdue Books" fill="#FB7185" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="count" name="Overdue Books" fill="#FB7185" radius={[4, 4, 0, 0]} maxBarSize={44} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1277,17 +1278,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             {/* Printable Content Container */}
             <div ref={reportPrintRef} className="space-y-6 bg-white text-black">
               {/* Official Institutional Header */}
-              <div className="text-center space-y-1 border-b-2 border-black pb-4 mb-6">
-              <h1 className="text-xl font-bold uppercase tracking-wider font-cinzel">
-                University of Lakki Marwat
-              </h1>
-              <h2 className="text-sm font-semibold uppercase tracking-wide">
-                Central Campus Library · Official Audit & Analytics Report
-              </h2>
-              <p className="text-xs text-gray-600 font-sans">
-                Generated: {new Date().toLocaleDateString('en-GB')} at {new Date().toLocaleTimeString()} · Period: {selectedPeriod.toUpperCase()}
-              </p>
-            </div>
+              <div className="flex items-center justify-center gap-4 border-b-2 border-black pb-4 mb-6">
+                <img
+                  src={ULM_CREST_LOGO}
+                  alt="University of Lakki Marwat Crest"
+                  className="w-14 h-14 object-contain select-none"
+                />
+                <div className="text-center space-y-1">
+                  <h1 className="text-xl font-bold uppercase tracking-wider font-cinzel">
+                    University of Lakki Marwat
+                  </h1>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide">
+                    Central Campus Library · Official Audit & Analytics Report
+                  </h2>
+                  <p className="text-xs text-gray-600 font-sans">
+                    Generated: {new Date().toLocaleDateString('en-GB')} at {new Date().toLocaleTimeString()} · Period: {selectedPeriod.toUpperCase()}
+                  </p>
+                </div>
+              </div>
 
             {/* KPI Summary Table */}
             <div className="mb-6">

@@ -164,6 +164,27 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
     return name.slice(0, 2).toUpperCase();
   };
 
+  // Books lookup map for clean accession numbers on loan cards
+  const booksMap = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
+  const getLoanAccessionLabel = (tx: Transaction): string => {
+    const b = booksMap.get(tx.book_id) || books.find(book => book.barcode === tx.barcode);
+    if (b?.accession_no) return `#${b.accession_no}`;
+    if (tx.barcode) return `#${tx.barcode}`;
+    return `#${formatTransactionId(tx.id)}`;
+  };
+
+  // Helper to format raw timestamp/hash transaction IDs (e.g., tx-1792319943471-pi86z8 -> TX-PI86Z8)
+  const formatTransactionId = (id: string): string => {
+    if (!id) return 'TX-0001';
+    if (/^tx-\d{1,5}$/i.test(id)) return id.toUpperCase();
+    if (id.startsWith('tx-') && id.length > 10) {
+      const parts = id.split('-');
+      const suffix = parts[parts.length - 1];
+      return `TX-${suffix.toUpperCase()}`;
+    }
+    return id.toUpperCase();
+  };
+
   // Four COUNT values and fractions for restyled Circulation Filter Cards
   const allLoansCount = transactions.length;
   // Shared count definition: active loans excluding overdue loans (not yet due)
@@ -214,11 +235,11 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
   // List View Columns
   const listColumns: ColumnDef<Transaction>[] = [
     {
-      header: 'ID',
-      width: '100px',
+      header: 'Accession / ID',
+      width: '130px',
       cell: (tx) => (
-        <span className="font-mono text-[12px] text-[#B3AABD] font-semibold">
-          {tx.id}
+        <span className="font-mono text-[12px] text-[#E0B450] font-bold" title={`Transaction ${tx.id} · Barcode ${tx.barcode || ''}`}>
+          {getLoanAccessionLabel(tx)}
         </span>
       ),
     },
@@ -384,10 +405,10 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
         {isIssuing && (
           <form 
             onSubmit={handleCreateIssue}
-            className="rounded-[14px] bg-[#1A1A1A] border border-[#BC881B]/50 p-5 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.5)] space-y-4 animate-in fade-in duration-200"
+            className="rounded-[14px] bg-white/90 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#BC881B]/50 p-5 sm:p-6 shadow-md dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] space-y-4 animate-in fade-in duration-200"
           >
-            <div className="flex items-center justify-between border-b border-[#2E2A33] pb-3">
-              <div className="flex items-center gap-2 text-white font-bold text-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2E2A33] pb-3">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
                 <BookOpen className="w-4 h-4 text-[#E0B450]" />
                 <span>New Book Issue Transaction</span>
               </div>
@@ -596,9 +617,9 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
 
         {/* 2.3 & 2.4 Transactions Display (Grid or List View) */}
         {filteredTxs.length === 0 ? (
-          <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-12 text-center text-[#B3AABD] space-y-3 shadow-md">
+          <div className="rounded-[14px] bg-white/90 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[#2E2A33] p-12 text-center text-slate-600 dark:text-[#B3AABD] space-y-3 shadow-sm">
             <ArrowRightLeft className="w-12 h-12 mx-auto text-[#6F6879]" />
-            <h4 className="text-base font-semibold text-white">No circulation records found</h4>
+            <h4 className="text-base font-semibold text-slate-900 dark:text-white">No circulation records found</h4>
             <p className="text-xs text-[#B3AABD] max-w-md mx-auto">
               No active or past loans match your current search query and status filter.
             </p>
@@ -640,10 +661,10 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                     style={{ backgroundColor: statusColor }} 
                   />
 
-                  {/* Row 1: Transaction ID + Status Pill */}
+                  {/* Row 1: Accession Number + Status Pill */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[12px] font-semibold text-[#B3AABD]">
-                      {tx.id}
+                    <span className="font-mono text-[12px] font-bold text-[#E0B450] bg-[#BC881B]/15 px-2.5 py-0.5 rounded-[6px] border border-[#BC881B]/30" title={`Transaction ${tx.id} · Barcode ${tx.barcode || ''}`}>
+                      {getLoanAccessionLabel(tx)}
                     </span>
                     {isReturned ? (
                       <StatusPill label="Returned" variant="muted" dot />

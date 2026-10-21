@@ -509,7 +509,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       )}
 
       {/* TOP CONTROLS & FIND A BOOK BAR */}
-      <div className="p-4 sm:p-5 border-b border-[var(--border-subtle)] bg-[#1A1A1A] shrink-0 space-y-3">
+      <div className="p-4 sm:p-5 border-b border-slate-200/80 dark:border-[var(--border-subtle)] bg-white/90 dark:bg-[#1A1A1A] shrink-0 space-y-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Breadcrumb / Title */}
           <div className="flex items-center gap-2.5">
@@ -525,22 +525,22 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                         setSelectedAlmariId(null);
                         setSelectedBookId(null);
                       }}
-                      className="text-[13px] text-[var(--text-muted)] hover:text-white transition-colors cursor-pointer"
+                      className="text-[13px] text-slate-600 dark:text-[var(--text-muted)] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                     >
                       Almaris Overview
                     </button>
                     <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                    <span className="text-[15px] font-bold text-white font-mono">
+                    <span className="text-[15px] font-bold text-slate-900 dark:text-white font-mono">
                       {currentAlmari?.code}: {currentAlmari?.name_en}
                     </span>
                   </>
                 ) : (
-                  <h2 className="text-[16px] font-bold text-white flex items-center gap-2">
+                  <h2 className="text-[16px] font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <span>Physical Cupboards & Shelves (الماریاں و تختے)</span>
                   </h2>
                 )}
               </div>
-              <p className="text-[11px] text-[var(--text-muted)]">
+              <p className="text-[11px] text-slate-500 dark:text-[var(--text-muted)]">
                 {selectedAlmariId
                   ? 'Visual cupboard shelving stack with language-aware book spine navigation'
                   : 'Overview cards for all physical cupboards with capacity thresholds and group bindings'}
@@ -561,7 +561,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               title="Add a new manual Almari or cupboard (نیا الماری شامل کریں)"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>+ Add Almari</span>
+              <span>Add Almari</span>
             </button>
 
             {lastBatchId && (
@@ -583,12 +583,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                 value={rangeLookupQuery}
                 onChange={e => setRangeLookupQuery(e.target.value)}
                 placeholder="Range lookup (e.g. ULM-00001 to ULM-00020)..."
-                className="w-full h-9 px-3 bg-[#221F26] border border-[#BC881B]/40 rounded-[8px] text-[12px] font-mono text-white placeholder:text-[#B3AABD]/60 focus:outline-none focus:border-[#E0B450]"
+                className="w-full h-9 px-3 bg-white/90 dark:bg-[#131B2E] border border-slate-300 dark:border-[#BC881B]/40 rounded-[8px] text-[12px] font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#E0B450]"
               />
               {rangeLookupQuery && (
                 <button
                   onClick={() => setRangeLookupQuery('')}
-                  className="absolute right-2 top-2 text-[#B3AABD] hover:text-white"
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -597,18 +597,18 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
             {/* Quick Global Book Finder */}
             <div className="relative flex-1 md:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={finderQuery}
                 onChange={e => setFinderQuery(e.target.value)}
                 placeholder="Find a book (Title, Author, Barcode)..."
-                className="w-full h-9 pl-9 pr-8 bg-[#221F26] border border-[var(--border-subtle)] rounded-[8px] text-[12px] text-white focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 pl-10 pr-8 bg-white/90 dark:bg-[#131B2E] border border-slate-300 dark:border-white/10 rounded-[8px] text-[12px] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[var(--gold)]"
               />
               {finderQuery && (
                 <button
                   onClick={() => setFinderQuery('')}
-                  className="absolute right-2.5 top-2.5 text-[var(--text-muted)] hover:text-white"
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -792,29 +792,16 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               </div>
             </div>
 
-            {/* Quick Actions: Add Almari and Search */}
+            {/* Quick Actions: Search almaris */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAlmariToEdit(null);
-                  setIsAddEditOpen(true);
-                }}
-                className="h-8 px-3 rounded-[6px] bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-ui font-semibold text-[12px] inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
-                title="Add New Almari / Cupboard"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span className="hidden sm:inline">Add Almari</span>
-              </button>
-
-              <div className="relative w-40 sm:w-56">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[var(--text-muted)]" />
+              <div className="relative w-44 sm:w-60">
+                <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search almaris..."
-                  className="w-full h-8 pl-8 pr-2.5 bg-[#221F26] border border-[var(--border-subtle)] rounded-[6px] text-[12px] text-white focus:outline-none focus:border-[var(--gold)]"
+                  className="w-full h-8 pl-10 pr-3 bg-white/90 dark:bg-[#131B2E] border border-slate-300 dark:border-white/10 rounded-lg text-[12px] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[var(--gold)]"
                 />
               </div>
             </div>
@@ -867,39 +854,39 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         {!selectedAlmariId && !viewByGroup && almaris.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {/* "No almari" First Card */}
-            <div className="p-5 rounded-[14px] bg-[#1A1A1A] border border-[var(--border-subtle)] flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.35)] relative overflow-hidden">
+            <div className="p-5 rounded-[14px] bg-white/90 dark:bg-[#1A1A1A] border border-slate-200/80 dark:border-[var(--border-subtle)] flex flex-col justify-between shadow-sm relative overflow-hidden">
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-[10px] bg-rose-950/20 border border-rose-800/40 flex items-center justify-center text-rose-400 shrink-0">
+                    <div className="w-10 h-10 rounded-[10px] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
                       <HelpCircle className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-[15px]">No Almari (Unassigned)</h4>
-                      <p className="text-[12px] text-[var(--text-muted)] font-urdu" dir="auto">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-[15px]">No Almari (Unassigned)</h4>
+                      <p className="text-[12px] text-slate-600 dark:text-[var(--text-muted)] font-urdu" dir="auto">
                         بغیر الماری کتب
                       </p>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-rose-950/40 text-rose-400 border border-rose-800/40 font-bold">
+                  <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30 font-bold">
                     {almariStats.unassigned.totalTitles} Titles
                   </span>
                 </div>
 
                 <div className="space-y-1 text-[13px]">
-                  <div className="flex justify-between text-white">
+                  <div className="flex justify-between text-slate-800 dark:text-white">
                     <span>Total Copies:</span>
                     <span className="font-mono font-bold">{almariStats.unassigned.totalCopies}</span>
                   </div>
-                  <div className="flex justify-between text-[var(--text-muted)] text-[12px]">
+                  <div className="flex justify-between text-slate-500 dark:text-[var(--text-muted)] text-[12px]">
                     <span>In Library: {almariStats.unassigned.inAlmari}</span>
                     <span>On Loan: {almariStats.unassigned.onLoan}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-[var(--border-subtle)] mt-3">
-                <div className="text-[11.5px] text-[#B3AABD] italic flex items-center gap-1.5">
+              <div className="pt-3 border-t border-slate-200/80 dark:border-[var(--border-subtle)] mt-3">
+                <div className="text-[11.5px] text-slate-500 dark:text-[#B3AABD] italic flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
                   <span>Manual cupboard allocation</span>
                 </div>
@@ -920,12 +907,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               const categoryBadge = alm.category || almGroups[0]?.name_en || 'General Stacks';
               const healthStatus = st.totalCopies === 0 ? 'EMPTY' : capPct < 75 ? 'OPTIMAL' : capPct <= 90 ? 'NEAR FULL' : 'FULL';
               const healthBadgeColor = st.totalCopies === 0
-                ? 'bg-slate-500/20 text-slate-300 border-slate-500/35'
+                ? 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/35'
                 : capPct < 75
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/35'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/35'
                 : capPct <= 90
-                ? 'bg-amber-500/20 text-[#E0B450] border-amber-500/35'
-                : 'bg-rose-500/20 text-rose-400 border-rose-500/35';
+                ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-[#E0B450] dark:border-amber-500/35'
+                : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/35';
 
               const shelfCount = Math.max(1, alm.shelf_count || 5);
               const shelves = AlmariService.getShelvesForAlmari(alm.id);
@@ -934,25 +921,25 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                 <div
                   key={alm.id}
                   onClick={() => setSelectedAlmariId(alm.id)}
-                  className="p-5 rounded-[14px] bg-[#1A1A1A] border border-[var(--border-subtle)] hover:border-[#BC881B]/70 transition-all flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.35)] cursor-pointer group"
+                  className="p-5 rounded-2xl bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 hover:border-[#BC881B] transition-all flex flex-col justify-between shadow-sm cursor-pointer group"
                 >
                   <div className="space-y-3.5">
                     {/* Header: Drawing, Code, Title & Management Controls */}
                     <div className="flex items-start justify-between gap-2.5">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-[10px] bg-[#221F26] border border-[#BC881B]/40 flex items-center justify-center text-[#E0B450] shrink-0 group-hover:scale-105 transition-transform">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/10 border border-amber-500/30 dark:border-[#BC881B]/40 flex items-center justify-center text-amber-700 dark:text-[#E0B450] shrink-0 group-hover:scale-105 transition-transform">
                           <Building2 className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono font-bold text-[#E0B450] text-[14px]">
+                            <span className="font-mono font-bold text-amber-700 dark:text-[#E0B450] text-[14px]">
                               {alm.code}
                             </span>
-                            <span className="text-[13px] font-bold text-white truncate" title={alm.name_en}>
+                            <span className="text-[14px] font-bold text-slate-900 dark:text-white truncate" title={alm.name_en}>
                               {alm.name_en}
                             </span>
                           </div>
-                          <p className="text-[11.5px] text-[var(--text-muted)] font-urdu truncate" dir="auto">
+                          <p className="text-[11.5px] text-slate-600 dark:text-slate-300 font-urdu truncate" dir="auto">
                             {alm.name_ur}
                           </p>
                         </div>
@@ -966,7 +953,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                             setAlmariToEdit(alm);
                             setIsAddEditOpen(true);
                           }}
-                          className="px-2 py-1 rounded bg-[#221F26] hover:bg-[#2B2730] text-[#B3AABD] hover:text-[#E0B450] border border-white/[0.08] text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-800 dark:text-slate-200 hover:text-amber-800 dark:hover:text-[#E0B450] border border-slate-300 dark:border-white/10 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                           title={`Edit Almari ${alm.code}`}
                           aria-label={`Edit Almari ${alm.code}`}
                         >
@@ -980,7 +967,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                             setAlmariToDelete(alm);
                             setIsDeleteModalOpen(true);
                           }}
-                          className="p-1 rounded bg-[#221F26] hover:bg-rose-950/40 text-[#B3AABD] hover:text-rose-400 border border-white/[0.08] transition-colors"
+                          className="p-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-white/10 dark:hover:bg-rose-950/40 text-slate-700 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-300 dark:border-white/10 transition-colors"
                           title={`Delete Almari ${alm.code}`}
                           aria-label={`Delete Almari ${alm.code}`}
                         >
@@ -991,51 +978,31 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
                     {/* Meta Badges: Hall/Wing + Category + Capacity Health Status */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#29658E]/20 text-[#6FA8D2] border border-[#29658E]/40" title="Physical Wing Location">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#29658E]/30 text-[#6FA8D2] border border-[#29658E]/40" title="Physical Wing Location">
                         {hallWing}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#541A72]/30 text-[#E0B450] border border-[#BC881B]/40" title="Stack Category">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#541A72]/40 text-[#FFD147] border border-[#BC881B]/40" title="Stack Category">
                         {categoryBadge}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider border ${healthBadgeColor}`} title="Capacity Health">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${healthBadgeColor}`} title="Capacity Health">
                         {healthStatus}
                       </span>
                     </div>
 
                     {/* Continuous Accession Range Badge */}
-                    <div className="flex items-center justify-between text-xs font-mono bg-[#221F26] px-2.5 py-1.5 rounded-lg border border-white/[0.06]">
+                    <div className="flex items-center justify-between text-xs font-mono bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
                       <span className="text-[#E0B450] font-bold truncate max-w-[170px]" title={range.rangeStr}>
                         {range.count > 0 ? range.rangeStr : 'Empty'}
                       </span>
                       {range.gaps.length > 0 && (
                         <span 
-                          className="text-[#FB7185] text-[11px] font-semibold"
+                          className="text-rose-400 text-[11px] font-semibold"
                           title={`Missing accession numbers on shelf: ${range.gaps.slice(0, 8).join(', ')}${range.gaps.length > 8 ? '...' : ''}`}
                         >
                           ({range.gaps.length} gaps)
                         </span>
                       )}
-                      <span className="text-[#B3AABD] text-[11px]">{st.totalCopies} / {totalCap} Vol</span>
-                    </div>
-
-                    {/* 4 Live Counts on Every Almari Card */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-2 bg-[#221F26] rounded-[10px] text-center border border-white/[0.04]">
-                      <div className="p-1 rounded bg-[#171518]/60">
-                        <span className="text-[10px] text-[var(--text-muted)] uppercase block tracking-wider">Total</span>
-                        <span className="font-mono font-bold text-white text-[13px] tabular-nums">{st.totalCopies}</span>
-                      </div>
-                      <div className="p-1 rounded bg-[#171518]/60">
-                        <span className="text-[10px] text-emerald-400/90 uppercase block tracking-wider">Available</span>
-                        <span className="font-mono font-bold text-emerald-400 text-[13px] tabular-nums">{st.inAlmari}</span>
-                      </div>
-                      <div className="p-1 rounded bg-[#171518]/60">
-                        <span className="text-[10px] text-[#E0B450]/90 uppercase block tracking-wider">On Loan</span>
-                        <span className="font-mono font-bold text-[#E0B450] text-[13px] tabular-nums">{st.onLoan}</span>
-                      </div>
-                      <div className="p-1 rounded bg-[#171518]/60">
-                        <span className="text-[10px] text-slate-400 uppercase block tracking-wider">Free Cap</span>
-                        <span className="font-mono font-bold text-slate-300 text-[13px] tabular-nums">{freeCap}</span>
-                      </div>
+                      <span className="text-slate-300 text-[11px]">{st.totalCopies} / {totalCap} Vol</span>
                     </div>
 
                     {/* Interactive Shelf Rack Bars (Shelf 1 .. Shelf N) with 12-Slot Book Spines */}
@@ -1141,26 +1108,17 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                     )}
                   </div>
 
-                  {/* Card Footer: Open Cupboard View & View in Catalog */}
-                  <div className="pt-3 border-t border-[var(--border-subtle)] mt-3 flex items-center justify-between text-[12px]">
-                    <div className="flex items-center gap-1 text-[#E0B450] font-semibold group-hover:translate-x-0.5 transition-transform">
-                      <span>Open Cupboard View</span>
+                  {/* Card Footer: Single Clean Glass Footer */}
+                  <div className="pt-3 border-t border-white/15 mt-3 flex items-center justify-between text-[12px]">
+                    <div className="text-slate-300 font-semibold flex items-center gap-1.5">
+                      <span>{st.totalCopies} / {totalCap} Volumes</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-emerald-400 font-bold">{st.inAlmari} Available</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#E0B450] font-bold group-hover:translate-x-1 transition-transform">
+                      <span>Inspect Shelves</span>
                       <ArrowRight className="w-4 h-4" />
                     </div>
-                    {onFilterCatalogByShelf && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onFilterCatalogByShelf(alm.code);
-                        }}
-                        className="text-[11px] font-semibold text-slate-400 hover:text-[#E0B450] flex items-center gap-1 hover:underline cursor-pointer"
-                        title={`Filter Catalog to ${alm.code}`}
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>View Catalog</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -1264,19 +1222,19 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         {/* ==================================================================== */}
         {selectedAlmariId && currentAlmari && (
           <div className="space-y-6">
-            {/* Cupboard Frame with 1px gold hairline frame */}
-            <div className="p-5 sm:p-6 bg-[#171518] rounded-2xl border border-[var(--gold)]/50 shadow-[0_20px_50px_rgba(0,0,0,0.6)] space-y-6">
+            {/* Cupboard Frame */}
+            <div className="p-5 sm:p-6 bg-white/90 dark:bg-[#171518] rounded-2xl border border-slate-200/80 dark:border-[var(--gold)]/50 shadow-sm dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] space-y-6">
               {/* Cupboard Header */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-[var(--border-subtle)] pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-[12px] bg-[#221F26] border border-[var(--gold)]/40 flex items-center justify-center text-[var(--gold-text)] shrink-0">
+                  <div className="w-12 h-12 rounded-[12px] bg-slate-100 dark:bg-[#221F26] border border-amber-500/30 dark:border-[var(--gold)]/40 flex items-center justify-center text-amber-700 dark:text-[var(--gold-text)] shrink-0">
                     <Building2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white font-mono flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white font-mono flex items-center gap-2">
                       <span>{currentAlmari.code} — {currentAlmari.name_en}</span>
                     </h3>
-                    <p className="text-[13px] text-[var(--text-muted)] font-urdu" dir="auto">
+                    <p className="text-[13px] text-slate-600 dark:text-[var(--text-muted)] font-urdu" dir="auto">
                       {currentAlmari.name_ur} · {currentAlmari.notes || 'Main Library Stacks'}
                     </p>
                   </div>
@@ -1357,13 +1315,13 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   return (
                     <div
                       key={shelfNum}
-                      className="space-y-2 bg-[#1C1A1E] p-4 rounded-xl border border-[var(--border-subtle)]"
+                      className="space-y-2 bg-slate-50 dark:bg-[#1C1A1E] p-4 rounded-xl border border-slate-200 dark:border-[var(--border-subtle)]"
                     >
                       {/* Shelf Level Header with Accession Range & Paste action */}
                       <div className="flex items-center justify-between text-xs pb-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">Shelf {shelfNum}:</span>
-                          <span className="font-mono text-[#E0B450] bg-[#BC881B]/15 px-2 py-0.5 rounded border border-[#BC881B]/30">
+                          <span className="font-bold text-slate-900 dark:text-white">Shelf {shelfNum}:</span>
+                          <span className="font-mono text-amber-800 dark:text-[#E0B450] bg-amber-500/10 dark:bg-[#BC881B]/15 px-2 py-0.5 rounded border border-amber-500/30 dark:border-[#BC881B]/30">
                             {shelfRange.count > 0 ? shelfRange.rangeStr : 'Empty'}
                           </span>
                           {shelfRange.gaps.length > 0 && (

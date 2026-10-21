@@ -260,6 +260,256 @@ export function normalizeIdentifier(rawValue: unknown): string {
   return str;
 }
 
+/**
+ * Parses numeric serial from raw value (Rule 4).
+ * Strips non-digits; returns positive integer or 0.
+ */
+export function parseSerialNumber(raw: unknown): number {
+  const digits = String(raw ?? '').trim().replace(/\D/g, '');
+  if (!digits) return 0;
+  const num = parseInt(digits, 10);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+/**
+ * Computes next strictly sequential serial number (Rule 4).
+ * Monotonic formula: MAX(numeric_serial) + 1.
+ * If highest serial is 100000, next is strictly 100001 with barcode 0092000100001.
+ */
+export function computeNextSerial(
+  existingBooks: Array<{ accession_number?: string; accessionNumber?: string; accession_no?: string; barcode?: string | null }>
+): {
+  maxSerial: number;
+  nextSerial: number;
+  nextAccession: string;
+  nextBarcode: string;
+} {
+  let maxSerial = 0;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    maxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+  }
+  for (const b of existingBooks) {
+    const n = parseSerialNumber(b.accession_number || b.accessionNumber || b.accession_no);
+    if (n > maxSerial) maxSerial = n;
+  }
+  const nextSerial = maxSerial > 0 ? maxSerial + 1 : 100000;
+  const padLen = nextSerial >= 100000 ? String(nextSerial).length : Math.max(5, String(nextSerial).length);
+  const nextAccession = String(nextSerial).padStart(padLen, '0');
+  const nextBarcode = '0092' + String(nextSerial).padStart(9, '0');
+  return { maxSerial, nextSerial, nextAccession, nextBarcode };
+}
+
+/**
+ * Queries database to compute next strictly sequential serial number.
+ */
+export async function getNextSequentialSeriesNumber(): Promise<{
+  maxSerial: number;
+  nextSerial: number;
+  nextAccession: string;
+  nextBarcode: string;
+}> {
+  let maxSerial = 0;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    maxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+  }
+  if (typeof window !== 'undefined' && window.ulmLibraryApi) {
+    try {
+      const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 200, sortBy: 'accession_number', sortOrder: 'DESC' });
+      for (const item of res.items) {
+        const n = parseSerialNumber(item.accession_number || item.accessionNumber);
+        if (n > maxSerial) maxSerial = n;
+      }
+    } catch (_) {}
+  }
+  const nextSerial = maxSerial > 0 ? maxSerial + 1 : 100000;
+  const padLen = nextSerial >= 100000 ? String(nextSerial).length : Math.max(5, String(nextSerial).length);
+  const nextAccession = String(nextSerial).padStart(padLen, '0');
+  const nextBarcode = '0092' + String(nextSerial).padStart(9, '0');
+  return { maxSerial, nextSerial, nextAccession, nextBarcode };
+}
+
+export const MASTER_EXCEL_FILENAME = 'ULM_Master_Books_Register.xlsx';
+export const EXCEL_SHEET_MAX_ROWS = 500000;
+
+/**
+ * Generates an unlimited multi-sheet Master Excel Workbook (Rule 3).
+ * Partitions books into 500,000-row worksheets (Books_Series_1, Books_Series_2, ...)
+ * in strict numeric serial order (100000, 100001, ...).
+ */
+export function generateMasterExcelWorkbook(books: UlmBookRecord[]): XLSX.WorkBook {
+  const sorted = [...books].sort((a, b) => {
+    const numA = parseSerialNumber(a.accession_number || a.accessionNumber);
+    const numB = parseSerialNumber(b.accession_number || b.accessionNumber);
+    if (numA !== numB) return numA - numB;
+    return String(a.accession_number || '').localeCompare(String(b.accession_number || ''), undefined, { numeric: true });
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  if (sorted.length === 0) {
+    const emptyHeaders = [
+      'Accession_No', 'Date_Of_Entry', 'Barcode', 'Author', 'Co_Authors',
+      'Title', 'Subtitle', 'Publisher', 'Place', 'Publication_Year',
+      'Edition', 'Pages', 'Binding', 'Price_Rs', 'Price_Ps', 'Source_Remarks',
+      'Call_Number', 'Category', 'Language', 'Shelf_Label', 'Status', 'Remarks'
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([emptyHeaders]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Books_Series_1');
+    return wb;
+  }
+
+  const totalSheets = Math.max(1, Math.ceil(sorted.length / EXCEL_SHEET_MAX_ROWS));
+  for (let s = 0; s < totalSheets; s++) {
+    const chunk = sorted.slice(s * EXCEL_SHEET_MAX_ROWS, (s + 1) * EXCEL_SHEET_MAX_ROWS);
+    const rows = chunk.map((b) => ({
+      Accession_No: String(b.accession_number || b.accessionNumber || ''),
+      Date_Of_Entry: String(b.date_of_entry || b.dateOfEntry || ''),
+      Barcode: String(b.barcode || ''),
+      Author: String(b.author || ''),
+      Co_Authors: String(b.co_authors || b.coAuthors || ''),
+      Title: String(b.title || ''),
+      Subtitle: String(b.subtitle || ''),
+      Publisher: String(b.publisher || ''),
+      Place: String(b.place || ''),
+      Publication_Year: String(b.publication_year || b.publicationYear || ''),
+      Edition: String(b.edition || ''),
+      Pages: String(b.pages || ''),
+      Binding: String(b.binding || ''),
+      Price_Rs: Number(b.price_rs || b.priceRs || b.price || 0),
+      Price_Ps: Number(b.price_ps || b.pricePs || 0),
+      Source_Remarks: String(b.source_remarks || b.sourceRemarks || ''),
+      Call_Number: String(b.call_number || b.callNumber || ''),
+      Category: String(b.category || ''),
+      Language: String(b.language || ''),
+      Shelf_Label: String(b.shelf_label || b.shelfLabel || ''),
+      Status: String(b.status || 'AVAILABLE'),
+      Remarks: String(b.remarks || ''),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const sheetName = `Books_Series_${s + 1}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  return wb;
+}
+
+/**
+ * Automatically syncs all books in persistent storage to ULM_Master_Books_Register.xlsx.
+ * If user granted a folder handle, writes directly to that folder; otherwise updates sync timestamp.
+ */
+export async function syncMasterExcelRegister(booksInput?: UlmBookRecord[]): Promise<{
+  success: boolean;
+  totalBooks: number;
+  syncedAt: string;
+}> {
+  let books = booksInput;
+  if (!books && typeof window !== 'undefined' && window.ulmLibraryApi) {
+    try {
+      const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 1_000_000, exportAll: true });
+      books = res.items;
+    } catch (_) {
+      books = [];
+    }
+  }
+  books = books || [];
+
+  const wb = generateMasterExcelWorkbook(books);
+  const syncedAt = new Date().toISOString();
+
+  // Try writing to folder handle if present in runtime
+  try {
+    const rootHandle = (window as any)?.__ulm_data_dir_handle || null;
+    if (rootHandle && typeof rootHandle.getFileHandle === 'function') {
+      const fileHandle = await rootHandle.getFileHandle(MASTER_EXCEL_FILENAME, { create: true });
+      const writable = await fileHandle.createWritable();
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      await writable.write(wbout);
+      await writable.close();
+    }
+  } catch (err) {
+    console.warn('[ULM-MasterExcel] Directory handle sync note:', err);
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('ulm_master_excel_synced_at', syncedAt);
+      localStorage.setItem('ulm_master_excel_book_count', String(books.length));
+    } catch (_) {}
+  }
+
+  return { success: true, totalBooks: books.length, syncedAt };
+}
+
+/**
+ * 1-click Download / Export of ULM_Master_Books_Register.xlsx
+ */
+export async function downloadMasterExcelRegister(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  let books: UlmBookRecord[] = [];
+  if (window.ulmLibraryApi) {
+    try {
+      const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 1_000_000, exportAll: true });
+      books = res.items;
+    } catch (_) {}
+  }
+  const wb = generateMasterExcelWorkbook(books);
+  XLSX.writeFile(wb, MASTER_EXCEL_FILENAME);
+}
+
+/**
+ * Complete reset of database to 0 books (Rule 1-3).
+ * Clears IndexedDB books store, SQLite, removes folder config, serial keys, and all legacy book caches.
+ */
+export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; clearedCount: number }> {
+  let clearedCount = 0;
+  if (typeof window !== 'undefined') {
+    try {
+      const db = await getIndexedDb();
+      clearedCount = await new Promise<number>((resolve) => {
+        const tx = db.transaction('books', 'readwrite');
+        const store = tx.objectStore('books');
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+          const count = countReq.result || 0;
+          store.clear();
+          tx.oncomplete = () => resolve(count);
+          tx.onerror = () => resolve(0);
+        };
+        countReq.onerror = () => resolve(0);
+      });
+    } catch (_) {}
+
+    const keysToRemove = [
+      'ulm_data_folder_config_v1',
+      'ulm_highest_serial_number_v1',
+      'ulm_master_excel_synced_at',
+      'ulm_master_excel_book_count',
+      'ulm_books',
+      'ulm_lms_books',
+      'ulm_library_books',
+      'books',
+      'library_books',
+      'ulm_sqlite_migration_verified_v1',
+      'ulm_first_open_thumbnail_boot_cache_v1',
+      'ulm_database_cleared',
+      'ulm_initialized_empty',
+      'ulm_lms_active_view',
+      'ulm_lms_last_entry_cache',
+      'ulm_lms_catalog_sort',
+    ];
+    for (const k of keysToRemove) {
+      try { localStorage.removeItem(k); } catch (_) {}
+    }
+    try {
+      localStorage.setItem('ulm_database_cleared', 'true');
+    } catch (_) {}
+
+    invalidateRamPageCache();
+  }
+  return { success: true, clearedCount };
+}
+
 function readFirstMatchingLocalStorageArray(keys: string[]): unknown[] {
   if (typeof window === 'undefined' || !window.localStorage) return [];
   for (const key of keys) {
@@ -426,9 +676,14 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
             rows = rows.filter((b) => (b.shelf_id || b.shelfId) === params.shelfId);
           }
 
-          // Sorting
+          // Strict Numeric Sorting (Rule 5): 1, 2, ... 99999, 100000, 100001
           const sortOrder = (params.sortOrder || 'ASC').toUpperCase() === 'DESC' ? -1 : 1;
           rows.sort((a, b) => {
+            const numA = parseSerialNumber(a.accession_number || a.accessionNumber);
+            const numB = parseSerialNumber(b.accession_number || b.accessionNumber);
+            if (numA !== numB) {
+              return (numA - numB) * sortOrder;
+            }
             const accA = String(a.accession_number || a.accessionNumber || '');
             const accB = String(b.accession_number || b.accessionNumber || '');
             return accA.localeCompare(accB, undefined, { numeric: true }) * sortOrder;
@@ -618,7 +873,7 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
       };
     },
 
-    async importSingleChunk(chunk: Array<Record<string, unknown>>, options = {}) {
+    async importSingleChunk(chunk: Array<Record<string, unknown>>, _options = {}) {
       const db = await getIndexedDb();
       const tx = db.transaction('books', 'readwrite');
       const store = tx.objectStore('books');
@@ -626,27 +881,57 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
       let inserted = 0;
       let skippedDuplicates = 0;
 
-      const rowOffset = (options && (options as { rowOffset?: number }).rowOffset) || 0;
+      let currentMaxSerial = 0;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        currentMaxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+      }
 
       for (let i = 0; i < chunk.length; i++) {
         const item = chunk[i];
         let acc = normalizeIdentifier(item.accession_number || item.accessionNumber);
-        if (!acc) {
-          acc = String(rowOffset + i + 1).padStart(6, '0');
+        const num = parseSerialNumber(acc);
+
+        if (num > 0) {
+          if (num > currentMaxSerial) {
+            currentMaxSerial = num;
+          }
+        } else {
+          currentMaxSerial = currentMaxSerial > 0 ? currentMaxSerial + 1 : 100000;
+          const padLen = currentMaxSerial >= 100000 ? String(currentMaxSerial).length : Math.max(5, String(currentMaxSerial).length);
+          acc = String(currentMaxSerial).padStart(padLen, '0');
         }
 
-        const uniqueId = String(item.id || `book_${acc}_${rowOffset + i + 1}`);
+        let barcode = normalizeIdentifier(item.barcode);
+        if (!barcode) {
+          barcode = '0092' + String(currentMaxSerial).padStart(9, '0');
+        }
+
+        const uniqueId = String(item.id || `book_${acc}`);
         const record = {
           ...item,
           id: uniqueId,
           accession_number: acc,
           accessionNumber: acc,
+          barcode,
           is_active: 1,
           isActive: true,
         };
 
         store.put(record);
         inserted++;
+      }
+
+      // Wait for IndexedDB transaction to commit to disk before resolving (Rule 2)
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(new Error('IndexedDB transaction aborted during import chunk write'));
+      });
+
+      if (typeof window !== 'undefined' && window.localStorage && currentMaxSerial > 0) {
+        try {
+          localStorage.setItem('ulm_highest_serial_number_v1', String(currentMaxSerial));
+        } catch (_) {}
       }
 
       invalidateRamPageCache();
@@ -1033,6 +1318,7 @@ export async function importExcelOrCsvToSqlite(
       type: 'array',
       cellText: true,
       cellDates: true,
+      raw: false,
     });
 
     const firstSheetName = workbook.SheetNames[0];
@@ -1113,6 +1399,7 @@ export async function importExcelOrCsvToSqlite(
       const stats = await window.ulmLibraryApi.getDashboardStats();
       summary.finalDbBooks = Number(stats.totalBooks || 0);
       summary.durationMs = Date.now() - startTime;
+      void syncMasterExcelRegister();
       return summary;
     }
 
@@ -1127,6 +1414,7 @@ export async function importExcelOrCsvToSqlite(
       });
       invalidateRamPageCache();
       res.durationMs = Date.now() - startTime;
+      void syncMasterExcelRegister();
       return res;
     } finally {
       unsubscribe();

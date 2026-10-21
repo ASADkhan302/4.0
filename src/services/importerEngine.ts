@@ -347,10 +347,20 @@ export class ImporterEngine {
 
       totalRowsRead++;
 
-      // 1. Process Title (Fallback to generated title if blank so row is NEVER dropped)
-      const finalTitle = rawTitle && rawTitle.trim() !== '' 
-        ? (rawTitle.length > TEXT_LIMITS.TITLE ? rawTitle.slice(0, TEXT_LIMITS.TITLE) : rawTitle.trim())
-        : `Volume #${r - 1}`;
+      // 1. Process Title (Strict validation: Book Title is mandatory)
+      if (!rawTitle || rawTitle.trim() === '') {
+        problems.push({
+          excelRowNumber: r,
+          accessionNo: colMap['accession'] ? this.cleanCellText(row.getCell(colMap['accession']).value) : `Row #${r}`,
+          type: 'ERROR',
+          field: 'Title',
+          message: 'Missing required field: Title is mandatory.',
+        });
+        errorsCount++;
+        continue;
+      }
+
+      const finalTitle = rawTitle.length > TEXT_LIMITS.TITLE ? rawTitle.slice(0, TEXT_LIMITS.TITLE) : rawTitle.trim();
 
       // Progress reporting every 200 rows
       if (r % 200 === 0) {
@@ -360,7 +370,7 @@ export class ImporterEngine {
 
       const rowWarnings: string[] = [];
 
-      // 2. Process Accession No (Fallback to ACC-r if blank, auto-suffix if duplicate so row is NEVER dropped)
+      // 2. Process Accession No
       const rawAccession = colMap['accession'] ? this.cleanCellText(row.getCell(colMap['accession']).value) : '';
       let cleanAccession = rawAccession ? rawAccession.trim() : `ACC-${String(r - 1).padStart(6, '0')}`;
 
@@ -378,16 +388,24 @@ export class ImporterEngine {
         leadingZerosCount++;
       }
 
-      // Check duplicate within the same file or library - auto-disambiguate without dropping
+      // Check duplicate within the same file or library - strictly reject duplicate accession
       const numericAcc = parseInt(cleanAccession, 10);
       const accKeyNumeric = !isNaN(numericAcc) ? String(numericAcc) : cleanAccession.toLowerCase();
 
       if (seenInFileAccessions.has(accKeyNumeric) || existingAccessions.has(accKeyNumeric) || existingAccessions.has(cleanAccession.toLowerCase())) {
-        cleanAccession = `${cleanAccession}-C${r}`;
-        rowWarnings.push(`Duplicate accession resolved to ${cleanAccession}.`);
+        problems.push({
+          excelRowNumber: r,
+          accessionNo: cleanAccession,
+          type: 'ERROR',
+          field: 'Accession No',
+          message: `Duplicate Accession Number "${cleanAccession}" already exists in workbook or library catalog.`,
+        });
         duplicatesInFileCount++;
+        errorsCount++;
+        continue;
       }
       seenInFileAccessions.add(cleanAccession.toLowerCase());
+      if (!isNaN(numericAcc)) seenInFileAccessions.add(String(numericAcc));
 
       // 4. Author (Optional)
       const rawAuthor = colMap['author'] ? this.cleanCellText(row.getCell(colMap['author']).value) : '';

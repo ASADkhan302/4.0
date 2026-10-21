@@ -28,5 +28,6 @@ export const ULM_LIBRARY_WATERMARK_FILE = '/ulm_library_watermark_6pct.png';
 export const ULM_UNIVERSITY_CREST_SRC = ULM_CREST_LOGO_SRC;
 export const ULM_UNIVERSITY_CREST_WATERMARK_SRC = ULM_CREST_WATERMARK_SRC;
 
+export { ULM_CREST_LOGO } from '../../constants/branding';
 export const ULM_CREST_WATERMARK_URI = ULM_CREST_WATERMARK_SRC;
 export default ULM_CREST_SRC;

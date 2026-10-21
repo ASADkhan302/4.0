@@ -301,14 +301,11 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
               <FileSpreadsheet className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Book Entry Sheet Excel Import Engine</span>
-                <span className="px-2 py-0.5 rounded-[6px] text-[10px] font-mono uppercase tracking-wider bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/30">
-                  Offline &amp; Verified
-                </span>
+              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                Import Books from Excel or CSV
               </h2>
-              <p className="text-xs text-[#B3AABD] mt-0.5">
-                Import volumes from ULM_Book_Entry_Sheet.xlsx with automatic barcode creation and atomic rollback.
+              <p className="text-xs text-slate-400 mt-0.5">
+                Upload a .xlsx or .csv file to validate and add books to the catalog.
               </p>
             </div>
           </div>

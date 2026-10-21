@@ -138,6 +138,7 @@ export function LmsSidebar({
 
   const navGroups: LmsNavGroupData[] = [
     {
+      heading: 'CATALOG & INVENTORY',
       items: [
         { id: 'search', title: 'Quick Search', icon: Search, shortcut: '⌘K' },
         { 
@@ -162,7 +163,7 @@ export function LmsSidebar({
       ]
     },
     {
-      heading: 'CIRCULATION & DESK',
+      heading: 'CIRCULATION',
       items: [
         { 
           id: 'circulation', 
@@ -181,7 +182,7 @@ export function LmsSidebar({
       ]
     },
     {
-      heading: 'ANALYTICS & DATA',
+      heading: 'ADMINISTRATION',
       items: [
         { id: 'reports', title: 'Reports & Audits', icon: BarChart3, shortcut: '⌘5' },
         { id: 'excel', title: 'Excel & PC Migration', icon: FileSpreadsheet, shortcut: '⌘6' },
@@ -205,15 +206,12 @@ export function LmsSidebar({
     }
   };
 
-  // Responsive sidebar width: 232px at >=1440px, 216px from 1024 to 1439px, 72px rail below 1024px or when collapsed
+  // Responsive sidebar width: 240px fixed width, 72px rail below 1024px or when collapsed
   const getSidebarWidthClass = () => {
     if (isRail) {
       return 'w-[72px] min-w-[72px] max-w-[72px]';
     }
-    if (windowDimensions.width >= 1440) {
-      return 'w-[232px] min-w-[232px] max-w-[232px]';
-    }
-    return 'w-[216px] min-w-[216px] max-w-[216px]';
+    return 'w-[240px] min-w-[240px] max-w-[240px]';
   };
 
   const itemHeightClass = isShortScreen ? 'h-[36px]' : 'h-[40px]';
@@ -230,7 +228,7 @@ export function LmsSidebar({
       )}
 
       <aside 
-        className={`h-full flex flex-col shrink-0 select-none border-r border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-primary)] transition-all duration-200 ease-out ${getSidebarWidthClass()} ${
+        className={`h-full flex flex-col shrink-0 select-none border-r border-white/[0.07] ulm-liquid-glass text-slate-200 transition-all duration-200 ease-out ${getSidebarWidthClass()} ${
           isMobile
             ? `fixed inset-y-0 left-0 z-50 shadow-2xl ${
                 !isCollapsed ? 'translate-x-0' : '-translate-x-full pointer-events-none'
@@ -238,48 +236,21 @@ export function LmsSidebar({
             : 'relative z-30'
         }`}
       >
-        {/* Top Header Block: App Logo (Refreshes App) & Go to Catalog Button */}
-        <div className={`border-b border-[var(--border)] shrink-0 relative ${isShortScreen ? 'p-2' : 'p-2.5'}`}>
-          {/* App Logo Button -> Refreshes Application */}
+        {/* Compact top collapse toggle (No duplicate crest / logo box) */}
+        <div className="h-10 px-3 flex items-center justify-between border-b border-white/[0.06] shrink-0">
+          {!isRail ? (
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 font-sans">
+              Navigation
+            </span>
+          ) : <div className="w-2" />}
           <button
             type="button"
-            onClick={() => window.location.reload()}
-            className={`w-full flex items-center justify-between p-2 rounded-xl group transition-all duration-150 cursor-pointer hover:bg-[#221F26] active:bg-[#2B2730] border border-transparent hover:border-[#2E2A33] text-left ${
-              isRail ? 'justify-center p-1.5' : ''
-            }`}
-            title="University of Lakki Marwat LMS — Click to Reload"
+            onClick={onToggleCollapse}
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+            title={isCollapsed ? "Expand Sidebar (⌘B)" : "Collapse Sidebar (⌘B)"}
+            aria-label="Toggle Sidebar"
           >
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="relative shrink-0 flex items-center justify-center p-1 rounded-full bg-gradient-to-br from-[#BC881B]/25 via-transparent to-[#BC881B]/10 border border-[#BC881B]/40 shadow-[0_0_8px_rgba(188,136,27,0.2)] group-hover:scale-105 group-hover:border-[#BC881B]/70 group-hover:shadow-[0_0_12px_rgba(188,136,27,0.35)] transition-all">
-                <img 
-                  src={ULM_CREST_SRC} 
-                  alt="University of Lakki Marwat crest" 
-                  width={34} 
-                  height={34} 
-                  className="w-[34px] h-[34px] min-w-[34px] min-h-[34px] object-contain drop-shadow-sm select-none"
-                  style={{ imageRendering: '-webkit-optimize-contrast' }}
-                />
-              </div>
-              {!isRail && (
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[14px] font-bold tracking-tight leading-tight truncate text-white group-hover:text-[#E0B450] transition-colors">
-                    ULM Library
-                  </span>
-                  <span className="text-[10.5px] text-[#B3AABD] group-hover:text-[#A66BC9] font-mono leading-none mt-1 uppercase tracking-wider font-medium truncate transition-colors">
-                    Lakki Marwat LMS
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {!isRail && (
-              <div 
-                className="w-7 h-7 rounded-lg bg-[#221F26] border border-[#2E2A33] flex items-center justify-center text-[#B3AABD] group-hover:text-[#E0B450] group-hover:border-[#BC881B]/40 group-hover:bg-[#2B2730] transition-all shrink-0 ml-1.5 shadow-xs"
-                title="Refresh application"
-              >
-                <RotateCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" />
-              </div>
-            )}
+            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
         </div>
 
@@ -290,14 +261,14 @@ export function LmsSidebar({
           {navGroups.map((group, gIdx) => (
             <div key={gIdx} className="flex flex-col gap-1">
               {group.heading && !isRail && (
-                <span className={`px-3 mb-1 text-[11px] uppercase tracking-[0.08em] font-semibold text-[var(--text-muted)] select-none ${
+                <span className={`px-3 mb-1 text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-400 select-none ${
                   isShortScreen ? 'mt-3' : 'mt-4'
                 }`}>
                   {group.heading}
                 </span>
               )}
               {isRail && group.heading && (
-                <div className={`h-[1px] mx-3 bg-[var(--border)] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
+                <div className={`h-[1px] mx-3 bg-white/[0.06] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
               )}
               {group.items.map(item => {
                 const isActive = activeTab === item.id;
@@ -310,10 +281,10 @@ export function LmsSidebar({
                     title={item.title}
                     className={`group relative flex items-center justify-between ${
                       isRail ? 'px-0 justify-center' : 'px-3 gap-3'
-                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 text-left w-full border text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
+                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 text-left w-full border text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
                       isActive
-                        ? 'bg-[#2A1338] text-white border-transparent'
-                        : 'text-[var(--text-secondary)] hover:bg-[#2B2730] hover:text-[var(--text-primary)] border-transparent'
+                        ? 'bg-[#541A72] !text-white border-[#BC881B]/60 shadow-sm'
+                        : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
                     }`}
                   >
                     {/* 3px gold left bar for active item */}
@@ -327,8 +298,8 @@ export function LmsSidebar({
                         <Icon 
                           className={`w-5 h-5 shrink-0 transition-colors ${
                             isActive 
-                              ? 'text-[#E0B450]' 
-                              : 'text-[var(--text-muted)] group-hover:text-white'
+                              ? 'text-[#FFD147]' 
+                              : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'
                           }`} 
                           strokeWidth={1.75} 
                         />
@@ -343,7 +314,7 @@ export function LmsSidebar({
                       {/* Label with ellipsis plus tooltip */}
                       {!isRail && (
                         <span 
-                          className="truncate text-[14px] font-medium leading-none" 
+                          className={`truncate text-[14px] leading-none ${isActive ? '!text-white font-semibold' : 'font-medium'}`}
                           title={item.title}
                         >
                           {item.title}
@@ -355,15 +326,15 @@ export function LmsSidebar({
                     {!isRail && (
                       <div className="relative flex items-center gap-2 ml-auto shrink-0">
                         {item.shortcut && (
-                          <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border)] text-[var(--text-muted)] bg-black/20">
+                          <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30">
                             {item.shortcut}
                           </kbd>
                         )}
                         {item.badge !== undefined && (
-                          <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-[12px] font-bold leading-none ${
+                          <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full font-mono text-xs font-semibold leading-none ${
                             isActive
-                              ? 'bg-[#BC881B] text-black'
-                              : 'bg-[#2B2730] text-[var(--text-body)] border border-[var(--border)]'
+                              ? 'bg-[#BC881B] text-black font-bold shadow-xs'
+                              : 'bg-slate-200/90 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-white/10'
                           }`}>
                             {item.badge}
                           </span>
@@ -393,8 +364,8 @@ export function LmsSidebar({
                   isRail ? 'px-0 justify-center' : 'px-3 gap-3'
                 } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 w-full border text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
                   isActive
-                    ? 'bg-[#2A1338] text-white border-transparent' 
-                    : 'text-[var(--text-secondary)] hover:bg-[#2B2730] hover:text-[var(--text-primary)] border-transparent'
+                    ? 'bg-[#541A72] !text-white border-[#BC881B]/60 shadow-sm' 
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
                 }`}
               >
                 {isActive && (
@@ -402,17 +373,17 @@ export function LmsSidebar({
                 )}
                 <div className="relative flex items-center gap-3">
                   <Icon 
-                    className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#E0B450]' : 'text-[var(--text-muted)] group-hover:text-white'}`} 
+                    className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
                     strokeWidth={1.75}
                   />
                   {!isRail && (
-                    <span className="truncate text-[14px] font-medium leading-none" title={item.title}>
+                    <span className={`truncate text-[14px] leading-none ${isActive ? '!text-white font-semibold' : 'font-medium'}`} title={item.title}>
                       {item.title}
                     </span>
                   )}
                 </div>
                 {!isRail && item.shortcut && (
-                  <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border)] text-[var(--text-muted)] bg-black/20 ml-auto shrink-0">
+                  <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30 ml-auto shrink-0">
                     {item.shortcut}
                   </kbd>
                 )}
@@ -426,7 +397,7 @@ export function LmsSidebar({
             title={isRail ? "Expand Sidebar" : "Collapse Sidebar"}
             className={`group relative flex items-center ${
               isRail ? 'justify-center px-0' : 'justify-between px-3 gap-3'
-            } ${itemHeightClass} rounded-[10px] transition-all duration-150 w-full border border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[#2B2730] text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
+            } ${itemHeightClass} rounded-[10px] transition-all duration-150 w-full border border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
           >
             {isRail ? (
               <PanelLeftOpen className="w-5 h-5 text-[var(--text-accent)]" strokeWidth={1.75} />

@@ -33,6 +33,7 @@ import { LibraryStorage } from '../../services/storage';
 import { BarcodeService } from '../../services/barcodeService';
 import { BookSheetService } from '../../services/bookSheetService';
 import { AlmariService } from '../../services/almariService';
+import { computeNextSerial, parseSerialNumber, syncMasterExcelRegister } from '../../services/libraryStorageAndMigration';
 import CustomSelect from '../ui/CustomSelect';
 import { getTodayIso, formatDisplayDate, normalizeDateAdded } from '../../utils/dateUtils';
 import { isArabicOrUrduScript, sanitizeBidiOverrides } from '../../utils/urduUtils';
@@ -203,10 +204,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       setDateAdded(editDate);
       setDateAddedRaw(formatDisplayDate(editDate));
     } else {
-      // New book: Pre-fill automatic accession number per specification
-      const nextAccInfo = BookSheetService.getNextAccessionNumber();
-      const nextAcc = nextAccInfo.accessionNo;
-      const formattedBarcode = initialBarcode || BarcodeService.generateBarcode(nextAcc).barcode;
+      // New book (Rule 4): Pre-fill sequential accession number and barcode
+      const nextSerialInfo = computeNextSerial(allBooks);
+      const nextAcc = nextSerialInfo.nextAccession;
+      const formattedBarcode = initialBarcode || nextSerialInfo.nextBarcode;
 
       // Check last entry memory from localStorage for rapid fast ledger entry
       const lastEntryStr = localStorage.getItem('ulm_lms_last_entry_cache');
@@ -626,29 +627,19 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         return;
       }
     } else if (totalQuantity > 1) {
-      // Multiple duplicate copies: create each physical volume with unique accession & 13-digit barcode
+      // Multiple duplicate copies (Rule 4): generate N separate book records with sequential serials
       const copiesCount = Math.min(50, Math.max(1, totalQuantity));
       const allBooks = LibraryStorage.getBooks();
-      let maxExistingAcc = 0;
-      for (const b of allBooks) {
-        const num = parseInt((b.accession_no || '').replace(/\D/g, ''), 10);
-        if (!isNaN(num) && num > maxExistingAcc && num < 50000000) {
-          maxExistingAcc = num;
-        }
-      }
+      const serialInfo = computeNextSerial(allBooks);
+      let runningSerial = parseSerialNumber(accessionNo.trim()) || serialInfo.nextSerial;
 
       for (let i = 0; i < copiesCount; i++) {
-        let copyAcc = '';
-        if (i === 0) {
-          copyAcc = accessionNo.trim();
-        } else {
-          maxExistingAcc++;
-          copyAcc = `ULM-${String(maxExistingAcc).padStart(5, '0')}`;
-        }
-
+        const curSerial = i === 0 ? runningSerial : ++runningSerial;
+        const padLen = curSerial >= 100000 ? String(curSerial).length : Math.max(5, String(curSerial).length);
+        const copyAcc = String(curSerial).padStart(padLen, '0');
         const copyBarcode = i === 0 && barcode.trim()
           ? barcode.trim()
-          : `0092${String(maxExistingAcc).padStart(9, '0')}`;
+          : `0092${String(curSerial).padStart(9, '0')}`;
 
         const copyPayload = {
           ...payload,
@@ -665,6 +656,12 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
           return;
         }
       }
+
+      try {
+        localStorage.setItem('ulm_highest_serial_number_v1', String(runningSerial));
+      } catch (_) {}
+
+      void syncMasterExcelRegister();
       setSaveState('success');
       setTimeout(() => {
         onClose();
@@ -677,22 +674,31 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         setSaveState('idle');
         return;
       }
+      const num = parseSerialNumber(accessionNo.trim());
+      if (num > 0) {
+        const cur = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+        if (num > cur) {
+          try { localStorage.setItem('ulm_highest_serial_number_v1', String(num)); } catch (_) {}
+        }
+      }
+      void syncMasterExcelRegister();
     }
 
     setSaveState('success');
 
     if (isNext && !bookToEdit) {
-      // Fast entry next: increment accession, clear title & author, focus title
+      // Fast continuous entry next (Rule 4): query computeNextSerial and pre-fill form
       setTimeout(() => {
-        const nextAccInfo = BookSheetService.getNextAccessionNumber();
-        const nextAcc = nextAccInfo.accessionNo;
+        const allBooks = LibraryStorage.getBooks();
+        const nextSerialInfo = computeNextSerial(allBooks);
+        const nextAcc = nextSerialInfo.nextAccession;
         setAccessionNo(nextAcc);
-        setBarcode(BarcodeService.generateBarcode(nextAcc).barcode);
+        setBarcode(nextSerialInfo.nextBarcode);
         setAccessionNotice(null);
         setAccessionError(null);
         setBookName('');
         setAuthor('');
-        setIsbn(`978-0-${String(nextAcc).slice(-4)}-101-2`);
+        setIsbn('');
         setSaveState('idle');
         setErrorMessage(null);
         titleInputRef.current?.focus();
@@ -724,30 +730,30 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
     >
       {/* Modal Dialog Window */}
       <div 
-        className="w-full max-w-5xl bg-[#17141A] border border-[#2E2A33] rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[92vh] select-none text-[#F1F5F9]"
+        className="w-full max-w-5xl bg-white dark:bg-[#17141A] border border-slate-300 dark:border-[#2E2A33] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] select-none text-slate-900 dark:text-[#F1F5F9]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle Gold / Amber Accent Hairline on Top */}
         <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#BC881B] to-transparent shrink-0" />
 
         {/* 1. INSTITUTIONAL ACCREDITED MODAL HEADER */}
-        <div className="px-6 py-4 bg-[#141214] border-b border-[#2E2A33] flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-[#141214] border-b border-slate-200 dark:border-[#2E2A33] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#BC881B]/15 border border-[#BC881B]/35 flex items-center justify-center text-[#E0B450] shrink-0 shadow-inner">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-700 dark:text-[#E0B450] shrink-0 shadow-inner">
               <BookOpen className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="font-display text-base sm:text-lg font-bold tracking-wider text-white">
+                <h3 className="font-display text-base sm:text-lg font-bold tracking-wider text-slate-900 dark:text-white">
                   {bookToEdit ? 'EDIT ACCESSION RECORD' : 'ACCESSION REGISTER · NEW VOLUME'}
                 </h3>
-                <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40">
+                <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] border border-amber-500/30 dark:border-[#BC881B]/40">
                   {bookToEdit ? `RECORD #${accessionNo}` : `ACCESSION #${accessionNo}`}
                 </span>
               </div>
-              <p className="text-[11px] text-[#B3AABD] font-ui mt-0.5 flex items-center gap-2">
+              <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] font-ui mt-0.5 flex items-center gap-2">
                 <span>University of Lakki Marwat</span>
-                <span className="text-[#4E4758]">·</span>
+                <span className="text-slate-300 dark:text-[#4E4758]">·</span>
                 <span>Central Campus Library Accession Ledger</span>
               </p>
             </div>

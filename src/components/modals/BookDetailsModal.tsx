@@ -81,18 +81,18 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-2xl bg-[#0F172A] border border-slate-200 dark:border-[#1E293B] rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-white dark:bg-[#131B2E] border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-[#1E293B] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-mono text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider">
+        <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#0B1220] border-b border-slate-200 dark:border-white/[0.08] flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#BC881B] font-semibold uppercase tracking-wider">
             <BookOpen className="w-4 h-4" />
-            <span>CAMPUS CATALOG SPECIFICATION</span>
+            <span>Book Record Details</span>
           </div>
           <button
             onClick={onClose}
@@ -104,12 +104,12 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 text-slate-900 dark:text-white">
           <div className="flex flex-col sm:flex-row gap-5">
             {/* Cover image or fallback */}
             <div 
               data-preserve-dark="true"
-              className="w-36 h-52 rounded-xl bg-slate-800 border border-slate-700 shadow-xl relative overflow-hidden flex flex-col justify-between p-3 shrink-0 mx-auto sm:mx-0"
+              className="w-36 h-52 rounded-xl ulm-preserve-dark shadow-xl relative overflow-hidden flex flex-col justify-between p-3 shrink-0 mx-auto sm:mx-0"
             >
               {book.book_image_path ? (
                 <img
@@ -150,14 +150,14 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
               <h2 
                 dir="auto"
                 style={{ unicodeBidi: 'plaintext' }}
-                className={`font-bold font-header text-[#F1F5F9] leading-snug ${
+                className={`font-bold font-header text-slate-900 dark:text-[#F1F5F9] leading-snug ${
                   isArabicOrUrduScript(book.book_name) ? 'font-urdu text-2xl leading-[2.1] py-1' : 'text-xl'
                 }`}
               >
                 {book.book_name}
               </h2>
               {book.title_roman && (
-                <p className="text-xs font-mono text-amber-400">
+                <p className="text-xs font-mono text-amber-600 dark:text-amber-400">
                   Roman Urdu: {book.title_roman}
                 </p>
               )}
@@ -165,11 +165,11 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
               <p 
                 dir="auto"
                 style={{ unicodeBidi: 'plaintext' }}
-                className={`text-xs text-slate-400 ${
+                className={`text-xs text-slate-600 dark:text-slate-400 ${
                   isArabicOrUrduScript(book.author) ? 'font-urdu text-base leading-[2]' : ''
                 }`}
               >
-                Author: <span className="font-semibold text-[#F1F5F9]">{book.author}</span>
+                Author: <span className="font-semibold text-slate-900 dark:text-[#F1F5F9]">{book.author}</span>
                 {book.author_roman && (
                   <span className="text-xs text-slate-400 font-mono ml-1.5">({book.author_roman})</span>
                 )}
@@ -188,10 +188,10 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
               )}
 
               {/* Physical location */}
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-[#1E293B] text-xs">
-                <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Stack Location:</span>
-                <span className="text-[#F1F5F9] font-mono-code font-semibold">{book.shelf} · Row {book.row} ({book.section})</span>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 text-xs">
+                <MapPin className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="font-medium">Stack Location:</span>
+                <span className="font-mono-code font-bold">{book.shelf} · Row {book.row} ({book.section})</span>
               </div>
 
               {/* Dewey Call Number, ISBN & Date Added */}
@@ -200,13 +200,13 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                   <span className="text-[10px] uppercase font-mono-code text-slate-500 block">Dewey Class</span>
                   <span className="font-mono-code font-bold text-amber-700 dark:text-amber-400 truncate block">{book.dewey_call_number}</span>
                 </div>
-                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-[#1E293B]">
-                  <span className="text-[10px] uppercase font-mono-code text-slate-500 block">ISBN-13</span>
-                  <span className="font-mono-code text-slate-700 dark:text-slate-300 truncate block">{book.isbn}</span>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/[0.08]">
+                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">ISBN-13</span>
+                  <span className="font-mono text-xs text-slate-800 dark:text-slate-200 break-all block">{book.isbn || 'N/A'}</span>
                 </div>
-                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-[#1E293B]">
-                  <span className="text-[10px] uppercase font-mono-code text-slate-500 block">Date Added</span>
-                  <span className="font-mono-code text-amber-600 dark:text-amber-300 font-semibold truncate block flex items-center gap-1">
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/[0.08]">
+                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Date Added</span>
+                  <span className="font-mono text-amber-700 dark:text-[#BC881B] text-xs font-semibold truncate block flex items-center gap-1">
                     <Calendar className="w-3 h-3 shrink-0" />
                     {formatDisplayDate(book.date_added || book.created_at)}
                   </span>
@@ -216,23 +216,23 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
           </div>
 
           {/* Barcode & Availability Bar */}
-          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-[#1E293B] flex flex-wrap items-center justify-between gap-3">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-slate-900 dark:text-white">
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-mono-code text-slate-500 block">Scannable Barcode Identifier</span>
+              <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Scannable Barcode Identifier</span>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-mono-code font-bold text-[#F1F5F9] tracking-widest">{book.barcode}</span>
+                <span className="text-sm font-mono font-bold text-slate-900 dark:text-white tracking-widest">{book.barcode}</span>
                 {renderBarcodeStrip(book.barcode)}
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <span className="text-[10px] uppercase font-mono-code text-slate-500 block">Total Stacks</span>
-                <span className="text-base font-mono-code font-bold text-[#F1F5F9] tabular-nums">{book.total_quantity}</span>
+                <span className="text-[10px] uppercase font-mono text-slate-400 block">Total Stacks</span>
+                <span className="text-base font-mono font-bold text-white tabular-nums">{book.total_quantity}</span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] uppercase font-mono-code text-slate-500 block">Available</span>
-                <span className={`text-base font-mono-code font-bold tabular-nums ${isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                <span className="text-[10px] uppercase font-mono text-slate-400 block">Available</span>
+                <span className={`text-base font-mono font-bold tabular-nums ${isAvailable ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {book.available_quantity}
                 </span>
               </div>
@@ -242,11 +242,11 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
           {/* Description */}
           {book.description && (
             <div className="space-y-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Catalog Abstract & Course Notes</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Catalog Abstract & Course Notes</span>
               <p 
                 dir="auto"
                 style={{ unicodeBidi: 'plaintext' }}
-                className={`text-sm sm:text-base text-slate-700 dark:text-slate-200 leading-relaxed bg-slate-50 dark:bg-[#020617] p-4 rounded-xl border border-slate-200 dark:border-[#1E293B] ${
+                className={`text-sm text-slate-300 leading-relaxed bg-[#0B1220] p-4 rounded-xl border border-white/[0.08] ${
                   isArabicOrUrduScript(book.description) ? 'font-urdu leading-[2.1]' : ''
                 }`}
               >
@@ -258,14 +258,14 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
           {/* Active Loans */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                Active Circulation Checkouts ({activeLoans.length} of {book.total_quantity} copies)
+              <span className="font-semibold text-slate-300">
+                Active Circulation Checkouts ({activeLoans.length} of {book.total_quantity} {book.total_quantity === 1 ? 'copy' : 'copies'})
               </span>
             </div>
 
             {activeLoans.length === 0 ? (
-              <p className="text-xs text-slate-500 italic bg-slate-50 dark:bg-[#020617] p-3 rounded-lg border border-slate-200 dark:border-[#1E293B]">
-                All {book.total_quantity} copies are currently on shelves and available for loan.
+              <p className="text-xs text-slate-400 italic bg-[#0B1220] p-3 rounded-lg border border-white/[0.08]">
+                {book.total_quantity === 1 ? '1 copy on shelf — available for loan.' : `All ${book.total_quantity} copies are currently on shelves and available for loan.`}
               </p>
             ) : (
               <div className="space-y-1.5">

@@ -58,109 +58,53 @@ export const CirculationKpiCard: React.FC<CirculationKpiCardProps> = ({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      style={{
-        animationDelay: `${staggerIndex * 40}ms`,
-        backgroundImage: isSelected
-          ? `radial-gradient(circle at top right, ${accentColor}24 0%, transparent 70%)`
-          : `radial-gradient(circle at top right, ${accentColor}14 0%, transparent 65%)`,
-      }}
-      className={`group relative w-full text-left rounded-[14px] p-[16px_18px] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden outline-none select-none
-        circulation-filter-card-mount
-        focus-visible:ring-2 focus-visible:ring-[#E0B450] focus-visible:ring-offset-2 focus-visible:ring-offset-[#141214]
-        hover:-translate-y-[2px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.45)]
-        ${
-          isSelected
-            ? 'bg-[#2A1338] border border-[#E0B450] shadow-[0_6px_20px_rgba(0,0,0,0.5),0_0_15px_rgba(224,180,80,0.15)]'
-            : 'bg-[#1A1A1A] border border-[#2E2A33] hover:border-[#A66BC9]/45 hover:bg-[#1A1A1A]/90'
-        }
-      `}
+      className={`group relative w-full text-left rounded-xl p-4 transition-all cursor-pointer flex flex-col justify-between overflow-hidden outline-none select-none bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10 shadow-sm ${
+        isSelected
+          ? 'border-[#BC881B] ring-1 ring-[#BC881B] shadow-md'
+          : 'hover:border-[#BC881B]/40'
+      }`}
     >
       {/* Selected Indicator Top Accent Hairline */}
       {isSelected && (
         <div
-          className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{ backgroundColor: accentColor }}
+          className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#BC881B]"
         />
       )}
 
-      {/* Row 1: Label on left, 28px rounded icon with accent tint on right */}
+      {/* Row 1: Label on left, muted 16px icon on right */}
       <div className="flex items-center justify-between gap-2.5 w-full">
         <span
-          className={`text-[12px] font-semibold uppercase tracking-[0.06em] truncate leading-none ${
-            isSelected ? 'text-[#E7E2EC]' : 'text-[#B3AABD]'
+          className={`font-sans text-[11px] font-bold uppercase tracking-[0.06em] truncate leading-none ${
+            isSelected ? 'text-amber-700 dark:text-[#E0B450]' : 'text-slate-600 dark:text-slate-400'
           }`}
         >
           {label}
         </span>
-        <div
-          className="w-7 h-7 rounded-[8px] flex items-center justify-center shrink-0 border transition-transform duration-150 group-hover:scale-105"
-          style={{
-            backgroundColor: isDangerNumber ? 'rgba(251, 113, 133, 0.15)' : `${accentColor}18`,
-            borderColor: isDangerNumber ? 'rgba(251, 113, 133, 0.45)' : `${accentColor}40`,
-            color: isDangerNumber ? '#FB7185' : accentColor,
-          }}
-          aria-hidden="true"
-        >
-          <Icon className="w-4 h-4 stroke-[2]" />
-        </div>
+        <Icon className="w-4 h-4 text-slate-400 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       </div>
 
-      {/* Row 2: BIG NUMBER in Display Serif + Short note on same baseline */}
-      <div className="mt-2.5 mb-3 flex items-baseline gap-2.5 flex-wrap min-w-0">
+      {/* Row 2: Value + Note */}
+      <div className="my-2.5 flex items-baseline gap-2.5 flex-wrap min-w-0">
         <span
-          className={`font-semibold tracking-tight tabular-nums leading-none ${
-            isDangerNumber ? 'text-[#FB7185]' : 'text-white'
+          className={`text-2xl sm:text-3xl font-extrabold tabular-nums leading-none ${
+            isDangerNumber && count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
           }`}
-          style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontVariantNumeric: 'lining-nums tabular-nums',
-            fontSize: 'clamp(26px, 2.2vw, 32px)',
-          }}
         >
           {count.toLocaleString()}
         </span>
 
-        <span
-          className={`text-[12px] sm:text-[13px] font-normal leading-normal truncate ${
-            isZero ? 'text-[#B3AABD]' : 'text-[#E7E2EC]'
-          }`}
-        >
-          {note}
-        </span>
+        {note && (
+          <span
+            className="text-[12px] text-slate-500 dark:text-slate-400 font-normal leading-normal truncate"
+          >
+            {note}
+          </span>
+        )}
       </div>
 
-      {/* Row 3: 4px Rounded Track Bar with Tooltip */}
-      <div
-        className="w-full mt-auto pt-1 cursor-help"
-        title={barTooltip}
-        aria-label={barTooltip}
-      >
-        <div className="w-full bg-[#2B2730] h-1 rounded-full overflow-hidden relative flex">
-          {isStackedBar ? (
-            // Stacked Bar Composition (All Loans)
-            stackedSegments.map((seg, idx) => (
-              <div
-                key={idx}
-                className="h-full first:rounded-l-full last:rounded-r-full circulation-bar-anim"
-                style={{
-                  width: `${Math.min(100, Math.max(0, seg.fraction * 100))}%`,
-                  backgroundColor: seg.color,
-                }}
-              />
-            ))
-          ) : (
-            // Single Accent Gradient Bar
-            <div
-              className="h-full rounded-full circulation-bar-anim"
-              style={{
-                width: `${Math.min(100, Math.max(0, barFraction * 100))}%`,
-                background: isDangerNumber
-                  ? 'linear-gradient(90deg, #F43F5E, #FB7185)'
-                  : `linear-gradient(90deg, ${accentColor}CC, ${accentColor})`,
-              }}
-            />
-          )}
-        </div>
+      {/* Row 3: Subtext */}
+      <div className="text-[12px] text-slate-500 dark:text-slate-400 leading-snug font-sans truncate">
+        {barTooltip || (isDangerNumber && count > 0 ? <span className="text-rose-500 dark:text-rose-400 font-medium">Overdue requires resolution</span> : <span>Circulation obligations</span>)}
       </div>
     </button>
   );

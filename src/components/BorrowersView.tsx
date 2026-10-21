@@ -36,6 +36,7 @@ import CustomSelect from './ui/CustomSelect';
 import { CountUp } from '@/components/ui/count-up';
 import { SharedCsvWriter } from '../utils/csvWriter';
 import { matchesUrduSearch } from '../utils/urduUtils';
+import { ULM_CREST_LOGO } from '../constants/branding';
 
 export interface BorrowersViewProps {
   borrowers: Borrower[];
@@ -508,6 +509,14 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                 key={borrower.id}
                 className="group relative rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] hover:border-[#A66BC9]/45 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-[2px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.45)] overflow-hidden"
               >
+                {/* User Card Background Watermark */}
+                <img
+                  src={ULM_CREST_LOGO}
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08]"
+                />
+
                 {/* Decorative Top Accent Hairline */}
                 <div 
                   className={`absolute top-0 left-0 right-0 h-[2px] ${
@@ -515,6 +524,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                   }`} 
                 />
 
+                <div className="relative z-10 flex flex-col justify-between h-full">
                 <div className="space-y-3.5">
                   {/* Top Bar: Role Pill, Status, Quick Actions */}
                   <div className="flex items-start justify-between gap-2">
@@ -715,6 +725,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                </div>
                 </div>
               </div>
             );
