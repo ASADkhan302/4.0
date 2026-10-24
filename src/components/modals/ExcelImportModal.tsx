@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   FileSpreadsheet, 
@@ -14,7 +14,10 @@ import {
   importExcelOrCsvToSqlite, 
   ImportProgressEvent, 
   BatchImportSummary,
-  syncMasterExcelRegister
+  syncMasterExcelRegister,
+  getImportedSheetsLog,
+  getCurrentMaxSeriesNumber,
+  getTrueDatabaseBookCount
 } from '../../services/libraryStorageAndMigration';
 import { ULM_CREST_LOGO } from '../../constants/branding';
 
@@ -35,8 +38,29 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [summary, setSummary] = useState<BatchImportSummary | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [existingCount, setExistingCount] = useState<number>(0);
+  const [maxSeries, setMaxSeries] = useState<number>(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isSubscribed = true;
+    const loadStats = async () => {
+      try {
+        const count = await getTrueDatabaseBookCount();
+        const max = await getCurrentMaxSeriesNumber();
+        if (isSubscribed) {
+          setExistingCount(count);
+          setMaxSeries(max);
+        }
+      } catch (e) {
+        console.warn('[ExcelImportModal] Error loading existing series stats:', e);
+      }
+    };
+    loadStats();
+    return () => { isSubscribed = false; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -81,16 +105,31 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       const buffer = await selectedFile.arrayBuffer();
       const res = await importExcelOrCsvToSqlite(buffer, {
         chunkSize: 250,
-        onDuplicate: 'upsert',
+        onDuplicate: 'append',
+        fileName: selectedFile.name,
         onProgress: (p) => setProgress(p),
       });
 
       setSummary(res);
       // Ensure master register is synced
-      await syncMasterExcelRegister();
-      onImportComplete(res.inserted + res.updated);
+      try {
+        await syncMasterExcelRegister();
+      } catch (syncErr) {
+        console.warn('[ExcelImport] Master register sync notice:', syncErr);
+      }
+      if (res) {
+        setExistingCount(res.finalDbBooks || ((existingCount || 0) + res.inserted));
+        setMaxSeries(res.finalDbBooks || ((maxSeries || 0) + res.inserted));
+      }
+      if (res && typeof onImportComplete === 'function') {
+        onImportComplete((res.inserted || 0) + (res.updated || 0));
+      }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to complete Excel batch import.');
+      console.warn('[ExcelImportModal] Import warning:', err);
+      const msg = (err && typeof err === 'object' && typeof err.message === 'string')
+        ? err.message
+        : (typeof err === 'string' ? err : 'Failed to complete Excel batch import.');
+      setErrorMessage(msg || 'An unexpected error occurred during import.');
     } finally {
       setIsImporting(false);
     }
@@ -130,6 +169,19 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <div className="p-6 space-y-5 overflow-y-auto flex-1">
           {!summary ? (
             <>
+              {/* Continuous Series Preview Banner (Issue #3) */}
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-xl flex items-start gap-3">
+                <Layers className="w-4 h-4 text-[#BC881B] mt-0.5 shrink-0" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-white">Continuous Series Auto-Continuation</p>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    {existingCount > 0 
+                      ? `Existing Library: ${existingCount.toLocaleString()} Books (Series #1 – #${maxSeries.toLocaleString()}) → This Sheet will be added as Series #${(maxSeries + 1).toLocaleString()} – #${(maxSeries + (selectedFile ? '...' : '...')).toLocaleString()}`
+                      : `Existing Library: 0 Books → This Sheet will be added starting as Series #1 – #... in strict sequential series`}
+                  </p>
+                </div>
+              </div>
+
               {/* Drop Area */}
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -217,12 +269,15 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           ) : (
             /* Summary Report */
             <div className="space-y-4">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-3">
+              {/* Exact Continuous Series Result Banner (Issue #3) */}
+              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-xl flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white">Import Committed Successfully</h4>
-                  <p className="text-xs text-slate-300">
-                    All records were written directly to SQLite / IndexedDB and verified in the catalog.
+                  <h4 className="text-sm font-bold text-white">
+                    ✓ Added {summary.inserted.toLocaleString()} Books in Series #{Math.max(1, summary.finalDbBooks - summary.inserted + 1).toLocaleString()} – #{summary.finalDbBooks.toLocaleString()}
+                  </h4>
+                  <p className="text-xs text-emerald-200/90">
+                    Total Catalog: <span className="font-bold text-white">{summary.finalDbBooks.toLocaleString()} Books</span> • All records committed to SQLite & IndexedDB with continuous series.
                   </p>
                 </div>
               </div>
@@ -242,8 +297,33 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 </div>
               </div>
 
+              {/* Imported Sheets Ledger Badge History */}
+              <div className="p-3.5 bg-[#131B2E]/60 border border-white/[0.06] rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Permanent Multi-Sheet Ledger</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-slate-400">
+                    {getImportedSheetsLog().length} sheet(s) tracked
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {getImportedSheetsLog().map((item, idx) => (
+                    <span
+                      key={item.id || idx}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-slate-300 border border-white/10"
+                    >
+                      <span className="text-amber-400 font-bold">#{idx + 1}</span>
+                      <span className="truncate max-w-[120px]">{item.filename}</span>
+                      <span className="text-emerald-400">(+{item.rowsCount})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <p className="text-[11px] text-slate-400">
-                Master Excel Register (<span className="font-mono text-slate-300">ULM_Master_Books_Register.xlsx</span>) has been automatically updated.
+                Master Excel Register (<span className="font-mono text-slate-300">ULM_Master_Books_Register.xlsx</span>) has been automatically updated with continuous sequential series.
               </p>
             </div>
           )}
@@ -288,13 +368,29 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-6 h-10 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
-            >
-              Done & View Catalog
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSummary(null);
+                  setSelectedFile(null);
+                  setProgress(null);
+                  setErrorMessage(null);
+                }}
+                className="px-4 h-10 rounded-lg bg-[#151C2C] hover:bg-[#1C263B] text-slate-200 border border-white/10 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#BC881B]" />
+                <span>+ Import / Append Another Excel Sheet</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-6 h-10 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+              >
+                Done & View Catalog
+              </button>
+            </div>
           )}
         </div>
       </div>

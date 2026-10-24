@@ -1,139 +1,97 @@
-# ULM Central Campus Library — Dual-Theme UI Contrast & Alignment Engine
+# ULM Central Campus Library — Locked Left Sidebar & Universal Vertical Scrolling Architecture
 
-Comprehensive styling, contrast, and layout alignment plan for the University of Lakki Marwat Library Management System across White Glass (`html.light-theme`) and Dark Glass (`html.dark`) modes, fixing all visual bugs identified in the UI audit while strictly preserving 100% of existing views, tabs, fields, and features.
+This update resolves the root viewport and flex-container conflict where unconstrained `min-h-screen` wrappers combined with `body { overflow: hidden }` prevented both the browser window and the inner workspace from scrolling, while causing the left navigation rail to stretch and drift out of position. It locks the top institutional header and left navigation sidebar in place and establishes a single unified vertical scroll container across all 8 workstation views and all modal dialogs at every display scale (`30%`–`125%`).
 
-## User Review & Critical Decisions
+## User Review & Confirmed Decisions
 
 > [!IMPORTANT]
-> **Confirmed Choices from Clarification Turn:**
-> - **Visual Surface Style**: High-contrast crisp White Glass with subtle warm tint (92–96% opacity) and refined backdrop blur, providing optimal readability in bright environments while eliminating dark-card bleed.
-> - **Modal Input Icon Alignment**: Clean label-row placement for quick-copy and indicator badges, ensuring inputs (`Author`, `Publisher`, `Place of Publication`) have clean padding and never clip or overlap user-entered text.
-> - **Execution Scope**: Comprehensive execution of all 8 audit fixes across global CSS, navigation, catalog, shelving, circulation, modals, analytics, and migration consoles with zero feature removal.
+> The following architectural and UX behaviors were confirmed during interactive clarification and govern this implementation:
+
+- **Confirmed Decision 1 — Unified Page Scrolling**: The entire active view (including KPI summary cards, search/filter toolbars, catalog tables/grids, and pagination controls) scrolls smoothly as one unified workspace inside the right-hand main scroll container, with automatic scroll-to-top reset when switching tabs.
+- **Confirmed Decision 2 — Locked Left Sidebar with Collapsible Icon-Rail**: The left navigation sidebar stays permanently locked on the left edge of the workstation frame with a pinned top header (`NAVIGATION`), an internal navigation list, and a pinned bottom footer (`System Settings` & `Collapse Sidebar`), supporting instant toggling between full width and compact icon-rail mode across all viewport widths and zoom scales.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Unifies the visual rendering engine across both White Glass and Dark Glass modes. Eliminates pitch-black unconverted cards in Light Mode, prevents white-on-white text dropouts, removes duplicate action buttons, aligns input fields with proper icon padding, and guarantees crisp legibility for all tabular data, book covers, and ID card graphics.
-- **Target Audience / Persona**: Campus librarians, circulation desk officers, catalogers, and students/faculty at the University of Lakki Marwat working in diverse lighting environments (from sunlit library circulation desks to low-light cataloging workstations).
-- **Key Value**: Flawless, professional, enterprise-grade aesthetic with WCAG AA compliance in both light and dark operating modes, without altering any underlying database logic, data stores, or application routes.
+- **What It Does**: Establishes a strict fixed-frame desktop shell (`100dvh` locked outer frame) where the Windows Title Bar, University Header, and Left Navigation Sidebar remain anchored in place while the right-hand main workspace scrolls effortlessly from top to bottom on every screen.
+- **Target Audience / Persona**: University librarians, catalogers, and circulation desk staff operating the ULM Central Campus Library workstation across laptops, Full HD monitors, and 4K displays at custom display scales (`30%` to `125%`).
+- **Key Value**: Eliminates clipped tables, unreachable pagination bars, and cut-off settings or modal forms so every book record, Almari shelf rack, loan card, report chart, and dialog button is smoothly reachable via mouse wheel, trackpad, or scrollbar.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### Key User Flows
-
-1. **Light/Dark Mode Switching**: Seamless instant transition via header toggle or system settings. When toggled to White Glass, all surfaces adopt frosted crystal card styling (`rgba(255, 255, 255, 0.92)`), headings switch to deep slate (`#0F172A`), body text to slate-700, and borders to refined slate-200, while intentional dark previews (CR80 Member ID Card and 3D Book Cover) remain rich navy-purple.
-2. **Catalog Browsing & Search**: High-contrast display in both Card Grid and Table List modes. The 13-digit barcode is bold dark slate in Light Mode and crisp off-white in Dark Mode, Dewey Call Numbers stand out in warm amber, and row hovers provide clear feedback without text washout.
-3. **Cupboard & Shelf Management (Almari View)**: Single unified `+ Add Almari` primary action button in the header bar. Shelf boxes, capacity badges (`OPTIMAL`, `EMPTY`), and search inputs maintain generous icon spacing and readable titles.
-4. **Circulation Desk & Live Scanner**: High-contrast KPI counters (`ALL`, `ACTIVE`, `OVERDUE`, `RETURNED`) displaying distinct colored status indicators. The dual-desk layout (Live Borrower ID Card Desk and Scanned Book Desk) presents matching light glass cards in Light Mode and dark glass in Dark Mode.
-5. **Modal Forms & Fast Data Entry**: Clean modal backdrops with high-contrast surfaces. Field labels house sequential step badges and quick-copy ditto actions cleanly above inputs, preventing any text overlap or clipping.
-
-### Visual Identity & Theme Tokens
-
-- **Aesthetic Direction**: Windows 11 Fluent Glass meets Academic Heritage — subtle glassmorphism, refined hairline dividers, rich Pakistani academic gold (`#BC881B`), and deep royal amethyst (`#541A72`).
-- **Color Tokens**:
-  - `Light Background`: `linear-gradient(135deg, #F1F5F9 0%, #E6EDF5 50%, #F5F2EB 100%)`
-  - `Light Card Surface`: `rgba(255, 255, 255, 0.92)` with `backdrop-filter: blur(20px)`
-  - `Dark Background`: `#08070A` to `#121014` with vivid refractive ambient orbs
-  - `Text Primary`: `#0F172A` (Light) / `#F8FAFC` (Dark)
-  - `Text Muted`: `#475569` (Light) / `#94A3B8` (Dark)
-  - `Academic Gold`: `#BC881B` (Interactive primary CTA, focus rings, and accents)
-  - `Royal Amethyst`: `#541A72` (Active navigation states and primary highlights)
-- **Typography & Tabular Discipline**:
-  - Display & Headings: `Plus Jakarta Sans` / `Playfair Display`
-  - Body Prose: `Inter` / `Plus Jakarta Sans` with `Noto Nastaliq Urdu` for Arabic/Urdu scripts
-  - Data, Serials, Call Numbers & Barcodes: `JetBrains Mono` with `tabular-nums`
-- **Zero-Pill & Clean Spatial Layout**:
-  - Informational metadata rendered as clean unboxed text separated by typographic middots (`·`).
-  - Interactive filter controls styled with subtle segmented button groups.
+- **Key User Flows**:
+  1. **Switching Workstation Views**: Clicking any destination in the left sidebar (`Books Catalog`, `Almaris & Shelves`, `Circulation Desk`, `Borrowers & Faculty`, `Barcode Station`, `Reports & Audits`, `Excel & PC Migration`, or `System Settings`) keeps the sidebar and top header completely stationary, resets the right-hand workspace scroll position to `0`, and renders the full vertical flow of the selected view.
+  2. **Deep Catalog & Shelf Inspection**: Scrolling down inside `Books Catalog` (List, Grid, Almari, or Analytics modes) smoothly glides past the KPI strip and filter bar down through all 50+ displayed rows/cards to the bottom pagination bar (`Previous / Page X of Y / Next`).
+  3. **Collapsible Icon-Rail Navigation**: Clicking the sidebar collapse toggle smoothly transitions the left rail between expanded mode (`240px`) and compact icon-rail mode (`72px` with live counter badges and tooltips) while keeping `System Settings` and `Collapse Sidebar` pinned at the bottom of the rail.
+  4. **Scrollable Modal Forms**: Opening any modal (`Add/Edit Book`, `Book Details`, `Borrower ID Card`, `Batch Label Studio`, `Excel Importer`) constrains the dialog to `88dvh` with a pinned header, an independently scrollable body, and a pinned action footer so buttons never overflow off-screen.
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: Institutional enterprise workstation with crisp dual-theme support (Soft Pearl White Mode and Obsidian Dark Mode).
+  - *Color Palette & Mood*: Neutral structural surfaces (`#F4F6FA` light / `#0B1220` dark), royal amethyst active accents (`#541A72`), burnished ULM gold highlights (`#BC881B`), and custom thin scrollbars that highlight in gold on hover.
+  - *Typography & Hierarchy*: Institutional display headers (`Cinzel` / `Playfair Display`), clean UI labels (`Plus Jakarta Sans` / `Inter`), and strict tabular numerals (`JetBrains Mono`, `tabular-nums`) for accession numbers, 13-digit barcodes, and counters.
+- **Interactive Feedback & Motion**:
+  - Instant scroll-to-top (`scrollTop = 0`) on tab switch, `150ms` sidebar width transition, and `pointer-events: none` enforcement on all ambient background orbs and the centered ULM crest watermark so they never intercept mouse-wheel scrolling.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Dual-Layer Theme Engine (Global CSS Overrides + Tailwind Semantics)**
-  - *Chosen Approach*: Implement a bulletproof contrast engine in `index.html` using CSS custom properties combined with scoped Tailwind adaptive classes (`text-slate-900 dark:text-white`, `bg-white/90 dark:bg-[#131B2E]`).
-  - *Why*: Prevents hardcoded hex colors from bleeding through while ensuring new and existing components adapt automatically without requiring thousands of manual class rewrites.
-  - *Alternatives Considered*: Pure inline styles (rejected for poor maintainability) or complete class stripping (rejected to prevent regression risks).
-
-- **Decision 2: Modal Input Architecture & Overlapping Badge Fix**
-  - *Chosen Approach*: Position field numbers and duplicate copy-paste buttons in the label header row directly above each input field, giving the `<input>` element a clean full-width interior (`px-3.5`).
-  - *Why*: Eliminates text clipping on short or long values (e.g., author names, publication places, ULM Press) across all screen resolutions and browser zoom levels.
-
-- **Decision 3: Protection of Live Previews (`.ulm-preserve-dark`)**
-  - *Chosen Approach*: Tag the 3D Book Cover and CR80 Live Member ID Card Preview with a dedicated `.ulm-preserve-dark` class that exempts them from global light mode background conversions.
-  - *Why*: Academic ID cards and hardbound library book spines are physical dark-navy and gold artifacts; forcing them to white destroys their visual realism and preview utility.
+- **Decision 1 — Single Outer Scroll Container vs. Nested Inner Scroll Boxes**:
+  - *Chosen Approach*: Delegate all vertical page scrolling to `<main id="ulm-main-scroll-view">` (`flex-1 min-h-0 h-full overflow-y-auto overflow-x-hidden`) and set all 8 child page views to `h-auto min-h-0 overflow-visible`.
+  - *Why*: Nested `h-full overflow-hidden` containers inside flex children trap wheel events and clip bottom pagination controls when display scaling is adjusted. A single unified scroll container guarantees predictable mouse-wheel and scrollbar behavior across all 8 pages.
+  - *Alternatives Considered*: Per-table internal scroll containers, which left too little vertical space for rows on `1366×768` laptop screens or at `115%–125%` zoom.
+- **Decision 2 — Locked `100dvh` Root Frame with Zoom Compensation**:
+  - *Chosen Approach*: Lock `html, body` to `height: 100%; overflow: hidden` and `#root` + the app shell wrapper to `height: 100dvh; max-height: 100dvh; overflow: hidden; display: flex; flex-direction: column`.
+  - *Why*: Previously, `App.tsx` used `min-h-screen` while `body` had `overflow: hidden`. That caused the app wrapper to expand beyond the viewport without triggering `<main>`'s scrollbar, while `body` blocked window scrolling. Locking the shell to `100dvh` forces `<main>` to compute a bounded viewport height and activate its vertical scrollbar reliably.
 
 ---
 
-## 4. Technical Architecture & Component Mapping
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-### System Layout & Flow Diagram
+- **Architecture & Viewport Scroll Hierarchy**:
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        App.tsx Root Shell                              │
-│   (Theme Provider: html.light-theme / html.dark · Ambient Refraction) │
-└────────────────────────────────────┬───────────────────────────────────┘
-                                     │
-           ┌─────────────────────────┴─────────────────────────┐
-           ▼                                                   ▼
-┌───────────────────────────┐                 ┌─────────────────────────────────┐
-│     LmsSidebar.tsx        │                 │       PrimaryHeader.tsx         │
-│  - Active: #541A72 / Gold │                 │  - Dual-Theme Switcher (Icon)   │
-│  - Inactive: Slate-700/300│                 │  - Screen Res & Auto-Fit Engine │
-│  - Badges: Adaptive Slate │                 │  - Live University Watermark    │
-└───────────────────────────┘                 └────────────────┬────────────────┘
-                                                               │
-     ┌─────────────────────────────────────────────────────────┴───────────────────────────────────────┐
-     │                               Workspace View Routing                                            │
-     ▼                                      ▼                                     ▼                    ▼
-┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐
-│   BooksCatalogView.tsx    │ │      AlmariView.tsx       │ │  CirculationDeskView.tsx  │ │   BarcodeStationView    │
-│ - Bold Barcode & Dewey    │ │ - Single + Add Almari     │ │ - High-contrast KPIs      │ │ - Dual Matching Desks   │
-│ - White Glass / Dark Grid │ │ - Padded Search Inputs    │ │ - Light/Dark Loan Rows    │ │ - Preserved CR80 Card   │
-│ - Multi-Select Bulk Bar   │ │ - Shelf Inspector Boxes   │ │ - Quick Return Actions    │ │ - Responsive Scanner    │
-└───────────────────────────┘ └───────────────────────────┘ └───────────────────────────┘ └───────────────────────────┘
-     │                                      │                                     │                    │
-     ▼                                      ▼                                     ▼                    ▼
-┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐
-│     ReportsView.tsx       │ │    ExcelCenterView.tsx    │ │     SettingsView.tsx      │ │       Modals Suite      │
-│ - Light Analytics Cards   │ │ - Active Gold/Amethyst Tab│ │ - 6 Converted Panels      │ │ - EditBook / Borrower   │
-│ - Readable Chart Labels   │ │ - High-Contrast Step Cards│ │ - Adaptive Form Inputs    │ │ - Unclipped Input Text  │
-│ - MaxBarSize 44px limits  │ │ - Preserved Data Safety   │ │ - Storage & Reset Controls│ │ - Preserved 3D Book Cover│
-└───────────────────────────┘ └───────────────────────────┘ └───────────────────────────┘ └───────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ #root (100% width × 100dvh locked height, flex-col, overflow-hidden)         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ Top Bars Wrapper (shrink-0, z-30)                                        │ │
+│ │  ├─ WindowsTitleBar (Station ID, Clock, Quick Replay)                    │ │
+│ │  └─ PrimaryHeader (ULM Crest, Volume Counter, Scale Controls, Actions)   │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│ ┌──────────────────────┬───────────────────────────────────────────────────┐ │
+│ │ Locked Left Sidebar  │ Right Main Scroll Workspace                       │ │
+│ │ (shrink-0, h-full,   │ <main id="ulm-main-scroll-view">                  │ │
+│ │  w-60 / w-18 rail,   │ (flex-1, min-w-0, min-h-0, h-full,                │ │
+│ │  flex-col, z-20)     │  overflow-y-auto, overflow-x-hidden, p-4 md:p-6)  │ │
+│ │                      │                                                   │ │
+│ │ ┌──────────────────┐ │ ┌───────────────────────────────────────────────┐ │ │
+│ │ │ Pinned Top Bar   │ │ │ Active Page View (h-auto, overflow-visible)   │ │ │
+│ │ │ ("NAVIGATION")   │ │ │  • Page 1: Books Catalog (List/Grid/Almari)   │ │ │
+│ │ ├──────────────────┤ │ │  • Page 2: Almaris & Shelves Inspector        │ │ │
+│ │ │ Scrollable Nav   │ │ │  • Page 3: Barcode Station (2-Way Desk + Log) │ │ │
+│ │ │ (flex-1 min-h-0) │ │ │  • Page 4: Circulation Desk & Loan Registry   │ │ │
+│ │ │  • Catalog       │ │ │  • Page 5: Borrowers & Faculty Directory      │ │ │
+│ │ │  • Almaris       │ │ │  • Page 6: Reports & Audits (5 Sub-Tabs)      │ │ │
+│ │ │  • Circulation   │ │ │  • Page 7: Excel & PC Migration Center        │ │ │
+│ │ │  • Borrowers     │ │ │  • Page 8: System Settings (4 Enterprise Cards│ │ │
+│ │ │  • Barcode Desk  │ │ └───────────────────────────────────────────────┘ │ │
+│ │ │  • Reports       │ │                                                   │ │
+│ │ │  • Excel Center  │ │ [Fixed Background Watermark: pointer-events-none] │ │
+│ │ ├──────────────────┤ │                                                   │ │
+│ │ │ Pinned Footer    │ │ ┌───────────────────────────────────────────────┐ │ │
+│ │ │  • Settings      │ │ │ Modal Dialogs (max-h-[88dvh], flex-col)       │ │ │
+│ │ │  • Collapse Rail │ │ │  Header (shrink-0) → Body (overflow-y-auto)   │ │ │
+│ │ └──────────────────┘ │ │  → Footer (shrink-0)                          │ │ │
+│ └──────────────────────┴─┴───────────────────────────────────────────────┴─┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component State & Style Migration Matrix
-
-1. **Global CSS (`index.html`)**:
-   - Complete ruleset mapping dark arbitrary backgrounds (`bg-[#0...]`, `bg-[#1...]`, `bg-slate-900`) to `--ulm-card-bg` in `html.light-theme`.
-   - Comprehensive override preventing `text-white`, `text-slate-100`, `text-zinc-100` from rendering invisible on white surfaces.
-   - Form controls (`input`, `select`, `textarea`) unified with `#FFFFFF` background, `#0F172A` text, and `#CBD5E1` crisp border in Light Mode.
-   - `.ulm-preserve-dark` class isolating 3D book covers and CR80 card previews.
-
-2. **Navigation (`LmsSidebar.tsx`)**:
-   - Inactive items: `text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5`.
-   - Active item: `bg-[#541A72] !text-white border-[#BC881B]/60 shadow-sm`.
-   - Inactive count pills: `bg-slate-200/90 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200`.
-
-3. **Catalog & Shelving (`BooksCatalogView.tsx` & `AlmariView.tsx`)**:
-   - List View: Barcode in `font-mono text-xs font-bold text-slate-900 dark:text-slate-100`, Dewey Call Number in `text-amber-700 dark:text-amber-400`.
-   - Grid View: Card container in `bg-white/90 dark:bg-[#131B2E] border border-slate-200/80 dark:border-white/10`.
-   - Almari View: Deduplicate top `+ Add Almari` button (keep single top-right action). Add `pl-10` and centered search icon to book/almari lookup bars. Converted shelf rack inspector cards.
-
-4. **Circulation & Scanner (`CirculationDeskView.tsx` & `BarcodeScannerView.tsx`)**:
-   - KPI counters: Bold `text-slate-900 dark:text-white` with legible subtitle notes.
-   - Barcode Scanner: Left and right desks styled identically with dual-theme glass, protecting live CR80 card graphic.
-
-5. **Modals & Inputs (`AddEditBookModal.tsx`, `AddEditBorrowerModal.tsx`, `BookDetailsModal.tsx`)**:
-   - Input fields: Uniform `w-full h-10 px-3.5 rounded-lg bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white`.
-   - Badges & copy triggers relocated to field label rows.
-   - Book Details Modal: 3D cover tagged with `.ulm-preserve-dark`, Stack Location pill styled with warm amber badge.
-
-6. **Analytics & Migration (`CatalogChartsView.tsx`, `ReportsView.tsx`, `ExcelCenterView.tsx`, `SettingsView.tsx`)**:
-   - 4 Chart cards styled with dual-theme glass and dark slate labels.
-   - Migration sub-tabs and step cards styled with high-contrast text and `#541A72` active indicators.
-   - Settings cards converted to light glass in White Glass mode.
+- **Interactive Component & State Mapping**:
+  - **Root & Shell Viewport (`#root` & App Shell)**: Enforces `height: 100dvh; max-height: 100dvh; overflow: hidden` so the flex child row (`flex-1 min-h-0 w-full flex flex-row overflow-hidden`) receives an exact bounded height at all scales (`30%`–`125%`).
+  - **Main Scroll Controller (`mainScrollRef`)**: Attached to `<main id="ulm-main-scroll-view">`. A `useEffect` watching `activeTab` executes `mainScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' })` on every navigation change.
+  - **Sidebar Lock (`LmsSidebar`)**: Renders as a permanently visible flex sibling (`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden`) that switches cleanly between `240px` expanded width and `72px` icon-rail width without disappearing or scrolling away with page content.
+  - **Unclipped Page Containers (All 8 Views)**: Strips `h-full overflow-hidden` and inner scroll traps from all 8 view components and their sub-views so content expands naturally (`h-auto overflow-visible pb-12`) inside `<main id="ulm-main-scroll-view">`.
+  - **Modal Scroll Safety**: Constrains modal panels to `max-h-[88dvh] flex flex-col overflow-hidden` with `shrink-0` headers/footers and `flex-1 min-h-0 overflow-y-auto` bodies.

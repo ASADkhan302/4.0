@@ -45,6 +45,7 @@ import { StatusPill } from './shared/StatusPill';
 import { DataTable, ColumnDef } from './shared/DataTable';
 import CustomSelect from './ui/CustomSelect';
 import { ULM_CREST_LOGO } from '../constants/branding';
+import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
 
 export type ReportTabId = 'overview' | 'circulation' | 'collection' | 'overdue' | 'health';
 export type TimePeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
@@ -598,8 +599,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   ];
 
   return (
-    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 overflow-y-auto space-y-6">
-      <div className="max-w-[1920px] mx-auto space-y-5">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-5 pb-12 overflow-visible">
+      <div className="max-w-[1920px] w-full mx-auto space-y-5">
 
         {/* Header Card with ONE gold primary button (Print Official Report) */}
         <PageHeaderCard
@@ -1275,13 +1276,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </div>
             </div>
 
-            {/* Printable Content Container */}
-            <div ref={reportPrintRef} className="space-y-6 bg-white text-black">
+            {/* Printable Content Container with subtle centered page watermark */}
+            <div ref={reportPrintRef} className="space-y-6 bg-white text-black relative overflow-hidden p-2">
+              {/* Subtle Centered Page Watermark */}
+              <div 
+                aria-hidden="true" 
+                className="pointer-events-none select-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+              >
+                <img 
+                  src={ULM_OFFICIAL_CREST_DATA_URI} 
+                  alt="" 
+                  draggable={false} 
+                  className="w-[300px] h-[300px] object-contain opacity-[0.06]" 
+                />
+              </div>
+
               {/* Official Institutional Header */}
-              <div className="flex items-center justify-center gap-4 border-b-2 border-black pb-4 mb-6">
+              <div className="relative z-10 flex items-center justify-center gap-4 border-b-2 border-black pb-4 mb-6">
                 <img
-                  src={ULM_CREST_LOGO}
-                  alt="University of Lakki Marwat Crest"
+                  src={ULM_OFFICIAL_CREST_DATA_URI}
+                  alt="ULM Crest"
                   className="w-14 h-14 object-contain select-none"
                 />
                 <div className="text-center space-y-1">

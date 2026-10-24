@@ -447,7 +447,7 @@ export class RealStorageService {
       { id: '2_sqlite', label: 'Create Library.ulmlib SQLite file (PRAGMA journal_mode=DELETE, foreign_keys=ON)', status: 'pending' },
       { id: '3_probe', label: 'Perform real transaction test (write test record and read back)', status: 'pending' },
       { id: '4_qc', label: 'Run PRAGMA quick_check integrity verification', status: 'pending' },
-      { id: '5_sheet', label: 'Generate official Excel Book Sheet template (2,999 formatted rows)', status: 'pending' },
+      { id: '5_sheet', label: 'Generate official Excel Master Register (Universal Unlimited Rows — Auto-Synced)', status: 'pending' },
       { id: '6_lock', label: 'Initialize single-instance lock file and mount storage', status: 'pending' },
     ];
 

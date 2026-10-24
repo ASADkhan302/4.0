@@ -687,7 +687,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
                     </li>
                     <li className="flex items-center gap-2">
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{displayPath}\Book Sheet\ULM_Book_Entry_Sheet.xlsx (2,999 formatted rows)</span>
+                      <span>{displayPath}\Book Sheet\ULM_Master_Books_Register.xlsx (Universal Unlimited Rows — Auto-Synced)</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <FileText className="w-3.5 h-3.5 text-blue-400" />

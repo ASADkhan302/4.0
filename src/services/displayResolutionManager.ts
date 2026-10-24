@@ -211,7 +211,7 @@ export function getStoredResolutionConfig(): UlmResolutionConfig {
     return {
       mode: parsed.mode === 'manual' ? 'manual' : 'auto',
       preset: parsed.preset || 'auto',
-      scale: typeof parsed.scale === 'number' ? Math.min(1.5, Math.max(0.75, parsed.scale)) : 1.0,
+      scale: typeof parsed.scale === 'number' ? Math.min(1.25, Math.max(0.30, parsed.scale)) : 1.0,
     };
   } catch {
     return { ...DEFAULT_RESOLUTION_CONFIG };
@@ -254,8 +254,8 @@ export function applyResolutionToDom(config: UlmResolutionConfig): void {
     finalScale = calculateAutoFitScale();
   }
 
-  // Bound scale safely between 0.75x and 1.5x
-  finalScale = Math.min(1.5, Math.max(0.75, Math.round(finalScale * 100) / 100));
+  // Bound scale safely between 0.30x and 1.25x
+  finalScale = Math.min(1.25, Math.max(0.30, Math.round(finalScale * 100) / 100));
 
   root.style.setProperty('--ulm-scale', String(finalScale));
   root.style.setProperty('--ulm-zoom-percent', `${Math.round(finalScale * 100)}%`);

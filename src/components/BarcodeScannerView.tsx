@@ -21,7 +21,11 @@ import {
   Sparkles,
   CreditCard,
   Calendar,
-  Check
+  Check,
+  Layers,
+  Clock,
+  X,
+  ChevronRight
 } from 'lucide-react';
 import { Book, Transaction, Borrower } from '../types/library';
 import { playSuccessBarcodeBeep, playErrorBeep } from '../services/audio';
@@ -64,8 +68,30 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   const [issueBookInput, setIssueBookInput] = useState('');
   const [issueMessage, setIssueMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Mode A: Inline Almari & Shelf placement state
+  const [isPlacingInAlmari, setIsPlacingInAlmari] = useState(false);
+  const [placementAlmari, setPlacementAlmari] = useState('ALM-01');
+  const [placementShelf, setPlacementShelf] = useState(1);
+  const [placementSuccessMsg, setPlacementSuccessMsg] = useState<string | null>(null);
+
+  // Mode A: Chained Scan (Book -> Student ID Barcode -> Loan Duration Selector)
+  const [isChainedIssueActive, setIsChainedIssueActive] = useState(false);
+  const [chainedStudentInput, setChainedStudentInput] = useState('');
+  const [chainedStudentError, setChainedStudentError] = useState<string | null>(null);
+
+  // Mode B: Book search / selection inside Student View
+  const [bookSearchForStudent, setBookSearchForStudent] = useState('');
+
+  // Loan Duration Selector Dialog State
+  const [isDurationSelectorOpen, setIsDurationSelectorOpen] = useState(false);
+  const [pendingDurationTarget, setPendingDurationTarget] = useState<{ book: Book; borrower: Borrower } | null>(null);
+  const [selectedDurationDays, setSelectedDurationDays] = useState<number>(14);
+  const [customDaysInput, setCustomDaysInput] = useState<string>('14');
+  const [isSubmittingLoan, setIsSubmittingLoan] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const issueInputRef = useRef<HTMLInputElement>(null);
+  const chainedStudentInputRef = useRef<HTMLInputElement>(null);
 
   // Auto focus input on mount and whenever returning to idle
   useEffect(() => {
@@ -75,6 +101,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       issueInputRef.current?.focus();
     }
   }, [scanState]);
+
+  useEffect(() => {
+    if (isChainedIssueActive) {
+      chainedStudentInputRef.current?.focus();
+    }
+  }, [isChainedIssueActive]);
 
   const activeBorrowersList = borrowers && borrowers.length > 0 
     ? borrowers 
@@ -104,6 +136,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       setScanState('BORROWER_FOUND');
       setIssueMessage(null);
       setIssueBookInput('');
+      setIsPlacingInAlmari(false);
+      setIsChainedIssueActive(false);
       setIsScanSuccessFlash(true);
       setTimeout(() => setIsScanSuccessFlash(false), 300);
       if (soundEnabled) playSuccessBarcodeBeep();
@@ -123,6 +157,11 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       setFoundBook(book);
       setFoundBorrower(null);
       setScanState('BOOK_FOUND');
+      setIsPlacingInAlmari(false);
+      setIsChainedIssueActive(false);
+      setPlacementSuccessMsg(null);
+      if (book.almari_id) setPlacementAlmari(book.almari_id);
+      if (book.shelf_no) setPlacementShelf(book.shelf_no);
       setIsScanSuccessFlash(true);
       setTimeout(() => setIsScanSuccessFlash(false), 300);
       if (soundEnabled) playSuccessBarcodeBeep();
@@ -153,10 +192,120 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     setFoundBorrower(null);
     setIssueMessage(null);
     setIssueBookInput('');
+    setIsPlacingInAlmari(false);
+    setIsChainedIssueActive(false);
+    setPlacementSuccessMsg(null);
+    setIsDurationSelectorOpen(false);
+    setPendingDurationTarget(null);
     setScanState('IDLE');
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
+  };
+
+  // Save Almari and Shelf placement directly
+  const handleSavePlacement = () => {
+    if (!foundBook) return;
+    const shelfCode = `${placementAlmari}-Shelf-${placementShelf}`;
+    LibraryStorage.updateBook(foundBook.id, {
+      almari_id: placementAlmari,
+      shelf_no: placementShelf,
+      shelf: shelfCode,
+    });
+    setFoundBook({
+      ...foundBook,
+      almari_id: placementAlmari,
+      shelf_no: placementShelf,
+      shelf: shelfCode,
+    });
+    setPlacementSuccessMsg(`Book location saved to ${placementAlmari} · Shelf ${placementShelf}.`);
+    if (soundEnabled) playSuccessBarcodeBeep();
+    setTimeout(() => setPlacementSuccessMsg(null), 3500);
+  };
+
+  // Chained scan: Book -> Student scan -> Auto prompt Loan Duration
+  const handleChainedStudentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!foundBook) return;
+    const q = chainedStudentInput.trim().toLowerCase();
+    if (!q) return;
+
+    const student = activeBorrowersList.find(b => 
+      b.is_active && (
+        b.barcode?.toLowerCase() === q ||
+        b.university_id?.toLowerCase() === q ||
+        b.student_id?.toLowerCase() === q ||
+        b.id?.toLowerCase() === q ||
+        b.name?.toLowerCase().includes(q) ||
+        (b.roll_number && b.roll_number.toLowerCase().includes(q))
+      )
+    );
+
+    if (!student) {
+      setChainedStudentError(`Student/Member "${chainedStudentInput}" not found in database.`);
+      if (soundEnabled) playErrorBeep();
+      return;
+    }
+
+    setChainedStudentError(null);
+    setChainedStudentInput('');
+    setIsChainedIssueActive(false);
+
+    // Auto-open Loan Duration Selector
+    setPendingDurationTarget({ book: foundBook, borrower: student });
+    setSelectedDurationDays(14);
+    setCustomDaysInput('14');
+    setIsDurationSelectorOpen(true);
+  };
+
+  // Mode B: Select book to issue to active student
+  const handleSelectBookForStudent = (targetBook: Book) => {
+    if (!foundBorrower) return;
+    if (targetBook.available_quantity <= 0) {
+      setIssueMessage({
+        type: 'error',
+        text: `All copies of "${targetBook.book_name}" are currently on loan.`,
+      });
+      if (soundEnabled) playErrorBeep();
+      return;
+    }
+
+    // Auto-open Loan Duration Selector
+    setPendingDurationTarget({ book: targetBook, borrower: foundBorrower });
+    setSelectedDurationDays(14);
+    setCustomDaysInput('14');
+    setIsDurationSelectorOpen(true);
+  };
+
+  // Confirm issue loan after selecting loan duration
+  const handleConfirmIssueLoan = () => {
+    if (!pendingDurationTarget) return;
+    setIsSubmittingLoan(true);
+    const duration = selectedDurationDays;
+
+    if (onIssueBookToBorrower) {
+      onIssueBookToBorrower(pendingDurationTarget.book.id, pendingDurationTarget.borrower.id);
+    } else {
+      LibraryStorage.issueBook(pendingDurationTarget.book.id, pendingDurationTarget.borrower.id, duration);
+    }
+
+    if (soundEnabled) playSuccessBarcodeBeep();
+    setIssueMessage({
+      type: 'success',
+      text: `Successfully issued "${pendingDurationTarget.book.book_name}" to ${pendingDurationTarget.borrower.name} for ${duration} days!`,
+    });
+
+    setIsSubmittingLoan(false);
+    setIsDurationSelectorOpen(false);
+    setPendingDurationTarget(null);
+
+    // Refresh active book / borrower
+    if (foundBook && foundBook.id === pendingDurationTarget.book.id) {
+      setFoundBook({
+        ...foundBook,
+        available_quantity: Math.max(0, foundBook.available_quantity - 1),
+      });
+    }
   };
 
   // Loans for active book
@@ -240,23 +389,13 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       return;
     }
 
-    if (onIssueBookToBorrower) {
-      onIssueBookToBorrower(targetBook.id, foundBorrower.id);
-    } else {
-      LibraryStorage.issueBook(targetBook.id, foundBorrower.id, 14);
-    }
-
-    if (soundEnabled) playSuccessBarcodeBeep();
-    setIssueMessage({
-      type: 'success',
-      text: `Successfully issued "${targetBook.book_name}" (Accession: ${targetBook.accession_no || targetBook.barcode}) to ${foundBorrower.name}!`,
-    });
+    handleSelectBookForStudent(targetBook);
     setIssueBookInput('');
   };
 
   return (
-    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 overflow-y-auto space-y-6">
-      <div className="max-w-[1280px] mx-auto space-y-6">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-5 pb-12 overflow-visible">
+      <div className="max-w-[1280px] w-full mx-auto space-y-6">
 
         {/* Top Header Card */}
         <div className="flex flex-wrap items-center justify-between gap-4 ulm-liquid-glass rounded-xl p-4 sm:p-5 shadow-sm transition-all">
@@ -310,8 +449,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               </p>
             </div>
 
-            <div className="max-w-xl mx-auto flex items-center bg-white/40 dark:bg-[#0B1220]/70 border-2 border-[#BC881B]/50 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 rounded-xl p-1.5 transition-all shadow-md">
-              <BarcodeIcon className="w-5 h-5 text-royal-gold ml-3 shrink-0 pointer-events-none" />
+            <div className="max-w-2xl w-full mx-auto relative flex items-center bg-white/90 dark:bg-[#0B1220] border-2 border-[#BC881B]/50 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 rounded-xl transition-all shadow-md">
+              <BarcodeIcon className="w-5 h-5 text-[#BC881B] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
@@ -323,11 +462,11 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                   }
                 }}
                 placeholder="[ Scan book barcode or borrower card ID ]"
-                className="flex-1 h-11 bg-transparent border-0 text-center text-base sm:text-lg font-mono font-bold text-[var(--text-strong)] placeholder:text-[var(--text-muted)] tracking-wider focus:outline-none focus:ring-0 px-3"
+                className="w-full h-12 pl-11 pr-32 bg-transparent border-0 text-center text-base sm:text-lg font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 tracking-wider focus:outline-none focus:ring-0"
               />
               <button
                 type="submit"
-                className="h-10 px-5 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] active:bg-[#A87B16] text-[#0B1220] font-bold text-xs flex items-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 font-ui"
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-5 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] active:bg-[#A87B16] text-[#0B1220] font-bold text-xs flex items-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 font-ui"
               >
                 <Search className="w-3.5 h-3.5 text-[#0B1220] stroke-[2.5]" />
                 <span>Lookup</span>
@@ -504,227 +643,307 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
           </div>
         )}
 
-        {/* ---------------- SECTION: BORROWER STATUS CARD ---------------- */}
+        {/* ---------------- SECTION: BORROWER STATUS CARD (MODE B: STUDENT FIRST) ---------------- */}
         {scanState === 'BORROWER_FOUND' && foundBorrower && (
-          <div className="bg-[#151C2C] border-2 border-[#BC881B]/50 rounded-xl p-5 sm:p-6 shadow-xl space-y-5 animate-in fade-in duration-150 relative overflow-hidden">
-            {/* User Card Background Watermark */}
-            <img
-              src={ULM_CREST_LOGO}
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08]"
-            />
-
-            <div className="relative z-10 space-y-5">
-              {/* Header: Member Identity & Status Badge */}
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center flex-shrink-0">
-                    <img src={ULM_CREST_LOGO} alt="ULM Crest" className="w-9 h-9 object-contain flex-shrink-0" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#BC881B] font-mono block">
-                      UNIVERSITY OF LAKKI MARWAT — LIBRARY MEMBERSHIP CARD
-                    </span>
-                    <div className="flex items-center gap-2.5 flex-wrap mt-0.5">
-                      <h3 className="text-base sm:text-lg font-bold text-white font-display">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-150">
+            {/* Left Column: Full Student Profile & Printable CR80 ID Card */}
+            <div className="bg-white/95 dark:bg-[#151C2C] border-2 border-[#BC881B]/50 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5 relative overflow-hidden flex flex-col justify-between">
+              <div className="space-y-4">
+                {/* Header: Member Identity & Status Badge */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-white/[0.08] pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#131B2E] border border-[#BC881B]/50 p-1 flex items-center justify-center shrink-0">
+                      <img src={ULM_CREST_LOGO} alt="ULM Crest" className="w-8 h-8 object-contain" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white font-serif">
                         {foundBorrower.name}
                       </h3>
-                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/35">
-                        Card ID: {foundBorrower.barcode || foundBorrower.university_id || foundBorrower.student_id}
+                      <p className="text-xs text-slate-500 dark:text-[#B3AABD] font-mono">
+                        {foundBorrower.department} · {(foundBorrower.role || 'STUDENT').toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    {isBlockedOverdue ? (
+                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/40 flex items-center gap-1.5 shadow-2xs">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <span>BLOCKED (Rs. {borrowerTotalFine})</span>
+                      </span>
+                    ) : isQuotaReached ? (
+                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1.5 shadow-2xs">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>QUOTA FULL ({borrowerActiveLoans.length}/{maxAllowedQuota})</span>
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-2xs">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>ELIGIBLE</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* CR80 Live Printable Card Preview with .ulm-preserve-dark */}
+                <div className="p-4 rounded-xl ulm-preserve-dark border border-[#BC881B]/40 relative overflow-hidden shadow-lg">
+                  <img 
+                    src={ULM_CREST_LOGO} 
+                    alt="" 
+                    aria-hidden="true" 
+                    className="ulm-membercard-watermark absolute -right-2 -bottom-2 w-32 h-32 object-contain opacity-[0.10] pointer-events-none select-none"
+                    style={{ clipPath: 'none' }}
+                  />
+                  <div className="flex items-start justify-between gap-3 relative z-10">
+                    <div>
+                      <span className="text-[10px] text-amber-400 font-mono block uppercase tracking-wider">
+                        UNIVERSITY OF LAKKI MARWAT · CR80 CARD
+                      </span>
+                      <p className="font-serif font-bold text-lg text-amber-200 mt-0.5 leading-tight">
+                        {foundBorrower.name}
+                      </p>
+                      <p className="text-xs text-slate-300 font-mono mt-0.5">
+                        Roll: {foundBorrower.roll_number || foundBorrower.university_id || 'N/A'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {foundBorrower.program || foundBorrower.department}
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      {foundBorrower.status || 'ACTIVE'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between gap-3 relative z-10">
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-mono block">CARD ACCESSION / BARCODE</span>
+                      <span className="font-mono text-xs font-bold text-amber-300">
+                        {foundBorrower.barcode || foundBorrower.university_id || 'ULM-STD-001'}
                       </span>
                     </div>
-                    <p className="text-xs text-[#B3AABD] font-ui mt-0.5">
-                      Role: <strong className="text-white capitalize">{foundBorrower.role}</strong> · Dept: <strong className="text-white">{foundBorrower.department}</strong> · Program: {foundBorrower.program}
+                    <div className="ulm-barcode-safepad px-2.5 py-1 flex items-center gap-1 select-none">
+                      <BarcodeIcon className="w-3.5 h-3.5 text-black shrink-0" />
+                      <span className="font-mono text-[11px] font-bold tracking-wider text-black">
+                        {foundBorrower.barcode || foundBorrower.university_id || 'ULM-STD-001'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quota & Fine Metric Strip */}
+                <div className="grid grid-cols-3 gap-2 text-center p-3 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/10">
+                  <div>
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Quota Used</span>
+                    <p className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                      {borrowerActiveLoans.length} / {maxAllowedQuota}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Overdue</span>
+                    <p className={`text-sm font-bold font-mono ${borrowerOverdueCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {borrowerOverdueCount} Books
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Payable Fine</span>
+                    <p className="text-sm font-bold font-mono text-[#BC881B] dark:text-[#E0B450]">
+                      Rs. {borrowerTotalFine}
                     </p>
                   </div>
                 </div>
 
-              {/* Status Badge */}
-              <div>
-                {isBlockedOverdue ? (
-                  <span className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-ui uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/50 flex items-center gap-1.5 shadow-sm">
-                    <ShieldAlert className="w-4 h-4 text-rose-400" />
-                    <span>BLOCKED — OVERDUE FINE (Rs. {borrowerTotalFine})</span>
-                  </span>
-                ) : isQuotaReached ? (
-                  <span className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-ui uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1.5 shadow-sm">
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <span>QUOTA REACHED ({borrowerActiveLoans.length} / {maxAllowedQuota})</span>
-                  </span>
-                ) : (
-                  <span className="px-3.5 py-1.5 rounded-lg text-xs font-bold font-ui uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 flex items-center gap-1.5 shadow-sm">
-                    <UserCheck className="w-4 h-4 text-emerald-400" />
-                    <span>ELIGIBLE / ACTIVE</span>
-                  </span>
-                )}
-              </div>
-            </div>
+                {/* Currently Borrowed Books with 1-click Return */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Currently Issued Books ({borrowerActiveLoans.length})
+                    </h4>
+                    <span className="text-[10px] text-slate-500 font-mono">Policy: Rs. 10/day</span>
+                  </div>
 
-            {/* Quota Meter & Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0B1220] p-4 rounded-xl border border-white/[0.08]">
-              <div>
-                <span className="text-[11px] uppercase font-mono text-[#B3AABD] block">Active Loans</span>
-                <p className="text-base font-bold font-mono text-white mt-0.5">
-                  {borrowerActiveLoans.length} <span className="text-xs text-[#B3AABD] font-normal">/ {maxAllowedQuota} allowed</span>
-                </p>
-              </div>
-
-              <div>
-                <span className="text-[11px] uppercase font-mono text-[#B3AABD] block">Remaining Quota</span>
-                <p className={`text-base font-bold font-mono mt-0.5 ${maxAllowedQuota - borrowerActiveLoans.length > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {Math.max(0, maxAllowedQuota - borrowerActiveLoans.length)} Books
-                </p>
-              </div>
-
-              <div>
-                <span className="text-[11px] uppercase font-mono text-[#B3AABD] block">Overdue Volumes</span>
-                <p className={`text-base font-bold font-mono mt-0.5 ${borrowerOverdueCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {borrowerOverdueCount} Overdue
-                </p>
-              </div>
-
-              <div>
-                <span className="text-[11px] uppercase font-mono text-[#B3AABD] block">Total Payable Fine</span>
-                <p className={`text-base font-bold font-mono mt-0.5 ${borrowerTotalFine > 0 ? 'text-rose-400' : 'text-[#E0B450]'}`}>
-                  Rs. {borrowerTotalFine.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            {/* FOCUSED: Scan Book Barcode to Issue Directly to this Member */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-[#541A72]/30 via-[#2A1338]/40 to-[#151C2C] border border-[#BC881B]/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white font-ui flex items-center gap-1.5">
-                  <ArrowRightLeft className="w-4 h-4 text-[#BC881B]" />
-                  <span>Scan Book Barcode to Issue to {foundBorrower.name}</span>
-                </span>
-                <span className="text-[11px] text-[#B3AABD] font-mono">14-Day Standard Campus Loan</span>
-              </div>
-
-              <form onSubmit={handleIssueBookToActiveBorrower} className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <BarcodeIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#BC881B]" />
-                  <input
-                    ref={issueInputRef}
-                    type="text"
-                    value={issueBookInput}
-                    onChange={(e) => setIssueBookInput(e.target.value)}
-                    placeholder="Scan or type book barcode (e.g. 0092... or ULM-00001) to issue now..."
-                    className="w-full h-10 pl-9 pr-3 rounded-lg bg-[#0B1220] border border-white/15 text-xs text-white font-mono placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isBlockedOverdue || isQuotaReached}
-                  className={`h-10 px-4 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 font-ui ${
-                    isBlockedOverdue || isQuotaReached
-                      ? 'bg-white/10 text-slate-500 cursor-not-allowed'
-                      : 'bg-[#BC881B] hover:bg-[#D4A02A] text-[#0B1220] cursor-pointer shadow-md'
-                  }`}
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Issue Book</span>
-                </button>
-              </form>
-
-              {issueMessage && (
-                <div className={`text-xs p-2.5 rounded-lg flex items-center gap-2 font-medium ${
-                  issueMessage.type === 'success' 
-                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' 
-                    : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
-                }`}>
-                  {issueMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-                  <span>{issueMessage.text}</span>
-                </div>
-              )}
-            </div>
-
-            {/* List of Books Currently Borrowed by this Member */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider font-ui flex items-center justify-between">
-                <span>Currently Borrowed Volumes ({borrowerActiveLoans.length})</span>
-                <span className="text-[11px] text-[#B3AABD] font-mono">Return fine: Rs. 10/day overdue</span>
-              </h4>
-
-              {borrowerActiveLoans.length === 0 ? (
-                <div className="p-4 rounded-lg bg-[#0B1220] border border-white/[0.08] text-center text-xs text-[#B3AABD]">
-                  No active loans. Member has 0 books borrowed and full quota available.
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {borrowerActiveLoans.map(loan => {
-                    const isOverdue = loan.due_date && loan.due_date < todayIso;
-                    const bookRecord = books.find(b => b.id === loan.book_id);
-                    return (
-                      <div 
-                        key={loan.id} 
-                        className={`p-3 rounded-lg border flex flex-wrap items-center justify-between gap-3 text-xs transition-colors ${
-                          isOverdue 
-                            ? 'bg-rose-950/20 border-rose-500/30' 
-                            : 'bg-[#0B1220] border-white/[0.08]'
-                        }`}
-                      >
-                        <div className="space-y-0.5">
-                          <p className="font-semibold text-white text-[13px]">
-                            {loan.book_name || bookRecord?.book_name || 'Book Volume'}
-                          </p>
-                          <div className="flex items-center gap-2 text-[11px] text-[#B3AABD] font-mono">
-                            <span>Accession: {bookRecord?.accession_no || loan.barcode || 'N/A'}</span>
-                            <span>•</span>
-                            <span>Barcode: {loan.barcode || bookRecord?.barcode}</span>
-                            <span>•</span>
-                            <span className={isOverdue ? 'text-rose-400 font-bold' : 'text-[#B3AABD]'}>
-                              Due: {loan.due_date} {isOverdue && '(OVERDUE)'}
-                            </span>
+                  {borrowerActiveLoans.length === 0 ? (
+                    <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/10 text-center text-xs text-slate-500">
+                      Member has 0 books borrowed. Full quota available.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {borrowerActiveLoans.map(loan => {
+                        const isOverdue = loan.due_date && loan.due_date < todayIso;
+                        return (
+                          <div 
+                            key={loan.id} 
+                            className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs ${
+                              isOverdue 
+                                ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-300 dark:border-rose-500/30' 
+                                : 'bg-slate-50 dark:bg-[#0B1220] border-slate-200 dark:border-white/10'
+                            }`}
+                          >
+                            <div className="truncate">
+                              <p className="font-semibold text-slate-900 dark:text-white truncate text-xs">
+                                {loan.book_name}
+                              </p>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                Due: {loan.due_date} {isOverdue && '(OVERDUE)'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onQuickReturn(loan.id)}
+                              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Return</span>
+                            </button>
                           </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => onQuickReturn(loan.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Return Book</span>
-                        </button>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={resetScanner}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  ← Scan Another Student or Book
+                </button>
+              </div>
             </div>
 
-            {/* Bottom Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-              <button
-                type="button"
-                onClick={resetScanner}
-                className="px-4 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                Scan Another Member or Book
-              </button>
-            </div>
+            {/* Right Column: "Which Book Does This Student Want?" (Scan Barcode or Search Title/Author) */}
+            <div className="bg-white/95 dark:bg-[#151C2C] border-2 border-[#BC881B]/50 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-[#BC881B]" />
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                      Which Book Does This Student Want?
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-[#BC881B] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    Auto Loan-Duration Prompt
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Scan book barcode or search by title/author. When selected, the <strong>Loan Duration Selector</strong> will automatically prompt for borrowing duration.
+                </p>
+
+                {/* Fast Scan Barcode / Search Input */}
+                <form onSubmit={handleIssueBookToActiveBorrower} className="space-y-2">
+                  <div className="relative">
+                    <BarcodeIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#BC881B]" />
+                    <input
+                      ref={issueInputRef}
+                      type="text"
+                      value={issueBookInput}
+                      onChange={(e) => {
+                        setIssueBookInput(e.target.value);
+                        setBookSearchForStudent(e.target.value);
+                      }}
+                      placeholder="Scan or enter book barcode (0092... / Acc # / ISBN)..."
+                      className="w-full h-11 pl-9 pr-24 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-white font-mono placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isBlockedOverdue || isQuotaReached}
+                      className={`absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                        isBlockedOverdue || isQuotaReached
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 cursor-pointer shadow-sm'
+                      }`}
+                    >
+                      Prompt ↵
+                    </button>
+                  </div>
+                </form>
+
+                {issueMessage && (
+                  <div className={`text-xs p-3 rounded-xl flex items-center gap-2 font-medium ${
+                    issueMessage.type === 'success' 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300' 
+                      : 'bg-rose-50 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300'
+                  }`}>
+                    {issueMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                    <span>{issueMessage.text}</span>
+                  </div>
+                )}
+
+                {/* Available Books List (Instant select to prompt duration) */}
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                    Available Catalog Volumes (1-Click Select):
+                  </span>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {books
+                      .filter(b => b.is_active && b.available_quantity > 0)
+                      .filter(b => {
+                        if (!bookSearchForStudent.trim()) return true;
+                        const q = bookSearchForStudent.toLowerCase();
+                        return (
+                          b.book_name.toLowerCase().includes(q) ||
+                          b.author.toLowerCase().includes(q) ||
+                          b.barcode.toLowerCase().includes(q) ||
+                          (b.accession_no && b.accession_no.toLowerCase().includes(q))
+                        );
+                      })
+                      .slice(0, 8)
+                      .map(b => (
+                        <div
+                          key={b.id}
+                          onClick={() => !isBlockedOverdue && !isQuotaReached && handleSelectBookForStudent(b)}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
+                            isBlockedOverdue || isQuotaReached
+                              ? 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-[#0B1220] border-slate-200'
+                              : 'cursor-pointer hover:border-[#BC881B] hover:bg-amber-50/50 dark:hover:bg-[#BC881B]/10 bg-slate-50 dark:bg-[#0B1220] border-slate-200 dark:border-white/10'
+                          }`}
+                        >
+                          <div className="truncate">
+                            <p className="font-bold text-slate-900 dark:text-white truncate">{b.book_name}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-0.5">
+                              <span>by {b.author}</span>
+                              <span>•</span>
+                              <span>Acc: {b.accession_no || b.barcode}</span>
+                              <span>•</span>
+                              <span className="text-[#BC881B] font-semibold">{b.shelf || 'ALM-01'}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isBlockedOverdue || isQuotaReached}
+                            className="px-2.5 py-1 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-[11px] shrink-0"
+                          >
+                            Select ↵
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ---------------- SCAN RESULTS: BOOK FOUND ---------------- */}
+        {/* ---------------- SCAN RESULTS: BOOK FOUND (MODE A: BOOK FIRST) ---------------- */}
         {scanState === 'BOOK_FOUND' && foundBook && (
-          <div className="bg-[#151C2C] border border-emerald-500/40 rounded-xl p-5 sm:p-6 shadow-sm space-y-4 animate-in fade-in duration-150 transition-colors">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm sm:text-base font-ui">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <div className="bg-white/95 dark:bg-[#151C2C] border-2 border-emerald-500/50 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in duration-150 transition-colors">
+            {/* Header: Status & Accession Barcode Info */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 pb-3">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm sm:text-base font-ui">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                 <span>Book Barcode Verified in Catalog</span>
               </div>
-              <span className="text-xs font-mono text-[#B3AABD]">
-                Accession: {foundBook.accession_no || foundBook.barcode} · Barcode: {foundBook.barcode}
+              <span className="text-xs font-mono text-slate-600 dark:text-[#B3AABD]">
+                Accession: <strong className="text-slate-900 dark:text-white">{foundBook.accession_no || foundBook.barcode}</strong> · Barcode: <strong className="text-slate-900 dark:text-white">{foundBook.barcode}</strong>
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
               {/* Cover thumbnail */}
-              <div className="w-32 h-44 rounded-lg bg-[#0B1220] border border-white/10 shadow-sm relative overflow-hidden flex flex-col justify-between p-2.5 shrink-0 mx-auto md:mx-0">
+              <div className="w-32 h-44 rounded-xl bg-slate-900 border border-[#BC881B]/40 shadow-md relative overflow-hidden flex flex-col justify-between p-2.5 shrink-0 mx-auto md:mx-0">
                 {foundBook.book_image_path ? (
                   <img
                     src={foundBook.book_image_path}
@@ -733,75 +952,75 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : null}
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#BC881B] z-10" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#BC881B] z-10" />
                 <div className="relative z-0 text-[10px] space-y-1">
                   <span className="text-[8px] font-mono text-[#BC881B] font-bold">ULM PRESS</span>
-                  <p className="font-display font-bold text-white line-clamp-3">{foundBook.book_name}</p>
+                  <p className="font-serif font-bold text-white line-clamp-3">{foundBook.book_name}</p>
                 </div>
-                <span className="relative z-0 text-[8.5px] font-mono text-[#B3AABD]">{foundBook.dewey_call_number}</span>
+                <span className="relative z-0 text-[8.5px] font-mono text-amber-200">{foundBook.dewey_call_number}</span>
               </div>
 
               {/* Book Info */}
               <div className="md:col-span-3 space-y-3">
                 <div>
-                  <div className="flex items-center gap-2 text-xs text-[#B3AABD]">
-                    <span className="font-semibold text-[#E0B450]">{foundBook.category}</span>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-[#B3AABD]">
+                    <span className="font-semibold text-[#BC881B]">{foundBook.category}</span>
                     <span>·</span>
                     <span className="font-mono">Dewey {foundBook.dewey_call_number}</span>
                   </div>
-                  <h3 className="text-base sm:text-lg font-bold text-white mt-1 font-display">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5 font-serif">
                     {foundBook.book_name}
                   </h3>
-                  <p className="text-xs text-[#B3AABD]">
-                    by <span className="font-medium text-white">{foundBook.author}</span> · {foundBook.edition} ({foundBook.publication_year})
+                  <p className="text-xs text-slate-600 dark:text-[#B3AABD]">
+                    by <span className="font-medium text-slate-900 dark:text-white">{foundBook.author}</span> · {foundBook.edition} ({foundBook.publication_year})
                   </p>
                 </div>
 
-                {/* Copies Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#0B1220] p-3 rounded-lg border border-white/[0.08]">
+                {/* Copies & Location Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-[#0B1220] p-3 rounded-xl border border-slate-200 dark:border-white/10">
                   <div>
-                    <span className="text-[10px] uppercase font-mono text-[#B3AABD]">Total Copies</span>
-                    <p className="text-sm font-bold font-mono text-white mt-0.5">{foundBook.total_quantity}</p>
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Total Copies</span>
+                    <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">{foundBook.total_quantity}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-mono text-[#B3AABD]">Available Now</span>
-                    <p className={`text-sm font-bold font-mono mt-0.5 ${foundBook.available_quantity > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {foundBook.available_quantity} on shelf
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Available on Shelf</span>
+                    <p className={`text-sm font-bold font-mono mt-0.5 ${foundBook.available_quantity > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {foundBook.available_quantity} copies
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-mono text-[#B3AABD]">Almari / Shelf</span>
-                    <p className="text-xs font-semibold text-white mt-0.5 flex items-center gap-1 font-mono">
-                      <MapPin className="w-3 h-3 text-[#BC881B]" />
-                      <span>{foundBook.shelf || 'ALM-01'}</span>
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Almari / Shelf</span>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5 flex items-center gap-1 font-mono">
+                      <MapPin className="w-3.5 h-3.5 text-[#BC881B]" />
+                      <span>{foundBook.shelf || `${foundBook.almari_id || 'ALM-01'} · Shelf ${foundBook.shelf_no || 1}`}</span>
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-mono text-[#B3AABD]">Stack Row</span>
-                    <p className="text-xs font-semibold text-white mt-0.5 font-mono">
-                      Row {foundBook.row || '1'}
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Binding & Status</span>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white mt-0.5 font-mono">
+                      {foundBook.binding || 'HB'} · {foundBook.available_quantity > 0 ? 'AVAILABLE' : 'LOANED'}
                     </p>
                   </div>
                 </div>
 
-                {/* Active Loans */}
+                {/* Active Loans if any */}
                 {activeBookLoans.length > 0 && (
-                  <div className="p-3 rounded-lg bg-[#0B1220] border border-white/[0.08] space-y-2">
-                    <span className="text-xs font-semibold text-slate-300">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/10 space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Currently Loaned Copies ({activeBookLoans.length}):
                     </span>
                     <div className="space-y-1">
                       {activeBookLoans.map(loan => (
-                        <div key={loan.id} className="flex items-center justify-between text-xs bg-[#151C2C] px-3 py-1.5 rounded border border-white/[0.08]">
+                        <div key={loan.id} className="flex items-center justify-between text-xs bg-white dark:bg-[#151C2C] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10">
                           <div>
-                            <span className="font-semibold text-white">{loan.borrower_name}</span>
-                            <span className="text-[#B3AABD] ml-2 font-mono">({loan.student_id})</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{loan.borrower_name}</span>
+                            <span className="text-slate-500 ml-2 font-mono">({loan.student_id})</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-[#B3AABD] font-mono">Due: {loan.due_date}</span>
+                            <span className="text-slate-500 font-mono">Due: {loan.due_date}</span>
                             <button
                               onClick={() => onQuickReturn(loan.id)}
-                              className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[11px] border border-emerald-500/30 flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
                             >
                               <RotateCcw className="w-2.5 h-2.5" />
                               <span>Return</span>
@@ -813,40 +1032,182 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3 pt-2">
+                {/* Inline Almari & Shelf Placement Panel */}
+                {isPlacingInAlmari && (
+                  <div className="p-3.5 rounded-xl bg-amber-50/60 dark:bg-[#131B2E] border border-amber-300 dark:border-[#BC881B]/40 space-y-3 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-[#BC881B]" />
+                        <span>Place in Almari &amp; Shelf Location</span>
+                      </span>
+                      <button
+                        onClick={() => setIsPlacingInAlmari(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1">
+                          Almari Cupboard
+                        </label>
+                        <select
+                          value={placementAlmari}
+                          onChange={(e) => setPlacementAlmari(e.target.value)}
+                          className="h-9 px-3 rounded-lg bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-white font-mono focus:border-[#BC881B] outline-none"
+                        >
+                          <option value="ALM-01">ALM-01 — General Stacks</option>
+                          <option value="ALM-02">ALM-02 — Computer Science</option>
+                          <option value="ALM-03">ALM-03 — Engineering & Tech</option>
+                          <option value="ALM-04">ALM-04 — Management & Commerce</option>
+                          <option value="ALM-05">ALM-05 — Islamic & Oriental Studies</option>
+                          <option value="ALM-06">ALM-06 — Reference & Archival</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1">
+                          Shelf Row
+                        </label>
+                        <select
+                          value={placementShelf}
+                          onChange={(e) => setPlacementShelf(Number(e.target.value))}
+                          className="h-9 px-3 rounded-lg bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-white font-mono focus:border-[#BC881B] outline-none"
+                        >
+                          <option value={1}>Shelf 1 (Top Tier)</option>
+                          <option value={2}>Shelf 2 (Eye Level)</option>
+                          <option value={3}>Shelf 3 (Middle Tier)</option>
+                          <option value={4}>Shelf 4 (Lower Tier)</option>
+                          <option value={5}>Shelf 5 (Base Shelf)</option>
+                        </select>
+                      </div>
+
+                      <div className="self-end">
+                        <button
+                          type="button"
+                          onClick={handleSavePlacement}
+                          className="h-9 px-4 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Save Location ↵</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {placementSuccessMsg && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{placementSuccessMsg}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Chained Student Scan Panel */}
+                {isChainedIssueActive && (
+                  <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-[#1A1028] border border-purple-300 dark:border-purple-500/40 space-y-2.5 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                        <ArrowRightLeft className="w-4 h-4 text-[#BC881B]" />
+                        <span>Chained Issue: Scan Student ID Barcode or Search Member</span>
+                      </span>
+                      <button
+                        onClick={() => setIsChainedIssueActive(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleChainedStudentSubmit} className="flex gap-2">
+                      <input
+                        ref={chainedStudentInputRef}
+                        type="text"
+                        value={chainedStudentInput}
+                        onChange={(e) => setChainedStudentInput(e.target.value)}
+                        placeholder="Scan student ID card barcode (ULM-STD-...) or enter Roll # / Name..."
+                        className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#0B1220] border border-purple-300 dark:border-purple-500/30 text-xs text-slate-900 dark:text-white font-mono placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B]"
+                      />
+                      <button
+                        type="submit"
+                        className="h-10 px-4 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+                      >
+                        <span>Prompt Loan Time ↵</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+
+                    {chainedStudentError && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>{chainedStudentError}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Mode A Primary Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5 pt-2">
+                  {/* Action 1: [📤 Issue This Book] */}
                   <button
-                    onClick={() => onQuickLoan(foundBook)}
-                    disabled={foundBook.available_quantity <= 0}
-                    className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wide flex items-center gap-2 transition-all font-ui ${
+                    type="button"
+                    onClick={() => {
+                      if (foundBook.available_quantity <= 0 && activeBookLoans.length > 0) {
+                        onQuickReturn(activeBookLoans[0].id);
+                      } else {
+                        setIsChainedIssueActive(!isChainedIssueActive);
+                        setIsPlacingInAlmari(false);
+                      }
+                    }}
+                    className={`px-4.5 py-2.5 rounded-xl text-xs font-bold tracking-wide flex items-center gap-2 transition-all cursor-pointer shadow-sm ${
                       foundBook.available_quantity > 0
-                        ? 'bg-[#BC881B] hover:bg-[#D4A02A] active:bg-[#A87B16] text-[#0B1220] cursor-pointer shadow-md'
-                        : 'bg-white/10 text-slate-500 cursor-not-allowed'
+                        ? 'bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     }`}
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Issue Loan</span>
+                    <ArrowRightLeft className="w-4 h-4" />
+                    <span>
+                      {foundBook.available_quantity > 0 ? '📤 Issue This Book' : '📥 Return Book'}
+                    </span>
+                  </button>
+
+                  {/* Action 2: [🗄️ Place in Almari & Shelf] */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPlacingInAlmari(!isPlacingInAlmari);
+                      setIsChainedIssueActive(false);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/15 text-xs font-semibold tracking-wide flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Layers className="w-4 h-4 text-[#BC881B]" />
+                    <span>🗄️ Place in Almari &amp; Shelf</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => onOpenBookDetails(foundBook.id)}
-                    className="px-4.5 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 text-xs font-semibold tracking-wide flex items-center gap-2 transition-colors cursor-pointer font-ui"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/15 text-xs font-semibold tracking-wide flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>View Record</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => onPrintBarcode(foundBook)}
-                    className="px-4.5 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 text-xs font-semibold tracking-wide flex items-center gap-2 transition-colors cursor-pointer font-ui"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/15 text-xs font-semibold tracking-wide flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5 text-[#BC881B]" />
                     <span>Print Label</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={resetScanner}
-                    className="px-4 py-2.5 rounded-xl hover:bg-white/[0.06] text-[#B3AABD] hover:text-white text-xs font-medium tracking-wide ml-auto transition-colors cursor-pointer font-ui"
+                    className="px-3.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 text-xs font-medium ml-auto transition-colors cursor-pointer"
                   >
                     Scan Another
                   </button>
@@ -858,22 +1219,22 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
         {/* ---------------- SCAN RESULTS: NOT FOUND ---------------- */}
         {scanState === 'NOT_FOUND' && (
-          <div className="bg-[#151C2C] border border-rose-500/40 rounded-xl p-6 shadow-sm space-y-3 text-center animate-in fade-in duration-150 transition-colors">
-            <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
+          <div className="bg-white/95 dark:bg-[#151C2C] border-2 border-rose-400 dark:border-rose-500/40 rounded-2xl p-6 shadow-sm space-y-3 text-center animate-in fade-in duration-150 transition-colors">
+            <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mx-auto">
               <XCircle className="w-5 h-5" />
             </div>
 
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-white font-display">Unrecognized Barcode or Member Card</h3>
-              <p className="text-xs text-[#B3AABD] mt-1 max-w-md mx-auto font-ui">
-                No active book or registered borrower matches identifier <span className="font-mono font-bold text-[#E0B450]">{searchedBarcode}</span>. You can register this accession immediately.
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-serif">Unrecognized Barcode or Member Card</h3>
+              <p className="text-xs text-slate-600 dark:text-[#B3AABD] mt-1 max-w-md mx-auto">
+                No active book or registered borrower matches identifier <span className="font-mono font-bold text-[#BC881B]">{searchedBarcode}</span>. You can register this accession immediately.
               </p>
             </div>
 
             <div className="flex items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => onOpenAddBookWithBarcode(searchedBarcode || '')}
-                className="px-4 py-2 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-[#0B1220] font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer font-ui"
+                className="px-4 py-2 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>Register Book with this Barcode</span>
@@ -881,10 +1242,155 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
               <button
                 onClick={resetScanner}
-                className="px-3.5 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white text-xs font-medium transition-colors cursor-pointer font-ui"
+                className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 text-xs font-medium transition-colors cursor-pointer"
               >
                 Scan Again
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- LOAN DURATION SELECTOR MODAL DIALOG ---------------- */}
+        {isDurationSelectorOpen && pendingDurationTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-white/10 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-[#BC881B] shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white font-serif">
+                      Loan Duration Selector
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      How much time does the student want this book?
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDurationSelectorOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Book & Borrower Summary */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/10 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Borrower:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{pendingDurationTarget.borrower.name}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Card ID / Roll:</span>
+                  <span className="font-mono text-slate-900 dark:text-white">
+                    {pendingDurationTarget.borrower.university_id || pendingDurationTarget.borrower.barcode}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Book:</span>
+                  <span className="font-bold text-slate-900 dark:text-white truncate max-w-[220px]">
+                    {pendingDurationTarget.book.book_name}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>Accession:</span>
+                  <span className="font-mono text-[#BC881B]">
+                    {pendingDurationTarget.book.accession_no || pendingDurationTarget.book.barcode}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                  Select Loan Period
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { days: 7, label: '7 Days', desc: 'Short Assignment' },
+                    { days: 14, label: '14 Days', desc: 'Standard Campus Loan' },
+                    { days: 30, label: '30 Days', desc: 'Monthly Research' },
+                    { days: 120, label: 'Full Semester (120 D)', desc: 'Faculty / Project' },
+                  ].map(preset => (
+                    <button
+                      key={preset.days}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDurationDays(preset.days);
+                        setCustomDaysInput(String(preset.days));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        selectedDurationDays === preset.days
+                          ? 'border-[#BC881B] bg-amber-50/70 dark:bg-[#BC881B]/20 ring-1 ring-[#BC881B]'
+                          : 'border-slate-200 dark:border-white/10 hover:border-slate-300 bg-slate-50 dark:bg-[#0B1220]'
+                      }`}
+                    >
+                      <span className="font-bold text-xs text-slate-900 dark:text-white block">
+                        {preset.label}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        {preset.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Days Input */}
+                <div className="pt-1 flex items-center gap-2">
+                  <span className="text-xs text-slate-600 dark:text-slate-400 shrink-0">Custom Days:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={customDaysInput}
+                    onChange={(e) => {
+                      setCustomDaysInput(e.target.value);
+                      const d = parseInt(e.target.value, 10);
+                      if (!isNaN(d) && d > 0) setSelectedDurationDays(d);
+                    }}
+                    className="w-24 h-9 px-3 rounded-lg bg-slate-50 dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-white font-mono focus:border-[#BC881B] outline-none"
+                  />
+                  <span className="text-xs text-slate-500">days</span>
+                </div>
+              </div>
+
+              {/* Due Date & Overdue Policy Notice */}
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-[#BC881B]/10 border border-amber-200 dark:border-[#BC881B]/30 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] font-mono text-amber-800 dark:text-amber-300 block uppercase">Calculated Due Date</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
+                    {new Date(Date.now() + selectedDurationDays * 86400000).toISOString().split('T')[0]}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-slate-500 block">Overdue Fine</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400">Rs. 10 / day</span>
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsDurationSelectorOpen(false)}
+                  className="px-4 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingLoan}
+                  onClick={handleConfirmIssueLoan}
+                  className="px-5 h-10 rounded-xl bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Confirm Issue ↵</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

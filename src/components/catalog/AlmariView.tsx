@@ -499,7 +499,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col min-h-0 bg-[var(--background)] text-[var(--text-body)]">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 pb-12 overflow-visible bg-[var(--background)] text-[var(--text-body)]">
       {/* Toast Notification */}
       {moveToast && (
         <div className="m-4 p-3.5 bg-[#1A1A1A] border border-[var(--gold)]/40 rounded-[12px] text-[var(--gold-text)] text-[13px] flex items-center gap-2 shadow-lg animate-in fade-in">
@@ -810,7 +810,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       </div>
 
       {/* MAIN VIEW CONTENT AREA */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+      <div className="w-full h-auto p-4 sm:p-6 space-y-6 overflow-visible">
         {/* ==================================================================== */}
         {/* 1. OVERVIEW MODE: CARD PER ALMARI OR BY GROUP                       */}
         {/* ==================================================================== */}
@@ -1315,7 +1315,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   return (
                     <div
                       key={shelfNum}
-                      className="space-y-2 bg-slate-50 dark:bg-[#1C1A1E] p-4 rounded-xl border border-slate-200 dark:border-[var(--border-subtle)]"
+                      className="space-y-2.5 min-h-[84px] p-4 rounded-xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-white/10 shadow-sm"
                     >
                       {/* Shelf Level Header with Accession Range & Paste action */}
                       <div className="flex items-center justify-between text-xs pb-1">
@@ -1335,7 +1335,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <span className="text-[#B3AABD] text-[11px] font-mono">{shelfBooks.length} / {shelfCap} books</span>
+                          <span className="text-slate-500 dark:text-[#B3AABD] text-[11px] font-mono">{shelfBooks.length} / {shelfCap} books</span>
                           {selectedCatalogBookIds && selectedCatalogBookIds.size > 0 && (
                             <button
                               type="button"
@@ -1354,7 +1354,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                       </div>
 
                       {/* Physical Shelf Book Spines */}
-                      <div className="flex items-end gap-1 overflow-x-auto min-h-[140px] pb-2 px-1 border-b-4 border-[#3D3524] relative">
+                      <div className="flex items-end gap-1 overflow-x-auto min-h-[56px] pb-1.5 px-1 border-b-2 border-slate-300 dark:border-[#3D3524] relative">
                         {displayedBooks.map((b, bIdx) => {
                           const grp = groupsMap.get(b.group_id || '');
                           const grpColor = grp?.color || '#78716C';
@@ -1371,7 +1371,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                               onKeyDown={e => {
                                 if (e.key === 'Enter') setSelectedBookId(b.id);
                               }}
-                              className={`h-28 rounded-t-sm transition-all duration-150 cursor-pointer relative flex flex-col justify-between p-1 select-none shrink-0 group ${
+                              className={`h-14 rounded-t-sm transition-all duration-150 cursor-pointer relative flex flex-col justify-between p-0.5 select-none shrink-0 group ${
                                 isSelected
                                   ? 'ring-2 ring-[var(--gold)] scale-105 z-10 shadow-lg'
                                   : 'hover:scale-102 hover:brightness-110'
@@ -1391,7 +1391,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                               )}
                               <div className="flex-1" />
                               {/* Call number vertical indicator */}
-                              <div className="w-full h-1 bg-white/40 rounded-full" />
+                              <div className="w-full h-0.5 bg-white/40 rounded-full" />
                             </div>
                           );
                         })}
@@ -1401,29 +1401,29 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setSelectedShelfFilter(shelfNum)}
-                            className="h-28 w-16 px-1 rounded-t-sm bg-[#2B2730] hover:bg-[#3E3845] border border-[var(--gold)]/40 text-[var(--gold-text)] text-[11px] font-bold flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors"
+                            className="h-14 w-14 px-1 rounded-t-sm bg-slate-100 dark:bg-[#2B2730] hover:bg-slate-200 dark:hover:bg-[#3E3845] border border-slate-300 dark:border-[var(--gold)]/40 text-[#BC881B] text-[10px] font-bold flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors"
                           >
                             <span>+{overflowCount}</span>
-                            <span className="text-[9px] text-[var(--text-muted)]">more</span>
+                            <span className="text-[9px] text-slate-500">more</span>
                           </button>
                         )}
 
                         {shelfBooks.length === 0 && (
-                          <div className="h-28 flex items-center justify-center w-full text-[12px] text-[var(--text-muted)] italic">
+                          <div className="h-12 flex items-center justify-center w-full text-xs text-slate-400 dark:text-[var(--text-muted)] italic">
                             Empty shelf
                           </div>
                         )}
                       </div>
 
                       {/* Shelf Label & Capacity info */}
-                      <div className="flex items-center justify-between text-[12px] text-[var(--text-muted)] px-1">
-                        <span className="font-mono font-bold text-white">
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-[var(--text-muted)] px-1">
+                        <span className="font-mono font-bold text-slate-800 dark:text-white">
                           Shelf {shelfNum} · {shelfBooks.length} books · {capacityPct}% full
                         </span>
                         <button
                           type="button"
                           onClick={() => setSelectedShelfFilter(shelfNum === selectedShelfFilter ? null : shelfNum)}
-                          className="text-[var(--gold-text)] hover:underline text-[11px] font-semibold"
+                          className="text-[#BC881B] dark:text-[var(--gold-text)] hover:underline text-[11px] font-semibold cursor-pointer"
                         >
                           {selectedShelfFilter === shelfNum ? 'Show all shelves' : 'Filter table to this shelf'}
                         </button>

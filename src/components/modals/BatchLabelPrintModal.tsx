@@ -22,6 +22,7 @@ import {
   LabelSheetLayout 
 } from '../../services/pdfGeneratorService';
 import { encodeCode128B, evaluateScanSafety } from '../../utils/code128';
+import { CrispCode128BarcodeSvg } from '../shared/CrispCode128BarcodeSvg';
 
 interface BatchLabelPrintModalProps {
   isOpen: boolean;
@@ -513,35 +514,14 @@ export const BatchLabelPrintModal: React.FC<BatchLabelPrintModalProps> = ({
                       </p>
                     </div>
 
-                    {/* Vector Barcode rendering (Locked Optical Barcode Safe-Pad) */}
-                    <div className="barcode-box bg-white px-1 py-0.5 flex flex-col items-center justify-center ulm-barcode-safepad">
-                      <div className="h-7 w-full flex items-center justify-center">
-                        <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 24">
-                          <rect x="0" y="0" width="100" height="24" fill="#ffffff" />
-                          <rect x="5" y="0" width="2" height="24" fill="#000000" />
-                          <rect x="9" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="13" y="0" width="3" height="24" fill="#000000" />
-                          <rect x="18" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="22" y="0" width="2" height="24" fill="#000000" />
-                          <rect x="26" y="0" width="4" height="24" fill="#000000" />
-                          <rect x="33" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="37" y="0" width="2.5" height="24" fill="#000000" />
-                          <rect x="42" y="0" width="2" height="24" fill="#000000" />
-                          <rect x="47" y="0" width="3" height="24" fill="#000000" />
-                          <rect x="53" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="57" y="0" width="4" height="24" fill="#000000" />
-                          <rect x="64" y="0" width="2" height="24" fill="#000000" />
-                          <rect x="68" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="72" y="0" width="3" height="24" fill="#000000" />
-                          <rect x="78" y="0" width="2" height="24" fill="#000000" />
-                          <rect x="83" y="0" width="2.5" height="24" fill="#000000" />
-                          <rect x="88" y="0" width="1.5" height="24" fill="#000000" />
-                          <rect x="92" y="0" width="3" height="24" fill="#000000" />
-                        </svg>
-                      </div>
-                      <span className="text-[7.5px] font-mono text-gray-700 tracking-wider">
-                        {barcode}
-                      </span>
+                    {/* Vector Barcode rendering (Crisp Pure-White Code-128 Vector) */}
+                    <div className="w-full py-0.5 flex flex-col items-center justify-center">
+                      <CrispCode128BarcodeSvg 
+                        value={barcode} 
+                        height={26} 
+                        showValue={true} 
+                        className="w-full max-w-[140px] drop-shadow-2xs" 
+                      />
                     </div>
 
                     <div className="flex items-center justify-between text-[8.5px] font-mono font-bold text-gray-800 pt-0.5 border-t border-gray-200">

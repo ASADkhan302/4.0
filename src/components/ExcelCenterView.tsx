@@ -359,8 +359,8 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
   ];
 
   return (
-    <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 overflow-y-auto space-y-6">
-      <div className="max-w-[1920px] mx-auto space-y-5">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-5 pb-12 overflow-visible">
+      <div className="max-w-[1920px] w-full mx-auto space-y-5">
 
         {/* Page Header Card (Part 5) */}
         <PageHeaderCard
@@ -424,8 +424,8 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
             >
               <div className="space-y-4 pt-1">
                 <p className="text-[13px] text-slate-700 dark:text-[#E7E2EC] leading-relaxed">
-                  The official <strong>ULM_Book_Entry_Sheet.xlsx</strong> spreadsheet contains 3,000 pre-formatted rows for entering library acquisitions with dropdown validations.
-                  Physical barcodes and accession identifiers are assigned automatically upon import.
+                  The official <strong>ULM_Master_Books_Register.xlsx</strong> spreadsheet supports universal unlimited rows for entering library acquisitions with dropdown validations.
+                  Physical barcodes and sequential accession series are assigned automatically upon import.
                 </p>
 
                 {/* Buttons in one row: Import (Gold Primary) and Blank (Secondary) */}
@@ -457,77 +457,6 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                   >
                     <Download className="w-4 h-4 text-[#C084FC]" />
                     <span>Blank Entry Sheet (.xlsx)</span>
-                  </button>
-                </div>
-              </div>
-            </PanelCard>
-
-            {/* High-Scale 1,00,000+ Books Stress-Test & True Count Recounter */}
-            <PanelCard
-              title={
-                <div className="flex items-center gap-2">
-                  <StatusPill label="High-scale" variant="blue" />
-                  <span className="text-base font-bold text-slate-900 dark:text-white">Full-Library Scaling & Live Database Recount</span>
-                </div>
-              }
-              hairlineColor="#29658E"
-            >
-              <div className="space-y-4 pt-1">
-                <p className="text-[13px] text-slate-700 dark:text-[#E7E2EC] leading-relaxed">
-                  Test and verify high-scale operation beyond 5,000 books. Bulk-insert <strong>+25,000 test books</strong> in non-blocking 500-record chunks or trigger an instant count synchronization across the native SQLite / IndexedDB database engine.
-                </p>
-
-                {isGeneratingTestBooks && testBooksProgress && (
-                  <div className="space-y-2 p-3.5 rounded-[10px] bg-[#0F172A] border border-[#29658E]/40">
-                    <div className="flex justify-between text-xs font-mono text-white">
-                      <span>Inserting volumes in batches:</span>
-                      <span className="text-[#38BDF8] font-bold">{testBooksProgress.inserted.toLocaleString()} / 25,000 ({testBooksProgress.percent}%)</span>
-                    </div>
-                    <div className="w-full h-2 bg-[#1E293B] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-[#29658E] to-[#38BDF8] rounded-full transition-all duration-150"
-                        style={{ width: `${testBooksProgress.percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleGenerate25000TestBooks}
-                    disabled={isGeneratingTestBooks}
-                    className="h-10 px-5 rounded-[10px] bg-gradient-to-r from-[#29658E] to-[#1E4D6E] hover:from-[#357BA8] hover:to-[#29658E] text-white font-bold text-[13px] shadow-md border border-[#38BDF8]/30 transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingTestBooks ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Adding 25,000 Books...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 text-[#38BDF8]" />
-                        <span>+ Add 25,000 Test Books (Scale to 30,000+)</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleRecountDbBooks}
-                    className="h-10 px-4 rounded-[10px] bg-[#221F26] hover:bg-[#2E2A33] text-white font-semibold text-[13px] border border-white/[0.12] transition-colors cursor-pointer inline-flex items-center gap-2"
-                  >
-                    <RefreshCw className="w-4 h-4 text-[#BC881B]" />
-                    <span>Sync / Recount All DB Books</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResetAllBooksToZero}
-                    className="h-10 px-4 rounded-[10px] bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-semibold text-[13px] border border-rose-700/40 transition-colors cursor-pointer inline-flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-400" />
-                    <span>🗑️ Reset Library to 0 Books</span>
                   </button>
                 </div>
               </div>

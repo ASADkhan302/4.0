@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { ULM_CREST_LOGO } from '../constants/branding';
 import { Book, Transaction } from '../types/library';
+import { LibraryStorage } from '../services/storage';
 import { CatalogChartsView } from './catalog/CatalogChartsView';
 import { AlmariView } from './catalog/AlmariView';
 import { AlmariErrorBoundary } from './catalog/AlmariErrorBoundary';
@@ -130,6 +131,34 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     if (selectedBookIds.size === 0) return [];
     return books.filter(b => selectedBookIds.has(b.id));
   }, [books, selectedBookIds]);
+
+  // Clean corrupted or test stub rows (e.g. cz" stubs, empty titles, test volumes)
+  const handleCleanInvalidRows = () => {
+    const invalidList = books.filter(b => {
+      const name = (b.book_name || '').trim();
+      const lower = name.toLowerCase();
+      const isStub = name === 'cz"' || lower.startsWith('cz"') || lower === 'cz' || lower === 'test' || lower === 'sample';
+      const isTooShort = name.length < 2;
+      const isPlaceholder = lower.includes('test volume') || lower.includes('sample title');
+      return isStub || isTooShort || isPlaceholder;
+    });
+
+    if (invalidList.length === 0) {
+      alert('Catalog Audit: No invalid, corrupted, or test stub rows detected in collection.');
+      return;
+    }
+
+    const confirmMsg = `Found ${invalidList.length} invalid/test stub row(s) (e.g. "${invalidList[0].book_name}").\n\nWould you like to permanently clean and remove them from the library database?`;
+    if (window.confirm(confirmMsg)) {
+      invalidList.forEach(b => {
+        LibraryStorage.deleteBook(b.id);
+      });
+      const remaining = books.filter(b => !invalidList.some(inv => inv.id === b.id));
+      if (onBooksUpdated) {
+        onBooksUpdated(remaining, `Cleaned ${invalidList.length} invalid or test stub records.`);
+      }
+    }
+  };
 
   // Quick keyboard shortcut: Pressing "/" or Ctrl+F focuses the catalog search input
   useEffect(() => {
@@ -413,8 +442,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     (dateFrom || dateTo ? 1 : 0);
 
   return (
-    <div className="flex-1 w-full bg-transparent px-6 py-5 overflow-y-auto space-y-5">
-      <div className="max-w-[1920px] mx-auto space-y-5">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 bg-transparent px-6 pt-5 pb-12 overflow-visible">
+      <div className="max-w-[1920px] w-full mx-auto space-y-5">
         
         {/* Only render KPI metrics and Catalog Toolbar when NOT in dedicated Almari View */}
         {viewMode !== 'almari' && (
@@ -762,6 +791,16 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>CSV Template</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCleanInvalidRows}
+                    className="h-9 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Scan and purge corrupt stubs (e.g. cz&quot; or dummy test records)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Clean Invalid Rows</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1027,125 +1066,90 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         </div>
 
                         {/* Call number & Shelf location with pin icon */}
-                        <div 
-                          className="text-[12px] text-[var(--text-muted)] flex items-center gap-1.5 pt-1"
-                          title={`${book.shelf} · Row ${book.row}`}
-                        >
+                        {/* Dewey Call Number & Barcode */}
+                        <div className="flex items-center justify-between text-[11px] font-mono pt-1 text-[var(--text-muted)]">
+                          <span className="text-royal-gold font-semibold bg-[#BC881B]/15 px-2 py-0.5 rounded-[6px] border border-[#BC881B]/25">
+                            {book.dewey_call_number}
+                          </span>
+                          <span className="font-bold tracking-wider text-[var(--text-strong)]">
+                            #{book.barcode}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Clean unified card footer: Stack-01 · Row 1 + #Barcode on left, green Available badge + actions on right */}
+                    <div className="mt-auto px-3.5 py-3 bg-white/5 dark:bg-black/25 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-strong)] truncate">
                           <MapPin className="w-3.5 h-3.5 text-[#29658E] shrink-0" />
                           <span className="truncate">{book.shelf} · Row {book.row}</span>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Sleek Unified Crystal Glass Shelf Bar (Replaces 3 nested boxes) */}
-                    <div className="bg-white/10 dark:bg-black/25 rounded-xl p-2.5 border border-[var(--border-subtle)] space-y-2 mt-auto">
-                      <div className="flex items-center justify-between text-[11.5px] font-mono">
-                        <div className="truncate flex items-center gap-1.5 text-[var(--text-muted)]">
-                          <Calendar className="w-3.5 h-3.5 text-royal-gold shrink-0" />
-                          <span>Added:</span>
-                          <span className="text-[var(--text-strong)] font-medium">{formatDisplayDate(book.date_added || book.created_at)}</span>
-                        </div>
-                        <span className="text-royal-gold font-mono text-[11px] font-semibold bg-[#BC881B]/15 px-2 py-0.5 rounded-[6px] border border-[#BC881B]/25">
-                          {book.dewey_call_number}
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] pl-5 truncate">
+                          {book.barcode}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border-subtle)]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <BarcodeIcon className="w-4 h-4 text-royal-gold shrink-0" />
-                          <span className="font-mono text-[12px] text-[var(--text-strong)] font-bold tracking-wider truncate">
-                            {book.barcode}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isAvailable ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {book.available_quantity} Available
                           </span>
-                        </div>
-                        <div className="shrink-0">
-                          {renderBarcodeStrip(book.barcode)}
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[10px] font-semibold">
+                            0 Available
+                          </span>
+                        )}
+
+                        <button
+                          onClick={() => onSelectBook(book)}
+                          className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300/80 dark:border-white/10 transition-colors cursor-pointer"
+                          title="Full book specification & history"
+                        >
+                          Details
+                        </button>
+
+                        <button
+                          onClick={() => onQuickLoan(book)}
+                          disabled={!isAvailable}
+                          className={`h-8 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 ${
+                            isAvailable
+                              ? 'border-[#BC881B] bg-[#BC881B] text-slate-950 hover:bg-[#D4A02A] shadow-xs active:scale-95'
+                              : 'border-transparent bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed pointer-events-none'
+                          }`}
+                          title={isAvailable ? 'Quickly issue a copy of this book' : 'No available copies left on shelf'}
+                        >
+                          <ArrowRightLeft className="w-3 h-3 shrink-0" />
+                          <span>Issue</span>
+                        </button>
+
+                        {/* More Actions Dropdown/Buttons */}
+                        <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/10">
+                          <button
+                            onClick={() => onEditBook(book)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            title="Edit book details"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onPrintBarcode(book)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-sky-500 hover:bg-sky-500/10 transition-colors cursor-pointer"
+                            title="Print barcode"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteBook(book)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title="Delete book"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     </div>
-
-                    {/* Availability Status & Capacity Bar */}
-                    <div className="flex items-center justify-between h-[36px] pt-0.5">
-                      {!isAvailable ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[12px] font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                          <span>0 Available (All Issued)</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[12px] font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>{book.available_quantity} Available</span>
-                        </div>
-                      )}
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-[12px] text-[var(--text-muted)] font-mono tabular-nums">
-                          {issuedCount} issued / {book.total_quantity} total
-                        </span>
-                        <div className="w-20 bg-white/20 dark:bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-[#BC881B] rounded-full transition-all duration-300" 
-                            style={{ width: `${capacityPercent}%` }} 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card Action Footer */}
-                  <div className="px-3.5 py-2.5 bg-[#141214]/60 border-t border-white/[0.06] flex items-center justify-between gap-2 h-[52px]">
-                    {/* Quick Loan Button */}
-                    <button
-                      onClick={() => onQuickLoan(book)}
-                      disabled={!isAvailable}
-                      className={`flex-1 h-9 min-h-[36px] flex items-center justify-center gap-2 py-1.5 px-3 rounded-[10px] text-[12px] font-bold transition-all duration-150 border cursor-pointer ${
-                        isAvailable
-                          ? 'border-[#BC881B] bg-[#BC881B]/15 text-[#E0B450] hover:bg-[#BC881B] hover:text-[#1A1A1A] hover:shadow-[0_2px_12px_rgba(188,136,27,0.35)] active:scale-95'
-                          : 'border-transparent bg-[#2B1538] text-[#8B719B] cursor-not-allowed pointer-events-none'
-                      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E0B450]`}
-                      title={isAvailable ? 'Quickly issue a copy of this book' : 'No available copies left on shelf'}
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
-                      <span className="btn-label">Quick Loan</span>
-                    </button>
-
-                    {/* Edit Button */}
-                    <button
-                      onClick={() => onEditBook(book)}
-                      className="w-9 h-9 flex items-center justify-center rounded-[10px] bg-[#141214] border border-white/[0.08] text-[#B3AABD] hover:text-[#E0B450] hover:border-[#BC881B]/40 hover:bg-[#BC881B]/10 transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29658E] cursor-pointer"
-                      title="Edit book details & inventory quantities"
-                      aria-label="Edit book details"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Barcode Print Button */}
-                    <button
-                      onClick={() => onPrintBarcode(book)}
-                      className="w-9 h-9 flex items-center justify-center rounded-[10px] bg-[#141214] border border-white/[0.08] text-[#B3AABD] hover:text-[#E0B450] hover:border-[#BC881B]/40 hover:bg-[#BC881B]/10 transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29658E] cursor-pointer"
-                      title="Print official barcode sticker with campus insignia"
-                      aria-label="Print official barcode sticker"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Delete Book Button (turns red on hover) */}
-                    <button
-                      onClick={() => onDeleteBook(book)}
-                      className="w-9 h-9 flex items-center justify-center rounded-[10px] bg-[#141214] border border-white/[0.08] text-[#B3AABD] hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29658E] cursor-pointer"
-                      title="Delete or archive book"
-                      aria-label="Delete book"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Details modal trigger */}
-                    <button
-                      onClick={() => onSelectBook(book)}
-                      className="w-9 h-9 flex items-center justify-center rounded-[10px] bg-[#141214] border border-white/[0.08] text-[#B3AABD] hover:text-[#6FA8D2] hover:border-[#29658E]/40 hover:bg-[#29658E]/10 transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#29658E] cursor-pointer"
-                      title="Full book specification & history"
-                      aria-label="Full book specification & history"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
               );

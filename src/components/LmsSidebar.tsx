@@ -84,11 +84,10 @@ export function LmsSidebar({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isMobile = windowDimensions.width < 768;
   const isShortScreen = windowDimensions.height < 800;
 
-  // 72px / 4.5rem icon rail when collapsed or below 1024px (slide-in drawer below 768px)
-  const isRail = !isMobile && (isCollapsed || windowDimensions.width < 1024);
+  // Always lock sidebar on the left with collapsible icon-rail mode (72px when collapsed, 240px when expanded)
+  const isRail = isCollapsed;
 
   const isSearchOpen = externalIsSearchOpen !== undefined ? externalIsSearchOpen : internalIsSearchOpen;
   const setIsSearchOpen = (open: boolean) => {
@@ -140,7 +139,6 @@ export function LmsSidebar({
     {
       heading: 'CATALOG & INVENTORY',
       items: [
-        { id: 'search', title: 'Quick Search', icon: Search, shortcut: '⌘K' },
         { 
           id: 'catalog', 
           title: 'Books Catalog', 
@@ -197,16 +195,12 @@ export function LmsSidebar({
   const handleItemClick = (id: NavigationTab | 'search') => {
     if (id === 'search') {
       setIsSearchOpen(true);
-      if (isMobile) onToggleCollapse();
       return;
     }
     onTabChange(id as NavigationTab);
-    if (isMobile) {
-      onToggleCollapse();
-    }
   };
 
-  // Responsive sidebar width: 240px fixed width, 72px rail below 1024px or when collapsed
+  // Locked sidebar width: 240px expanded width, 72px icon rail when collapsed
   const getSidebarWidthClass = () => {
     if (isRail) {
       return 'w-[72px] min-w-[72px] max-w-[72px]';
@@ -218,25 +212,10 @@ export function LmsSidebar({
 
   return (
     <>
-      {/* Mobile Drawer Backdrop below 768px */}
-      {isMobile && !isCollapsed && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity duration-200"
-          onClick={onToggleCollapse}
-          aria-hidden="true"
-        />
-      )}
-
       <aside 
-        className={`h-full flex flex-col shrink-0 select-none border-r border-white/[0.07] ulm-liquid-glass text-slate-200 transition-all duration-200 ease-out ${getSidebarWidthClass()} ${
-          isMobile
-            ? `fixed inset-y-0 left-0 z-50 shadow-2xl ${
-                !isCollapsed ? 'translate-x-0' : '-translate-x-full pointer-events-none'
-              }`
-            : 'relative z-30'
-        }`}
+        className={`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none border-r border-white/[0.07] ulm-liquid-glass text-slate-200 transition-[width] duration-200 ease-out relative z-20 ${getSidebarWidthClass()}`}
       >
-        {/* Compact top collapse toggle (No duplicate crest / logo box) */}
+        {/* Top Section: Pinned Navigation Header */}
         <div className="h-10 px-3 flex items-center justify-between border-b border-white/[0.06] shrink-0">
           {!isRail ? (
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 font-sans">
@@ -254,8 +233,8 @@ export function LmsSidebar({
           </button>
         </div>
 
-        {/* Navigation Items List: Pinned header/footer, only list scrolls */}
-        <div className={`flex-1 overflow-y-auto min-h-0 px-2.5 sm:px-3 flex flex-col [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full ${
+        {/* Middle Section: Scrollable Nav Items (if screen is short) */}
+        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 sm:px-3 flex flex-col [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full ${
           isShortScreen ? 'py-2 gap-1' : 'py-3 gap-1.5'
         }`}>
           {navGroups.map((group, gIdx) => (

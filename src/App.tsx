@@ -45,11 +45,13 @@ import {
   runSafeLocalStorageMigration, 
   getTrueDatabaseBookCount, 
   computeNextSerial,
-  resetEntireDatabaseToZero 
+  resetEntireDatabaseToZero,
+  repairAllBookSeriesAndBarcodes 
 } from './services/libraryStorageAndMigration';
 import { initDisplayAndThemeSystem } from './services/displayResolutionManager';
 import { ULM_CREST_LOGO } from './constants/branding';
 import { ULM_CREST_LOGO_SRC, ULM_CREST_WATERMARK_SRC } from './assets/brand/crestData';
+import { ULM_OFFICIAL_CREST_DATA_URI } from './constants/ulmOfficialCrest';
 
 export default function App() {
   // Valid navigation tabs (developer screens removed)
@@ -224,7 +226,8 @@ export default function App() {
     setShowSplash(false);
     setIsAppEntered(true);
 
-    const hasFolderConfig = typeof window !== 'undefined' && !!localStorage.getItem('ulm_data_folder_config_v1');
+    const hasFolderConfig = typeof window !== 'undefined' && 
+      (!!localStorage.getItem('ulm_storage_location_configured_v1') || !!localStorage.getItem('ulm_data_folder_config_v1'));
     if (!hasFolderConfig) {
       setIsStorageSetupResetMode(false);
       setIsStorageSetupModalOpen(true);
@@ -369,6 +372,29 @@ export default function App() {
       }
     } catch (_) {}
     reloadData();
+  }, [reloadData]);
+
+  // Rule #5 & User Choice: Automatically repair legacy duplicate barcodes on launch
+  useEffect(() => {
+    repairAllBookSeriesAndBarcodes().then(res => {
+      if (res.repairedCount > 0) {
+        console.log(`[ULM-Barcode] Auto-repaired ${res.repairedCount} books with unique sequential 13-digit barcodes`);
+        void reloadData();
+      }
+    }).catch(err => {
+      console.warn('[ULM-Barcode] Auto-repair note:', err);
+    });
+  }, [reloadData]);
+
+  // Real-time reactive data sync: whenever books, loans, or imports change, refresh app state instantly
+  useEffect(() => {
+    const handleDataChanged = () => {
+      void reloadData();
+    };
+    window.addEventListener('ulm-library-data-changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('ulm-library-data-changed', handleDataChanged);
+    };
   }, [reloadData]);
 
   // Global Keyboard shortcuts (e.g. Ctrl+K)
@@ -599,51 +625,62 @@ export default function App() {
     ? borrowers.find(b => b.id === selectedBorrowerIdForDetails) || null
     : null;
 
+  // Master Scroll Container Ref — Reset scroll to top on every navigation tab change
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [activeTab]);
+
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden relative bg-[var(--background)] text-[var(--text-primary)]">
+    <div className="w-full h-dvh max-h-dvh flex flex-col overflow-hidden relative bg-[var(--background)] text-[var(--text-primary)] select-none">
       {/* Thin 2px accent progress bar during screen changes and async operations */}
       {isNavigating && (
         <div className="top-route-progress" />
       )}
 
-      {/* WINDOWS 11 TITLE BAR (Slides down on app entry) */}
-      <div className={isAppEntered ? 'animate-slide-down' : ''}>
-        <WindowsTitleBar
-          stationId={settings.station_id}
+      {/* 1. FIXED TOP HEADER BARS (Never scrolls away) */}
+      <div className="shrink-0 z-30">
+        {/* WINDOWS 11 TITLE BAR (Slides down on app entry) */}
+        <div className={isAppEntered ? 'animate-slide-down' : ''}>
+          <WindowsTitleBar
+            stationId={settings.station_id}
+            universityName={settings.university_name}
+            libraryName={settings.library_name}
+            onReplayOpeningAnimation={handleReplaySplash}
+          />
+        </div>
+
+        {/* PRIMARY DESKTOP HEADER */}
+        <PrimaryHeader
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onOpenAddBook={() => {
+            setBookToEdit(null);
+            setInitialBarcodeForAdd('');
+            setIsAddEditOpen(true);
+          }}
+          onQuickExport={handleQuickExport}
+          onReloadData={reloadData}
+          onOpenStorageConfig={() => setIsStorageModalOpen(true)}
+          storageLocationPath={storageConfig.folderPath}
+          totalBooksCount={totalBooksCount}
+          activeLoansCount={activeLoansCount}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onOpenSearch={() => setIsSearchOpen(true)}
           universityName={settings.university_name}
           libraryName={settings.library_name}
-          onReplayOpeningAnimation={handleReplaySplash}
+          waitingBooksCount={waitingSheetCount}
+          onRetrySheetSync={handleRetrySheetSync}
         />
       </div>
 
-      {/* PRIMARY DESKTOP HEADER */}
-      <PrimaryHeader
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        onOpenAddBook={() => {
-          setBookToEdit(null);
-          setInitialBarcodeForAdd('');
-          setIsAddEditOpen(true);
-        }}
-        onQuickExport={handleQuickExport}
-        onReloadData={reloadData}
-        onOpenStorageConfig={() => setIsStorageModalOpen(true)}
-        storageLocationPath={storageConfig.folderPath}
-        totalBooksCount={totalBooksCount}
-        activeLoansCount={activeLoansCount}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        universityName={settings.university_name}
-        libraryName={settings.library_name}
-        waitingBooksCount={waitingSheetCount}
-        onRetrySheetSync={handleRetrySheetSync}
-      />
-
-      {/* MAIN LAYOUT: SIDEBAR + WORKSPACE */}
-      <div className="flex-1 flex overflow-hidden relative min-h-0">
-        {/* Navigation Sidebar (Slides in from the left on app entry) */}
-        <div className={`h-full z-30 ${isAppEntered ? 'animate-slide-right' : ''} ${isSidebarCollapsed ? 'hidden md:block' : 'block'}`}>
+      {/* 2. MAIN WORKSPACE ROW: LOCKED LEFT SIDEBAR + SCROLLABLE RIGHT VIEW */}
+      <div className="flex-1 min-h-0 w-full flex flex-row overflow-hidden relative">
+        {/* 2A. LOCKED LEFT SIDEBAR (Never scrolls with page, never moves, collapsible icon rail) */}
+        <div className={`shrink-0 h-full min-h-0 flex flex-col overflow-hidden z-30 ${isAppEntered ? 'animate-slide-right' : ''}`}>
           <LmsSidebar
             activeTab={activeTab}
             onTabChange={handleTabChange}
@@ -661,10 +698,10 @@ export default function App() {
           />
         </div>
 
-        {/* WORKSPACE VIEW (Screen switch: 120ms fade out, 200ms 6px upward slide and fade) */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 relative overflow-hidden">
+        {/* 2B. SCROLLABLE PAGE WORKSPACE (All 8 pages scroll smoothly here) */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 h-full relative overflow-hidden">
           {/* Ambient Refractive Background Orbs + Official ULM Crest Watermark */}
-          <div className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden print:hidden" aria-hidden="true">
+          <div id="ulm-liquid-orbs" className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden print:hidden" aria-hidden="true">
             {/* 1. ULM Royal Amethyst Orb (top-left) */}
             <div className="w-[580px] h-[580px] rounded-full ulm-ambient-purple-orb absolute -top-48 -left-48 pointer-events-none opacity-80" />
             {/* 2. ULM 24K Liquid Gold Orb (bottom-right) */}
@@ -676,24 +713,27 @@ export default function App() {
             {/* 5. Liquid Amber Orb (center) */}
             <div className="w-[500px] h-[500px] rounded-full ulm-ambient-amber-orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
 
-            {/* Official ULM Crest Watermark Layer */}
-            <div className="absolute inset-0 flex items-center justify-center">
+            {/* Official ULM Crest Watermark Layer (Fixing 97269561.png with pixel-exact ulm-crest.png) */}
+            <div
+              id="app-bg-watermark"
+              aria-hidden="true"
+              className="pointer-events-none select-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden"
+              style={{ left: '15rem', top: '3.75rem' }}
+            >
               <img
-                src={ULM_CREST_LOGO}
+                src={ULM_OFFICIAL_CREST_DATA_URI}
                 alt=""
-                aria-hidden="true"
-                className="w-[440px] h-[440px] object-contain filter drop-shadow-[0_0_32px_rgba(188,136,27,0.22)] transition-opacity duration-300"
-                style={{ opacity: 'var(--ulm-crest-opacity, 0.075)' }}
+                draggable={false}
+                className="ulm-app-bg-watermark w-[360px] h-[360px] md:w-[420px] md:h-[420px] object-contain opacity-[0.07] dark:opacity-[0.07] pointer-events-none select-none"
               />
             </div>
           </div>
 
-          {/* Eye-Comfort Glare Veil Layer */}
-          <div className="fixed inset-0 pointer-events-none z-50 ulm-eye-glare-veil" aria-hidden="true" />
-
           <main 
+            id="ulm-main-scroll-view"
+            ref={mainScrollRef}
             key={activeTab}
-            className={`flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden relative overscroll-y-contain ${
+            className={`ulm-page-scroll-container flex-1 flex flex-col min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden relative z-10 overscroll-y-contain ${
               isScreenExiting ? 'screen-view-exit' : 'screen-view-enter'
             }`}
           >
@@ -928,6 +968,11 @@ export default function App() {
         book={bookForPrint}
         isOpen={!!bookForPrint}
         onClose={() => setBookForPrint(null)}
+        onOpenBatchStudio={(bookId) => {
+          setBookForPrint(null);
+          setBatchPrintBookIds([bookId]);
+          setIsBatchLabelPrintOpen(true);
+        }}
       />
 
       {/* Database Storage Location Configuration Modal */}
@@ -977,10 +1022,17 @@ export default function App() {
       <StorageSetupModal
         isOpen={isStorageSetupModalOpen}
         isResetMode={isStorageSetupResetMode}
-        onConfigured={(_path) => {
+        onConfigured={(_path, action) => {
           setIsStorageSetupModalOpen(false);
           reloadData();
           showToast('Library data folder configured & Master Excel initialized.');
+          if (action === 'add_manual') {
+            setBookToEdit(null);
+            setInitialBarcodeForAdd('');
+            setIsAddEditOpen(true);
+          } else if (action === 'import_excel') {
+            setIsExcelImportModalOpen(true);
+          }
         }}
       />
 

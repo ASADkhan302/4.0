@@ -313,7 +313,7 @@ export const WelcomeLibraryModal: React.FC<WelcomeLibraryModalProps> = ({
                   Your library folder is ready at <span className="font-mono text-white">{beginnerSuccess.folderPath}</span>.
                 </p>
                 <p className="text-xs text-[#B3AABD]">
-                  The official Book Entry Sheet (2,999 pre-formatted rows) and Data Files have been generated.
+                  The official Master Books Register (Universal Unlimited Rows — Auto-Synced) and Data Files have been generated.
                 </p>
               </div>
 

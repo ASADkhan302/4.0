@@ -10,6 +10,7 @@ import { playClickSound } from '../services/audio';
 import { StartScreenHeroDeco } from './decorative/StartScreenHeroDeco';
 import { BootSpinesDeco } from './decorative/BootSpinesDeco';
 import { ULM_CREST_SRC } from '../assets/brand/crestData';
+import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
 
 interface AppOpeningSplashProps {
   onComplete: () => void;
@@ -22,10 +23,10 @@ interface StepItem {
 }
 
 const SQLITE_STEPS: StepItem[] = [
-  { id: 'opening', label: 'Opening database', triggerPct: 20 },
-  { id: 'wal', label: 'WAL mode enabled', triggerPct: 45 },
-  { id: 'catalog', label: 'Loading catalog', triggerPct: 75 },
-  { id: 'ready', label: 'Ready', triggerPct: 95 }
+  { id: 'wal', label: 'Mounting SQLite WAL Engine', triggerPct: 15 },
+  { id: 'register', label: 'Verifying 17-Column Register', triggerPct: 45 },
+  { id: 'cache', label: 'Hydrating 50-Row Thumbnail Cache', triggerPct: 75 },
+  { id: 'ready', label: 'Win32 Circulation Station Ready', triggerPct: 95 }
 ];
 
 export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }) => {
@@ -96,8 +97,9 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
 
   return (
     <div 
+      id="ulm-boot-splash"
       onClick={handleFinish}
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-[#020617] text-[#F1F5F9] select-none overflow-hidden cursor-pointer transition-all duration-[400ms] ease-out ${
+      className={`ulm-preserve-glass fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 select-none transition-all duration-300 ${
         isExiting 
           ? 'opacity-0 scale-[1.04] pointer-events-none' 
           : 'opacity-100 scale-100'
@@ -116,10 +118,10 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
         }
         @keyframes crestPulse {
           0% {
-            box-shadow: 0 0 0 rgba(96, 165, 250, 0);
+            box-shadow: 0 0 0 rgba(188, 136, 27, 0);
           }
           100% {
-            box-shadow: 0 0 24px rgba(96, 165, 250, 0.35);
+            box-shadow: 0 0 24px rgba(188, 136, 27, 0.35);
           }
         }
         @keyframes fadeUp12px {
@@ -157,112 +159,107 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
             e.stopPropagation();
             handleFinish();
           }}
-          className="btn-secondary h-8 px-3 text-[12px] flex items-center gap-2 cursor-pointer border border-slate-700 bg-slate-900/80 text-[#CBD5E1] hover:text-[#F1F5F9]"
+          className="ulm-preserve-glass bg-white/55 hover:bg-white/80 text-slate-900 border border-slate-300/80 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20 backdrop-blur-md px-4 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-2"
         >
           <span>Skip [Enter]</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Centerpiece Stage Container */}
+      {/* Centerpiece Stage Container with ID for Transparent Frosted Glass */}
       <div 
-        className="relative z-10 max-w-md w-full px-6 flex flex-col items-center text-center space-y-6"
+        id="ulm-boot-card"
+        className="ulm-preserve-glass w-full max-w-md rounded-3xl p-7 text-center transition-all flex flex-col items-center space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Crest container with 2D Hero decorations placed below content */}
-        <div className="relative flex items-center justify-center">
-          {/* Start Screen Hero 2D Decorations (Crest draw, flipping page, motes, purple pulse) */}
-          <StartScreenHeroDeco />
-
-          {/* a) University crest with refined institutional gold styling & soft glow pulse */}
-          <div 
-            className="w-[140px] h-[140px] flex items-center justify-center relative z-10 p-1.5 rounded-full bg-gradient-to-br from-[#BC881B]/30 via-transparent to-[#BC881B]/15 border border-[#BC881B]/50 shadow-[0_0_28px_rgba(188,136,27,0.35)]"
-            style={{
-              animation: 'crestEntrance 600ms cubic-bezier(0.16, 1, 0.3, 1) both, crestPulse 2s ease-in-out 600ms infinite alternate',
+        {/* Floating Transparent Glass Container for ULM Crest Logo (zero square gray background, unclipped) */}
+        <div 
+          id="ulm-boot-logo"
+          className="ulm-preserve-glass w-28 h-28 rounded-2xl bg-white/10 dark:bg-white/5 backdrop-blur-md border border-[#BC881B]/40 shadow-[0_12px_36px_rgba(188,136,27,0.22)] flex items-center justify-center mx-auto mb-2 overflow-hidden p-2 shrink-0"
+        >
+          <img 
+            src={ULM_OFFICIAL_CREST_DATA_URI} 
+            alt="University of Lakki Marwat Official Crest" 
+            className="w-24 h-24 object-contain select-none pointer-events-none bg-transparent" 
+            style={{ 
+              clipPath: 'none',
+              imageRendering: '-webkit-optimize-contrast' 
             }}
-          >
-            <img 
-              src={ULM_CREST_SRC} 
-              alt="University of Lakki Marwat crest" 
-              width={140} 
-              height={140} 
-              className="w-full h-full object-contain drop-shadow-2xl select-none" 
-              style={{ imageRendering: '-webkit-optimize-contrast' }}
-            />
-          </div>
+          />
         </div>
 
-        {/* b) Dark Scrim (rgba(2,6,23,0.6)) behind text areas so text is never over glow or gradient */}
-        <div className="w-full bg-[rgba(2,6,23,0.6)] backdrop-blur-xs p-5 rounded-2xl border border-slate-800/80 space-y-4">
-          <div className="space-y-1">
-            <div className="splash-step-1">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#93C5FD]/15 border border-[#93C5FD]/25 text-[#93C5FD] text-[12px] font-mono font-semibold uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5 text-[#93C5FD]" />
-                <span>CENTRAL CAMPUS WORKSTATION</span>
-              </span>
-            </div>
-
-            <h1 className="splash-step-2 text-[20px] font-bold font-cinzel tracking-wider text-[#F8FAFC] pt-2">
-              UNIVERSITY OF LAKKI MARWAT
-            </h1>
-
-            <p className="splash-step-3 text-[12px] font-medium text-[#CBD5E1] tracking-normal font-sans">
-              Library Management System • Win32 Edition
-            </p>
+        <div className="w-full space-y-2">
+          {/* Top Pill */}
+          <div className="splash-step-1">
+            <span className="bg-[#541A72]/15 dark:bg-[#541A72]/35 text-[#541A72] dark:text-amber-300 border border-[#BC881B]/45 backdrop-blur-md px-3.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase inline-flex items-center gap-1.5 font-mono">
+              <Sparkles className="w-3.5 h-3.5 text-[#541A72] dark:text-amber-300" />
+              <span>✨ CENTRAL CAMPUS WORKSTATION</span>
+            </span>
           </div>
 
-          {/* Boot Splash Book Spines: 7 spines sliding up and settling one by one */}
-          <BootSpinesDeco />
+          <h1 className="splash-step-2 text-slate-900 dark:text-white font-extrabold tracking-tight text-xl font-cinzel pt-1 mt-3">
+            UNIVERSITY OF LAKKI MARWAT
+          </h1>
 
-          {/* c & d) SQLite mounting status lines + Thin progress bar fills 0 to 100% */}
-          <div className="w-full space-y-3 pt-1">
-            {/* Progress Bar & Percentage text */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-[12px] font-mono">
-                <span className="text-[#93C5FD] font-medium">System Mounting Status</span>
-                <span className="text-[#F1F5F9] font-bold tabular-nums">{progress}%</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#0B1220] rounded-full overflow-hidden border border-slate-700">
+          <p className="splash-step-3 text-slate-600 dark:text-slate-300 text-xs font-medium font-sans mt-1">
+            Library Management System • Win32 Edition
+          </p>
+        </div>
+
+        {/* Boot Splash Book Spines: 7 spines sliding up and settling one by one */}
+        <BootSpinesDeco />
+
+        {/* System Mounting Status Bar & Percentage */}
+        <div className="w-full space-y-3 pt-1">
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center text-[12px] font-mono">
+              <span className="text-[#541A72] dark:text-sky-300 font-semibold text-xs">System Mounting Status</span>
+              <span className="text-slate-900 dark:text-white font-mono font-bold text-xs tabular-nums">{progress}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-900/10 dark:bg-white/10 overflow-hidden backdrop-blur-sm">
+              <div 
+                className="h-full bg-gradient-to-r from-[#541A72] via-[#BC881B] to-emerald-500 transition-all duration-150"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Transparent Glass Boot Terminal Console: id="ulm-boot-console" */}
+          <div 
+            id="ulm-boot-console"
+            className="ulm-preserve-glass w-full rounded-2xl p-3.5 mt-4 font-mono text-[11px] text-left space-y-1.5 backdrop-blur-md transition-all min-h-[100px] flex flex-col justify-center"
+          >
+            {SQLITE_STEPS.map((step) => {
+              const isChecked = completedSteps.includes(step.id);
+              const isVisible = progress >= step.triggerPct - 5;
+              if (!isVisible) return null;
+
+              return (
                 <div 
-                  className="h-full bg-[#2563EB] transition-all duration-75 ease-out rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-
-            {/* SQLite mounting status lines */}
-            <div className="bg-[#0B1220] border border-slate-700 rounded-[8px] p-3 text-left space-y-1.5 min-h-[110px] flex flex-col justify-center">
-              {SQLITE_STEPS.map((step) => {
-                const isChecked = completedSteps.includes(step.id);
-                const isVisible = progress >= step.triggerPct - 5;
-                if (!isVisible) return null;
-
-                return (
-                  <div 
-                    key={step.id} 
-                    className="flex items-center justify-between text-[12px] font-mono text-[#93C5FD] animate-in fade-in slide-in-from-bottom-1 duration-200"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="text-[#60A5FA] font-bold">›</span>
-                      <span>{step.label}</span>
+                  key={step.id} 
+                  className="flex items-center justify-between text-[11px] font-mono animate-in fade-in slide-in-from-bottom-1 duration-200"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-emerald-500 font-bold">›</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">[OK]</span>
+                    <span className="text-slate-800 dark:text-slate-200">{step.label}...</span>
+                  </span>
+                  {isChecked ? (
+                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold animate-in zoom-in-75 duration-150">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>MOUNTED</span>
                     </span>
-                    {isChecked ? (
-                      <span className="flex items-center gap-1 text-[#86EFAC] text-[12px] font-bold animate-in zoom-in-75 duration-150">
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>OK</span>
-                      </span>
-                    ) : (
-                      <span className="w-2 h-2 rounded-full bg-[#60A5FA] animate-ping" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Footnote */}
-        <div className="text-[12px] font-mono text-[#CBD5E1] tracking-normal">
+        <div className="text-slate-600 dark:text-slate-300 font-mono text-xs mt-4 opacity-85">
           Click anywhere or press Enter to launch
         </div>
 

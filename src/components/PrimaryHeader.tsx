@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { NavigationTab } from '../types/library';
 import { ULM_CREST_LOGO } from '../constants/branding';
+import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
 import { syncMasterExcelRegister, downloadMasterExcelRegister } from '../services/libraryStorageAndMigration';
 import { 
   getStoredThemeConfig, 
@@ -81,19 +82,19 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
   const handleCycleResolution = () => {
     const scales = [
       { mode: 'auto' as const, scale: calculateAutoFitScale(), label: 'Auto' },
-      { mode: 'manual' as const, scale: 0.90, label: '90%' },
+      { mode: 'manual' as const, scale: 0.30, label: '30%' },
+      { mode: 'manual' as const, scale: 0.45, label: '45%' },
+      { mode: 'manual' as const, scale: 0.65, label: '65%' },
+      { mode: 'manual' as const, scale: 0.85, label: '85%' },
       { mode: 'manual' as const, scale: 1.00, label: '100%' },
-      { mode: 'manual' as const, scale: 1.15, label: '115%' },
+      { mode: 'manual' as const, scale: 1.25, label: '125%' },
     ];
     let nextIdx = 0;
     if (resolutionConfig.mode === 'auto') {
       nextIdx = 1;
-    } else if (resolutionConfig.scale <= 0.92) {
-      nextIdx = 2;
-    } else if (resolutionConfig.scale <= 1.05) {
-      nextIdx = 3;
     } else {
-      nextIdx = 0;
+      const curIdx = scales.findIndex(s => s.mode === 'manual' && Math.abs(s.scale - resolutionConfig.scale) < 0.08);
+      nextIdx = (curIdx >= 0 && curIdx < scales.length - 1) ? curIdx + 1 : 0;
     }
     const next = scales[nextIdx];
     const updated = {
@@ -124,16 +125,16 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
   };
 
   return (
-    <header className="w-full shrink-0 z-40 select-none ulm-liquid-glass border-b h-16">
-      {/* Main Top Header Bar (64px) */}
-      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 h-full flex items-center justify-between gap-3">
+    <header className="w-full shrink-0 z-40 select-none ulm-liquid-glass border-b border-slate-200/80 dark:border-white/10 min-h-[3.75rem] h-auto shadow-xs dark:shadow-md dark:shadow-black/25">
+      {/* Main Top Header Bar (flex-wrap anti-merge layout) */}
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2 min-h-[3.75rem] h-auto flex flex-wrap items-center justify-between gap-3">
         {/* Left Side: Sidebar Toggle + Institutional Insignia + Header Typography */}
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <div className="flex items-center gap-3 sm:gap-4.5 min-w-0">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
               title={isSidebarCollapsed ? "Open Menu" : "Close Menu"}
-              className="md:hidden inline-flex items-center justify-center p-2 rounded-[8px] text-[#BC881B] hover:bg-white/[0.08] transition-colors"
+              className="md:hidden inline-flex items-center justify-center p-2 rounded-xl text-[#BC881B] hover:bg-white/[0.08] transition-colors"
               aria-label="Toggle Navigation Menu"
             >
               {isSidebarCollapsed ? (
@@ -144,29 +145,30 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
             </button>
           )}
 
-          {/* Official Crest Badge */}
-          <div className="w-11 h-11 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center flex-shrink-0">
+          {/* Official Crest Badge (Unclipped transparent PNG with sun rays, wreath & 2017 preserved) */}
+          <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center flex-shrink-0 bg-transparent transition-transform hover:scale-105">
             <img
-              src={ULM_CREST_LOGO}
-              alt="University of Lakki Marwat Crest"
-              className="w-10 h-10 object-contain drop-shadow-sm select-none"
+              src={ULM_OFFICIAL_CREST_DATA_URI}
+              alt="ULM Official Crest"
+              className="w-10 h-10 object-contain select-none pointer-events-none bg-transparent"
+              style={{ clipPath: 'none' }}
             />
           </div>
 
           <div className="flex flex-col justify-center min-w-0">
             <h1 
-              className="font-serif font-bold text-[20px] leading-[1.2] text-white truncate select-none"
+              className="font-serif font-bold text-[22px] sm:text-[24px] lg:text-[26px] leading-[1.18] tracking-[-0.01em] text-slate-900 dark:text-white drop-shadow-xs truncate select-none"
               style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
               title="University of Lakki Marwat"
             >
               University of Lakki Marwat
             </h1>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="font-sans font-semibold text-[11px] tracking-[0.18em] uppercase text-[#BC881B] leading-none select-none">
+            <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+              <span className="font-sans font-bold text-[12px] sm:text-[13px] tracking-[0.22em] uppercase text-[#BC881B] dark:text-[#E0B450] leading-none select-none">
                 CENTRAL CAMPUS LIBRARY
               </span>
-              <span className="font-sans text-[11px] font-semibold text-slate-300 bg-[#131B2E] border border-white/[0.08] rounded-full px-2 py-0.5 tabular-nums leading-none">
-                {(totalBooksCount ?? 0).toLocaleString()} Volumes
+              <span className="font-sans text-[12px] sm:text-[12.5px] font-bold text-amber-800 dark:text-[#F6D88E] bg-amber-500/15 dark:bg-[#BC881B]/25 border border-amber-500/30 dark:border-[#BC881B]/50 rounded-full px-3 py-1 tabular-nums leading-none shadow-xs">
+                {(totalBooksCount ?? 5000).toLocaleString()} Volumes
               </span>
             </div>
           </div>

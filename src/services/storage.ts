@@ -45,6 +45,13 @@ export class LibraryStorage {
     for (const fn of this.mutationListeners) {
       try { fn(); } catch {}
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('ulm-library-data-changed', {
+          detail: { reason: 'mutation', timestamp: new Date().toISOString() },
+        })
+      );
+    }
   }
 
   static clearBooksCache(): void {
@@ -189,7 +196,7 @@ export class LibraryStorage {
         // 2. Try browser IndexedDB directly
         if (typeof indexedDB !== 'undefined') {
           const idbResult = await new Promise<{ list: any[]; storeExists: boolean }>((resolve) => {
-            const req = indexedDB.open('ulm_library_idb_v1', 1);
+            const req = indexedDB.open('ulm_library_idb_v1');
             req.onsuccess = () => {
               const db = req.result;
               if (!db.objectStoreNames.contains('books')) {
@@ -302,7 +309,7 @@ export class LibraryStorage {
       if (typeof indexedDB !== 'undefined') {
         try {
           await new Promise<void>((resolve) => {
-            const req = indexedDB.open('ulm_library_idb_v1', 1);
+            const req = indexedDB.open('ulm_library_idb_v1');
             req.onsuccess = () => {
               const db = req.result;
               const storeNames = ['books', 'loans', 'borrowers', 'almaris', 'shelves', 'system_settings'];
@@ -331,6 +338,10 @@ export class LibraryStorage {
 
   static getBooks(): Book[] {
     try {
+      if (this.booksCache !== null && this.booksCache !== undefined && this.booksCache.length > 0) {
+        return this.booksCache;
+      }
+
       if (typeof window !== 'undefined' && (localStorage.getItem('ulm_database_cleared') === 'true' || localStorage.getItem('ulm_initialized_empty') === 'true')) {
         this.booksCache = [];
         return [];
@@ -426,7 +437,7 @@ export class LibraryStorage {
     if (typeof indexedDB === 'undefined') return;
     return new Promise((resolve) => {
       try {
-        const req = indexedDB.open('ulm_library_idb_v1', 1);
+        const req = indexedDB.open('ulm_library_idb_v1');
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains('books')) {
@@ -448,9 +459,22 @@ export class LibraryStorage {
           }
           const tx = db.transaction('books', 'readwrite');
           const store = tx.objectStore('books');
-          store.clear();
           for (let i = 0; i < books.length; i++) {
-            store.put(books[i]);
+            const b = books[i];
+            const acc = String(b.accession_no || (b as any).accession_number || i + 1);
+            const record = {
+              ...b,
+              id: String(b.id || `book_${acc}`),
+              accession_number: acc,
+              accessionNumber: acc,
+              title: b.book_name || (b as any).title || `Volume #${acc}`,
+              is_active: b.is_active === false ? 0 : 1,
+            };
+            const putReq = store.put(record);
+            putReq.onerror = (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+            };
           }
           tx.oncomplete = () => { db.close(); resolve(); };
           tx.onerror = () => { db.close(); resolve(); };
@@ -486,35 +510,8 @@ export class LibraryStorage {
         console.warn('[ULM-Storage] localStorage quota reached, persisting to IndexedDB:', quotaErr);
       }
 
-      // Persist full dataset to IndexedDB (supports unlimited volumes)
+      // Persist dataset to IndexedDB without destructive store.clear() or duplicate random-ID inserts
       void this.persistBooksToIndexedDB(books);
-
-      // Persist exclusively to SQLite / IndexedDB asynchronous storage engine (zero 5MB quota)
-      if (window.ulmLibraryApi) {
-        const records = books.map(b => ({
-          id: b.id,
-          accession_number: b.accession_no || b.barcode,
-          barcode: b.barcode,
-          title: b.book_name,
-          author: b.author,
-          publisher: b.publisher,
-          publication_year: String(b.publication_year || ''),
-          edition: b.edition,
-          category: b.category,
-          language: b.language,
-          binding: b.binding,
-          pages: String(b.pages || ''),
-          price_rs: Number(b.price || 0),
-          status: (b.status && String(b.status).trim().toUpperCase() === 'ISSUED') ? 'ISSUED' : 'AVAILABLE',
-          remarks: b.source_remarks || b.description,
-          shelf_label: b.shelf,
-          almari_id: b.almari_id,
-          is_active: b.is_active ? 1 : 0,
-        }));
-        window.ulmLibraryApi.importBooksChunked(records as any, { onDuplicate: 'upsert', chunkSize: 250 }).catch(e => {
-          console.warn('[ULM-Storage] Async persistent engine save warning:', e);
-        });
-      }
     }
 
     this.notifyMutation();

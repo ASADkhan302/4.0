@@ -725,7 +725,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 ulm-modal-backdrop bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       {/* Modal Dialog Window */}
@@ -984,22 +984,6 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">4</span>
                         <span className="text-slate-200 font-semibold truncate">Author / Editor / Org</span>
                       </span>
-                      <div className="relative group inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDittoField('author')}
-                          className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                          aria-label="Copy previous author"
-                        >
-                          <Copy className="w-3 h-3 opacity-90" />
-                        </button>
-                        <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                          <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                            Copy from previous entry
-                          </div>
-                          <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                        </div>
-                      </div>
                     </label>
                     <input
                       type="text"
@@ -1150,22 +1134,6 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">10</span>
                         <span className="text-slate-200 truncate">Place of Pub.</span>
                       </span>
-                      <div className="relative group inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDittoField('place')}
-                          className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                          aria-label="Copy previous place of publication"
-                        >
-                          <Copy className="w-3 h-3 opacity-90" />
-                        </button>
-                        <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                          <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                            Copy from previous entry
-                          </div>
-                          <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                        </div>
-                      </div>
                     </label>
                     <input
                       type="text"
@@ -1176,7 +1144,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       onChange={(e) => setPlace(e.target.value)}
                       placeholder="e.g. Lakki Marwat or Lahore"
                       list="places-list"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3.5 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
                         isArabicOrUrduScript(place) ? 'font-urdu' : ''
                       }`}
                     />
@@ -1194,22 +1162,6 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">11</span>
                         <span className="text-slate-200 truncate">Publisher</span>
                       </span>
-                      <div className="relative group inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDittoField('publisher')}
-                          className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                          aria-label="Copy previous publisher"
-                        >
-                          <Copy className="w-3 h-3 opacity-90" />
-                        </button>
-                        <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                          <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                            Copy from previous entry
-                          </div>
-                          <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                        </div>
-                      </div>
                     </label>
                     <input
                       type="text"
@@ -1220,7 +1172,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       onChange={(e) => setPublisher(e.target.value)}
                       placeholder="e.g. ULM Press or Oxford"
                       list="publishers-list"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3.5 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
                         isArabicOrUrduScript(publisher) ? 'font-urdu' : ''
                       }`}
                     />
@@ -1312,29 +1264,23 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <span className="text-slate-200 truncate">Binding &amp; Code</span>
                       </span>
                     </label>
-                    <div className="h-10 flex items-center bg-[#121014] border border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
-                      <select
-                        value={binding}
-                        onChange={(e) => setBinding(e.target.value)}
-                        className="flex-1 h-full bg-transparent px-2.5 text-xs text-[#F1F5F9] focus:outline-none"
-                      >
-                        <option value="HB" className="bg-[#18151C] text-white">HB (Hard Bound)</option>
-                        <option value="SB" className="bg-[#18151C] text-white">SB (Soft Bound)</option>
-                        <option value="Leather" className="bg-[#18151C] text-white">Leather Bound</option>
-                        <option value="Other" className="bg-[#18151C] text-white">Other</option>
-                      </select>
-                      <div className="h-5 w-[1px] bg-[#2E2A33] shrink-0" />
-                      <input
-                        type="text"
-                        tabIndex={13}
-                        maxLength={4}
-                        value={bindingCode}
-                        onChange={(e) => setBindingCode(e.target.value)}
-                        placeholder="Code 01"
-                        title="Binding Code"
-                        className="w-20 h-full bg-transparent px-2 text-xs font-mono text-center text-[#E0B450] focus:outline-none"
-                      />
-                    </div>
+                    <select
+                      value={binding || '01 — Hardbound'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBinding(val);
+                        if (val.startsWith('01')) setBindingCode('01');
+                        else if (val.startsWith('02')) setBindingCode('02');
+                        else if (val.startsWith('03')) setBindingCode('03');
+                        else if (val.startsWith('04')) setBindingCode('04');
+                      }}
+                      className="w-full h-10 px-3.5 rounded-lg bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white text-sm focus:border-[#BC881B] outline-none transition-colors"
+                    >
+                      <option value="01 — Hardbound">01 — Hardbound</option>
+                      <option value="02 — Paperback">02 — Paperback</option>
+                      <option value="03 — Spiral / Report">03 — Spiral / Report</option>
+                      <option value="04 — Leather Archival">04 — Leather Archival</option>
+                    </select>
                   </div>
 
                   {/* Field 16: Date Added */}
@@ -1344,22 +1290,6 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">16</span>
                         <span className="text-slate-200 truncate">Date Added</span>
                       </span>
-                      <div className="relative group inline-flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDittoField('date_added')}
-                          className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                          aria-label="Copy previous date"
-                        >
-                          <Copy className="w-3 h-3 opacity-90" />
-                        </button>
-                        <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                          <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                            Copy from previous entry
-                          </div>
-                          <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                        </div>
-                      </div>
                     </label>
                     <div className="h-10 flex items-center bg-[#121014] border border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
                       <input

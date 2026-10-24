@@ -1,18 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { X, Printer, Bookmark, FileDown, Loader2, AlertTriangle } from 'lucide-react';
+import { X, Printer, Bookmark, FileDown, Loader2, AlertTriangle, Layers } from 'lucide-react';
 import { Book } from '../../types/library';
 import { PdfGeneratorService } from '../../services/pdfGeneratorService';
+import { CrispCode128BarcodeSvg } from '../shared/CrispCode128BarcodeSvg';
 
 interface BarcodePrintModalProps {
   book: Book | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenBatchStudio?: (bookId: string) => void;
 }
 
 export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   book,
   isOpen,
   onClose,
+  onOpenBatchStudio,
 }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
@@ -89,22 +92,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 ulm-modal-backdrop bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-md bg-[#18151D] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-200"
+        className="w-full max-w-md bg-white dark:bg-[#18151D] border border-slate-300 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-900 dark:text-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-5 py-3.5 bg-[#121014] border-b border-white/[0.08] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-mono text-[#E0B450] font-semibold uppercase tracking-wider">
+        <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#121014] border-b border-slate-200 dark:border-white/[0.08] flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-mono text-amber-700 dark:text-[#E0B450] font-semibold uppercase tracking-wider">
             <Printer className="w-4 h-4" />
             <span>BARCODE LABEL THERMAL GENERATOR</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-[#B3AABD] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
@@ -112,15 +115,15 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         </div>
 
         {blockedMessage && (
-          <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-600/30 text-amber-200 text-xs flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-600/30 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>{blockedMessage}</span>
           </div>
         )}
 
         {/* Printable Label Preview Area */}
-        <div className="p-6 bg-[#0E0D10] flex flex-col items-center justify-center space-y-3">
-          <span className="text-xs font-mono text-[#B3AABD]">Standard 63.5 × 38.1 mm Adhesive Spine Label:</span>
+        <div className="p-6 bg-slate-100 dark:bg-[#0E0D10] flex flex-col items-center justify-center space-y-3">
+          <span className="text-xs font-mono text-slate-600 dark:text-[#B3AABD]">Standard 63.5 × 38.1 mm Adhesive Spine Label:</span>
 
           {/* Printable Sticker Container (Locked Optical Barcode Safe-Pad) */}
           <div 
@@ -145,12 +148,14 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               </p>
             </div>
 
-            {/* Barcode vector graphic */}
-            <div className="py-1">
-              {renderBarcodeVector(book.barcode)}
-              <p className="font-mono text-xs font-bold tracking-[0.2em] text-slate-950 mt-1">
-                {book.barcode}
-              </p>
+            {/* Barcode vector graphic (Pure-White Crisp Code-128) */}
+            <div className="py-1 flex flex-col items-center justify-center">
+              <CrispCode128BarcodeSvg 
+                value={book.barcode} 
+                height={38} 
+                showValue={true} 
+                className="w-full max-w-[210px] mx-auto drop-shadow-2xs" 
+              />
             </div>
 
             {/* Footer */}
@@ -161,15 +166,31 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         </div>
 
         {/* Action Footer */}
-        <div className="px-5 py-3.5 bg-[#121014] border-t border-white/[0.08] flex items-center justify-between gap-2">
+        <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#121014] border-t border-slate-200 dark:border-white/[0.08] flex items-center justify-between gap-2">
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
             Cancel
           </button>
 
           <div className="flex items-center gap-2">
+            {onOpenBatchStudio && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBatchStudio(book.id);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-purple-900/40 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Open this volume in Batch Label Studio"
+              >
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Open in</span>
+                <span>Batch Studio</span>
+              </button>
+            )}
+
             <button
               disabled={isGeneratingPdf}
               onClick={handleSaveAsPdf}
@@ -182,9 +203,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             <button
               disabled={isGeneratingPdf}
               onClick={handlePrint}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-300" />
+              <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
               <span>Print</span>
             </button>
           </div>

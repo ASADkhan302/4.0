@@ -3,6 +3,7 @@ import { Wifi, Shield, Award, CheckCircle } from 'lucide-react';
 import { Borrower } from '../../types/library';
 import { ULM_CREST_SRC, ULM_CREST_LOGO_SRC, ULM_CREST_WATERMARK_SRC } from '../../assets/brand/crestData';
 import { ULM_CREST_LOGO } from '../../constants/branding';
+import { ULM_OFFICIAL_CREST_DATA_URI } from '../../constants/ulmOfficialCrest';
 
 export interface MemberCardProps {
   member: Partial<Borrower> | null;
@@ -160,13 +161,18 @@ export const MemberCard: React.FC<MemberCardProps> = ({
             }}
           />
 
-          {/* Subtle Corner Watermark (Rule 1-C) */}
-          <img
-            src={ULM_CREST_LOGO}
-            alt=""
+          {/* Centered Member Card Background Watermark (Issue #6) */}
+          <div
             aria-hidden="true"
-            className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08] z-0"
-          />
+            className="pointer-events-none select-none absolute inset-0 z-0 flex items-center justify-center"
+          >
+            <img
+              src={ULM_OFFICIAL_CREST_DATA_URI}
+              alt=""
+              draggable={false}
+              className="ulm-membercard-watermark w-[135px] h-[135px] object-contain opacity-[0.10]"
+            />
+          </div>
 
           {/* Small Lanyard-Slot Pill Centered Above Card (simulated punched slot) */}
           {showLanyardSlot && (
@@ -182,9 +188,9 @@ export const MemberCard: React.FC<MemberCardProps> = ({
                 <div className="flex items-center gap-2">
                   <div className="relative shrink-0 flex items-center justify-center p-[1px] rounded-lg bg-[#131B2E] border border-[#d99e32]/50 shadow-[0_0_6px_rgba(217,158,50,0.3)]">
                     <img 
-                      src={ULM_CREST_LOGO} 
+                      src={ULM_OFFICIAL_CREST_DATA_URI} 
                       alt="ULM Crest" 
-                      className="w-9 h-9 object-contain flex-shrink-0 select-none drop-shadow-sm" 
+                      className="w-11 h-11 object-contain shrink-0 select-none drop-shadow-sm" 
                     />
                   </div>
 
@@ -193,7 +199,7 @@ export const MemberCard: React.FC<MemberCardProps> = ({
                       UNIVERSITY OF LAKKI MARWAT
                     </h1>
                     <p className="text-[#f6b84a] font-mono text-[7px] font-bold tracking-[0.14em] uppercase leading-none mt-0.5 flex items-center gap-1">
-                      <span>LIBRARY MEMBERSHIP CARD</span>
+                      <span>CENTRAL CAMPUS LIBRARY</span>
                     </p>
                   </div>
                 </div>
@@ -332,7 +338,10 @@ export const MemberCard: React.FC<MemberCardProps> = ({
               <div className="relative z-10 pt-1 border-t border-slate-700/60 flex items-center justify-between gap-2">
                 {/* Barcode & Human-readable number */}
                 <div className="flex-1 flex flex-col justify-center">
-                  <div className="h-[20px] w-full bg-white rounded-[2px] p-[1px] shadow-xs overflow-hidden">
+                  <div 
+                    className="ulm-barcode-safe-pad h-[22px] w-full bg-white rounded-[4px] p-[1.5px] shadow-xs overflow-hidden flex items-center justify-center"
+                    style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
+                  >
                     {renderCode128Svg(uid)}
                   </div>
                   <div className="flex items-center justify-between text-[6.5px] font-mono text-slate-400 pt-0.5 px-0.5 leading-none">

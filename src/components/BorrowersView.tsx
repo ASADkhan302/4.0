@@ -228,7 +228,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 md:p-6 space-y-5 max-w-[1700px] w-full mx-auto relative z-10">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 p-4 md:p-6 pb-12 max-w-[1700px] mx-auto relative z-10 overflow-visible">
       {/* TOP HEADER CARD */}
       <div className="rounded-[16px] bg-[#1A1A1A] border border-[#2E2A33] p-5 shadow-[0_4px_24px_rgba(0,0,0,0.4)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -532,10 +532,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                       <span
                         className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
                           isFaculty
-                            ? 'bg-[#BC881B]/15 text-[#E0B450] border-[#BC881B]/40'
+                            ? 'bg-[#BC881B]/15 text-[#BC881B] dark:text-[#E0B450] border-[#BC881B]/40'
                             : isStudent
-                            ? 'bg-[#A66BC9]/15 text-[#C084FC] border-[#A66BC9]/40'
-                            : 'bg-[#29658E]/15 text-[#6FA8D2] border-[#29658E]/40'
+                            ? 'bg-[#A66BC9]/15 text-[#8B48B8] dark:text-[#C084FC] border-[#A66BC9]/40'
+                            : 'bg-[#29658E]/15 text-[#29658E] dark:text-[#6FA8D2] border-[#29658E]/40'
                         }`}
                       >
                         {borrower.role}
@@ -547,29 +547,26 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                         dot
                       />
 
-                      {overduesCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                      {overduesCount > 0 ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />
                           {overduesCount} Overdue
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          Fine: Rs. 0
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => handleOpenSinglePrint(borrower)}
-                        className="p-1 rounded text-[#B3AABD] hover:text-[#E0B450] hover:bg-[#221F26] transition-colors"
-                        title="Print Identity Card"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
-                      <button
                         onClick={() => {
                           setBorrowerToEdit(borrower);
                           setIsAddEditModalOpen(true);
                         }}
-                        className="p-1 rounded text-[#B3AABD] hover:text-white hover:bg-[#221F26] transition-colors"
-                        title="Edit Profile"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#221F26] transition-colors cursor-pointer"
+                        title="Edit Member Profile"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -708,7 +705,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                     }
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Issue Book</span>
+                    <span>Quick Issue Book</span>
                   </button>
 
                   <button
