@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Minus, Square, X, Copy } from 'lucide-react';
-import { ULM_CREST_SRC } from '../assets/brand/crestData';
+import { ULM_CREST_URL, handleCrestFallback } from '../constants/ulmCrest';
+import { sendWindowControl } from '../services/desktopHostBridge';
 
 interface WindowsTitleBarProps {
   onMinimize?: () => void;
@@ -37,21 +38,8 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
     }
   }, []);
 
-  // Native Windows Desktop IPC bridge (WebView2 in C# WPF or Electron)
-  const sendNativeWindowCommand = (action: string): boolean => {
-    if (typeof (window as unknown as { chrome?: { webview?: { postMessage: (msg: unknown) => void } } }).chrome?.webview?.postMessage === 'function') {
-      (window as unknown as { chrome: { webview: { postMessage: (msg: unknown) => void } } }).chrome.webview.postMessage(JSON.stringify({ action }));
-      return true;
-    }
-    if (typeof (window as unknown as { electronAPI?: { sendWindowAction: (act: string) => void } }).electronAPI?.sendWindowAction === 'function') {
-      (window as unknown as { electronAPI: { sendWindowAction: (act: string) => void } }).electronAPI.sendWindowAction(action);
-      return true;
-    }
-    return false;
-  };
-
   const handleMinimize = () => {
-    if (sendNativeWindowCommand('minimize')) return;
+    if (sendWindowControl('minimize')) return;
     setShowNotification('Application minimized to Windows taskbar notification area.');
     setTimeout(() => setShowNotification(null), 2500);
   };
@@ -59,13 +47,13 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
   const handleMaximize = () => {
     const nextState = !isMaximized;
     setIsMaximized(nextState);
-    if (sendNativeWindowCommand('maximize')) return;
+    if (sendWindowControl('maximize')) return;
     setShowNotification(nextState ? 'Maximized window state.' : 'Restored window state.');
     setTimeout(() => setShowNotification(null), 2000);
   };
 
   const handleClose = () => {
-    if (sendNativeWindowCommand('close')) return;
+    if (sendWindowControl('close')) return;
     setShowNotification('Desktop application close requested. State safely committed to SQLite WAL.');
     setTimeout(() => setShowNotification(null), 3000);
   };
@@ -78,8 +66,15 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
         {/* Subtle accent hairline across top */}
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#BC881B]/30 to-transparent pointer-events-none" />
 
-        {/* Left Section: Clean window title without crest icon */}
+        {/* Left Section: Official ULM 2017 Crest + Workstation Title */}
         <div className="flex items-center gap-2 shrink-0">
+          <img
+            src={ULM_CREST_URL}
+            alt="ULM 2017 Crest"
+            draggable={false}
+            onError={handleCrestFallback}
+            className="w-4 h-4 object-contain shrink-0 select-none"
+          />
           <span className="font-sans text-[12px] font-medium text-slate-300 select-none">
             ULM Library — Central Campus Workstation
           </span>

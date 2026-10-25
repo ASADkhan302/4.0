@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { NavigationTab } from '../types/library';
 import { ULM_CREST_LOGO } from '../constants/branding';
-import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
+import { ULM_OFFICIAL_CREST_DATA_URI, handleCrestFallback } from '../constants/ulmOfficialCrest';
 import { syncMasterExcelRegister, downloadMasterExcelRegister } from '../services/libraryStorageAndMigration';
 import { 
   getStoredThemeConfig, 
@@ -124,132 +124,116 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
     }
   };
 
-  return (
-    <header className="w-full shrink-0 z-40 select-none ulm-liquid-glass border-b border-slate-200/80 dark:border-white/10 min-h-[3.75rem] h-auto shadow-xs dark:shadow-md dark:shadow-black/25">
-      {/* Main Top Header Bar (flex-wrap anti-merge layout) */}
-      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2 min-h-[3.75rem] h-auto flex flex-wrap items-center justify-between gap-3">
-        {/* Left Side: Sidebar Toggle + Institutional Insignia + Header Typography */}
-        <div className="flex items-center gap-3 sm:gap-4.5 min-w-0">
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              title={isSidebarCollapsed ? "Open Menu" : "Close Menu"}
-              className="md:hidden inline-flex items-center justify-center p-2 rounded-xl text-[#BC881B] hover:bg-white/[0.08] transition-colors"
-              aria-label="Toggle Navigation Menu"
-            >
-              {isSidebarCollapsed ? (
-                <Menu className="w-5 h-5" />
-              ) : (
-                <PanelLeftClose className="w-5 h-5 text-slate-400" />
-              )}
-            </button>
-          )}
+  const totalVolumes = totalBooksCount ?? 5000;
+  const secondaryButtonClass =
+    'h-12 xl:h-[52px] px-5 xl:px-6 rounded-2xl text-[15px] xl:text-base font-extrabold flex items-center gap-2.5 bg-white/95 hover:bg-white dark:bg-white/10 dark:hover:bg-white/15 text-[#1E142B] dark:text-white border border-[#DCCB9E] dark:border-white/15 hover:border-[#B8731B] shadow-[0_4px_12px_-2px_rgba(30,20,43,0.07),inset_0_1px_0_rgba(255,255,255,0.95)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer';
 
-          {/* Official Crest Badge (Unclipped transparent PNG with sun rays, wreath & 2017 preserved) */}
-          <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center flex-shrink-0 bg-transparent transition-transform hover:scale-105">
+  return (
+    <header className="shrink-0 w-full max-w-none mx-0 min-h-[96px] xl:min-h-[108px] px-5 lg:px-8 py-4 bg-gradient-to-r from-[#FFFDF9]/95 via-[#FAF5E8]/95 to-[#F6EFE0]/95 dark:from-[#160D22]/95 dark:via-[#1C112B]/95 dark:to-[#120B1B]/95 backdrop-blur-2xl border-b-2 border-[#D4B475]/55 dark:border-[#FFD147]/25 shadow-[0_10px_30px_-10px_rgba(30,20,43,0.10)] z-30 select-none">
+      <div className="w-full max-w-none mx-0 flex items-center justify-between gap-6">
+        
+        {/* FAR-LEFT SIDE: Executive ULM Crest Pedestal + Large University Identity */}
+        <div className="flex items-center gap-4 xl:gap-5 mr-auto shrink-0">
+          <div className="w-16 h-16 xl:w-20 xl:h-20 rounded-2xl p-2 bg-gradient-to-br from-[#FFFFFF] via-[#FBF4E4] to-[#EFE0BE] dark:from-white/15 dark:to-white/5 border-2 border-[#C8963E]/65 dark:border-[#FFD147]/40 shadow-[0_6px_20px_-4px_rgba(180,105,14,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] flex items-center justify-center shrink-0">
             <img
               src={ULM_OFFICIAL_CREST_DATA_URI}
-              alt="ULM Official Crest"
-              className="w-10 h-10 object-contain select-none pointer-events-none bg-transparent"
-              style={{ clipPath: 'none' }}
+              alt="University of Lakki Marwat Crest"
+              draggable={false}
+              onError={handleCrestFallback}
+              className="w-full h-full object-contain drop-shadow-sm"
             />
           </div>
 
-          <div className="flex flex-col justify-center min-w-0">
-            <h1 
-              className="font-serif font-bold text-[22px] sm:text-[24px] lg:text-[26px] leading-[1.18] tracking-[-0.01em] text-slate-900 dark:text-white drop-shadow-xs truncate select-none"
-              style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
-              title="University of Lakki Marwat"
-            >
+          <div className="flex flex-col justify-center">
+            <h1 className="font-display !text-3xl xl:!text-[34px] !font-extrabold !tracking-tight !leading-[1.08] !text-[#1A1027] dark:!text-white drop-shadow-[0_1px_0_rgba(255,255,255,0.8)] dark:drop-shadow-none">
               University of Lakki Marwat
             </h1>
-            <div className="flex items-center gap-2.5 mt-1 flex-wrap">
-              <span className="font-sans font-bold text-[12px] sm:text-[13px] tracking-[0.22em] uppercase text-[#BC881B] dark:text-[#E0B450] leading-none select-none">
+            <div className="flex items-center gap-3.5 mt-1.5 flex-wrap">
+              <span className="text-sm xl:text-[15px] font-extrabold uppercase tracking-[0.24em] text-[#8A4B00] dark:text-[#FFD147]">
                 CENTRAL CAMPUS LIBRARY
               </span>
-              <span className="font-sans text-[12px] sm:text-[12.5px] font-bold text-amber-800 dark:text-[#F6D88E] bg-amber-500/15 dark:bg-[#BC881B]/25 border border-amber-500/30 dark:border-[#BC881B]/50 rounded-full px-3 py-1 tabular-nums leading-none shadow-xs">
-                {(totalBooksCount ?? 5000).toLocaleString()} Volumes
+              <span className="inline-flex items-center px-4 py-1 rounded-full text-xs xl:text-sm font-extrabold bg-gradient-to-r from-[#F5E1B0] to-[#EBC97E] dark:from-[#FFD147]/25 dark:to-[#B8731B]/25 text-[#5E3200] dark:text-[#FFD147] border border-[#C59032]/55 shadow-inner tabular-nums">
+                {totalVolumes.toLocaleString()} Volumes
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right Section: Theme Toggle, Resolution Zoom, Sync Sheet, Export, Master Excel, and + Add Book */}
-        <div className="flex items-center justify-end gap-2 shrink-0">
-          {/* 1-Click Soft White / Dark Obsidian Theme Switcher */}
+        {/* FAR-RIGHT SIDE: Premium High-Profile Action Toolbar Flush to Right Edge */}
+        <div className="flex items-center gap-3 xl:gap-3.5 ml-auto shrink-0 flex-wrap justify-end">
+          {/* 1. White Glass / Dark Glass Theme Switcher */}
           <button
             onClick={handleToggleTheme}
-            className="h-10 px-3 rounded-lg bg-[#151C2C]/80 hover:bg-slate-800 text-slate-200 border border-white/10 text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            className={secondaryButtonClass}
             title={themeConfig.themeMode === 'light' ? 'Switch to Dark Obsidian Mode' : 'Switch to Soft Eye-Comfort White Glass Mode'}
           >
             {themeConfig.themeMode === 'light' ? (
               <>
-                <Sun className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="hidden lg:inline text-[11px]">☀️ White Glass</span>
+                <Sun className="w-5 h-5 xl:w-[22px] xl:h-[22px] text-amber-500 shrink-0" />
+                <span>White Glass</span>
               </>
             ) : (
               <>
-                <Moon className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="hidden lg:inline text-[11px]">🌙 Dark Glass</span>
+                <Moon className="w-5 h-5 xl:w-[22px] xl:h-[22px] text-blue-400 shrink-0" />
+                <span>Dark Glass</span>
               </>
             )}
           </button>
 
-          {/* Quick Resolution & Workspace Zoom Selector */}
+          {/* 2. Resolution & Workspace Zoom Selector */}
           <button
             onClick={handleCycleResolution}
-            className="h-10 px-3 rounded-lg bg-[#151C2C]/80 hover:bg-slate-800 text-slate-200 border border-white/10 text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            className={secondaryButtonClass}
             title={`Current Resolution Scale: ${Math.round(resolutionConfig.scale * 100)}% (${resolutionConfig.mode === 'auto' ? 'Auto-Fit' : 'Manual'}). Click to cycle.`}
           >
-            <Monitor className="w-3.5 h-3.5 text-[#BC881B] shrink-0" />
-            <span className="font-mono text-[11px] text-amber-300">
+            <Monitor className="w-5 h-5 xl:w-[22px] xl:h-[22px] text-[#B8731B] dark:text-[#FFD147] shrink-0" />
+            <span className="font-mono tabular-nums">
               {resolutionConfig.mode === 'auto' ? 'Auto' : `${Math.round(resolutionConfig.scale * 100)}%`}
             </span>
           </button>
 
-          {/* Synchronize Sheet / Reload Catalog */}
+          {/* 3. Sync Sheet / Reload Catalog */}
           <button
             onClick={handleRefreshClick}
-            className="h-10 px-3 rounded-lg bg-[#151C2C]/80 hover:bg-slate-800 text-slate-200 border border-white/10 text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            className={secondaryButtonClass}
             title="Synchronize Sheet & Refresh Catalog"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-[#BC881B] shrink-0 ${isRotating ? 'animate-spin' : ''}`} />
-            <span className="hidden xl:inline">Sync Sheet</span>
+            <RotateCw className={`w-5 h-5 xl:w-[22px] xl:h-[22px] text-[#B8731B] dark:text-[#FFD147] shrink-0 ${isRotating ? 'animate-spin' : ''}`} />
+            <span>Sync Sheet</span>
           </button>
 
-          {/* Export Action */}
+          {/* 4. Export Action */}
           <button
             onClick={onQuickExport}
-            className="h-10 px-3 rounded-lg bg-[#151C2C]/80 hover:bg-slate-800 text-slate-200 border border-white/10 text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            className={secondaryButtonClass}
             title="Export Catalog & Transactions"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="hidden xl:inline">Export</span>
+            <FileSpreadsheet className="w-5 h-5 xl:w-[22px] xl:h-[22px] text-[#64748B] dark:text-slate-300 shrink-0" />
+            <span>Export</span>
           </button>
 
-          {/* Master Excel Auto-Sync & Download (Rule 3) */}
+          {/* 5. Master Excel Auto-Sync & Download */}
           <button
             onClick={handleSyncMasterExcel}
             disabled={isSyncingMasterExcel}
-            className="h-10 px-3 rounded-lg bg-[#151C2C]/80 hover:bg-slate-800 text-slate-200 border border-white/10 text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className={`${secondaryButtonClass} disabled:opacity-50`}
             title="Auto-Sync & Download Live Master Excel Register (ULM_Master_Books_Register.xlsx)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden xl:inline">
-              {isSyncingMasterExcel ? 'Syncing...' : 'Master Excel'}
-            </span>
+            <FileSpreadsheet className="w-5 h-5 xl:w-[22px] xl:h-[22px] text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{isSyncingMasterExcel ? 'Syncing...' : 'Master Excel'}</span>
           </button>
 
-          {/* Primary Gold Action: + Add Book */}
+          {/* 6. Primary CTA Button: + Add Book */}
           <button
             onClick={onOpenAddBook}
-            className="h-10 px-4 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] active:scale-95 text-slate-950 font-semibold text-xs tracking-wide shadow-sm inline-flex items-center gap-1.5 transition-all cursor-pointer"
+            className="h-12 xl:h-[52px] px-6 xl:px-7 rounded-2xl text-[15px] xl:text-base font-extrabold flex items-center gap-2.5 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] hover:from-[#7A4207] hover:to-[#B57214] !text-white border border-[#E7BC61]/60 shadow-[0_8px_22px_-4px_rgba(180,105,14,0.45),inset_0_1px_0_rgba(255,255,255,0.35)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
             title="Catalog a New Book Volume"
           >
-            <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
-            <span>Add Book</span>
+            <Plus className="w-5 h-5 xl:w-[22px] xl:h-[22px] stroke-[2.5] !text-white shrink-0" />
+            <span className="!text-white">Add Book</span>
           </button>
         </div>
+
       </div>
     </header>
   );

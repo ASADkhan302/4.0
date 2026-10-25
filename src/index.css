@@ -10,9 +10,9 @@
     color-scheme: dark;
 
     --font-display: 'Playfair Display', Georgia, serif;
-    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-urdu: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif;
+    --font-ui: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+    --font-urdu: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', 'Noto Naskh Arabic', Tahoma, serif;
     --font-sans: var(--font-ui);
 
     /* ULM BRAND PALETTE TOKENS */

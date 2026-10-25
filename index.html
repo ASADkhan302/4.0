@@ -2,19 +2,18 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>University of Lakki Marwat LMS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>University of Lakki Marwat — Central Campus Library</title>
     <meta name="description" content="Ultra-HD enterprise Windows 11 Fluent dark-mode Library Management System with barcode scanning, circulation desk, SQLite engine, C++20 architecture, and reports." />
-    <meta property="og:title" content="University of Lakki Marwat LMS" />
+    <meta property="og:title" content="University of Lakki Marwat — Central Campus Library" />
     <meta property="og:description" content="Ultra-HD enterprise Windows 11 Fluent dark-mode Library Management System with barcode scanning, circulation desk, SQLite engine, C++20 architecture, and reports." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" type="image/png" href="/ulm-crest.png" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/ulm-crest.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Nastaliq+Urdu:wght@400;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="./image_0.png" />
+    <link rel="apple-touch-icon" href="./image_0.png" />
+    <style>
+      html, body, #root { background-color: #f8fafc; margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; }
+    </style>
     <script>
       (function() {
         try {
@@ -74,26 +73,30 @@
       /* Custom Thin High-Contrast Scrollbar for Main Workspace & Modals */
       #ulm-main-scroll-view::-webkit-scrollbar,
       .ulm-page-scroll-container::-webkit-scrollbar,
-      .ulm-modal-scroll::-webkit-scrollbar {
+      .ulm-modal-scroll::-webkit-scrollbar,
+      .custom-scrollbar::-webkit-scrollbar {
         width: 8px !important;
         height: 8px !important;
       }
 
       #ulm-main-scroll-view::-webkit-scrollbar-track,
       .ulm-page-scroll-container::-webkit-scrollbar-track,
-      .ulm-modal-scroll::-webkit-scrollbar-track {
+      .ulm-modal-scroll::-webkit-scrollbar-track,
+      .custom-scrollbar::-webkit-scrollbar-track {
         background: rgba(15, 23, 42, 0.06) !important;
         border-radius: 9999px !important;
       }
 
       html.dark #ulm-main-scroll-view::-webkit-scrollbar-track,
-      html.dark .ulm-page-scroll-container::-webkit-scrollbar-track {
+      html.dark .ulm-page-scroll-container::-webkit-scrollbar-track,
+      html.dark .custom-scrollbar::-webkit-scrollbar-track {
         background: rgba(255, 255, 255, 0.04) !important;
       }
 
       #ulm-main-scroll-view::-webkit-scrollbar-thumb,
       .ulm-page-scroll-container::-webkit-scrollbar-thumb,
-      .ulm-modal-scroll::-webkit-scrollbar-thumb {
+      .ulm-modal-scroll::-webkit-scrollbar-thumb,
+      .custom-scrollbar::-webkit-scrollbar-thumb {
         background: rgba(84, 26, 114, 0.38) !important; /* ULM Royal Purple */
         border-radius: 9999px !important;
         border: 2px solid transparent !important;
@@ -102,7 +105,8 @@
 
       #ulm-main-scroll-view::-webkit-scrollbar-thumb:hover,
       .ulm-page-scroll-container::-webkit-scrollbar-thumb:hover,
-      .ulm-modal-scroll::-webkit-scrollbar-thumb:hover {
+      .ulm-modal-scroll::-webkit-scrollbar-thumb:hover,
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: rgba(188, 136, 27, 0.85) !important; /* ULM 24K Gold on hover */
       }
 

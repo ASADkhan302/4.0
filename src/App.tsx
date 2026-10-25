@@ -641,7 +641,7 @@ export default function App() {
       )}
 
       {/* 1. FIXED TOP HEADER BARS (Never scrolls away) */}
-      <div className="shrink-0 z-30">
+      <div className="shrink-0 w-full max-w-none mx-0 z-30">
         {/* WINDOWS 11 TITLE BAR (Slides down on app entry) */}
         <div className={isAppEntered ? 'animate-slide-down' : ''}>
           <WindowsTitleBar
@@ -724,7 +724,11 @@ export default function App() {
                 src={ULM_OFFICIAL_CREST_DATA_URI}
                 alt=""
                 draggable={false}
-                className="ulm-app-bg-watermark w-[360px] h-[360px] md:w-[420px] md:h-[420px] object-contain opacity-[0.07] dark:opacity-[0.07] pointer-events-none select-none"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = './image_0.png';
+                }}
+                className="ulm-app-bg-watermark w-[360px] h-[360px] md:w-[420px] md:h-[420px] object-contain opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none"
               />
             </div>
           </div>
@@ -733,7 +737,7 @@ export default function App() {
             id="ulm-main-scroll-view"
             ref={mainScrollRef}
             key={activeTab}
-            className={`ulm-page-scroll-container flex-1 flex flex-col min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden relative z-10 overscroll-y-contain ${
+            className={`ulm-page-scroll-container custom-scrollbar flex-1 flex flex-col min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden relative z-10 overscroll-y-contain ${
               isScreenExiting ? 'screen-view-exit' : 'screen-view-enter'
             }`}
           >

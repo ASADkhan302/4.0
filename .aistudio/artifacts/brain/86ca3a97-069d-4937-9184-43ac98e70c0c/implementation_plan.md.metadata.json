@@ -1,6 +1,6 @@
 {
-  "summary":  "Architectural plan to lock the left navigation sidebar in place, fix the root viewport height constraint (100dvh), and restore smooth vertical scrolling across all 8 views and modal dialogs at every display scale (30%–125%).",
-  "updatedAt":  "2026-10-24T07:17:16.990081028Z",
+  "summary":  "Implementation plan for 100% offline Windows Desktop (.exe / C# .NET 8 WPF + WebView2) readiness, unified ULM 2017 Crest identity, WebView2 native window controls & shortcut guards, and relative asset bundling while preserving the locked full-width executive header, fixed left sidebar, and dedicated vertical scroll container.",
+  "updatedAt":  "2026-10-24T09:24:09.857824079Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

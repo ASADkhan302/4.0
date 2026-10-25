@@ -5,7 +5,15 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(({ command }) => {
   return {
+    base: './',
     plugins: [react(), tailwindcss()],
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      emptyOutDir: true,
+      sourcemap: false,
+      chunkSizeWarningLimit: 2500,
+    },
     resolve: {
       alias: [
         ...(command === 'build' ? [

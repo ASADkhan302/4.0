@@ -14,7 +14,7 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
     public partial class MainWindow : Window
     {
         private const string LocalDevUrl = "http://localhost:3000";
-        private const string VirtualHostName = "ulm-lms.local";
+        private const string VirtualHostName = "app.local";
 
         public MainWindow()
         {
@@ -41,7 +41,7 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
 
         private async Task InitializeWebViewAsync()
         {
-            // Configure user data folder in LocalAppData for persistent SQLite/localStorage storage
+            // Configure user data folder in LocalAppData for persistent SQLite/IndexedDB/localStorage storage
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string userDataFolder = Path.Combine(localAppData, "UniversityOfLakkiMarwatLMS", "WebView2Data");
             Directory.CreateDirectory(userDataFolder);
@@ -51,7 +51,7 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
 
             // Configure WebView2 settings
             webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-            webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+            webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
 
             // Handle native window messages from React frontend (Title bar commands)
@@ -67,17 +67,25 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
             }
             else
             {
-                // In production standalone mode, map the local 'wwwroot' or 'dist' folder
+                // In production standalone mode, map the local 'wwwroot' or 'dist' folder to https://app.local/
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string distFolder = Path.Combine(baseDir, "wwwroot");
 
                 if (!Directory.Exists(distFolder))
                 {
-                    // Fallback to relative dist folder if running directly from bin/Debug/
-                    string altPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "dist"));
-                    if (Directory.Exists(altPath))
+                    string directDist = Path.Combine(baseDir, "dist");
+                    if (Directory.Exists(directDist))
                     {
-                        distFolder = altPath;
+                        distFolder = directDist;
+                    }
+                    else
+                    {
+                        // Fallback to relative dist folder if running directly from bin/Debug/
+                        string altPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "dist"));
+                        if (Directory.Exists(altPath))
+                        {
+                            distFolder = altPath;
+                        }
                     }
                 }
 
@@ -96,7 +104,7 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
                     webView.CoreWebView2.NavigateToString(
                         "<html><body style='font-family:sans-serif;background:#0B1120;color:#F8FAFC;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;'>" +
                         "<div style='text-align:center;padding:40px;border:1px solid #334155;border-radius:16px;background:#0F172A;'>" +
-                        "<h2 style='color:#F59E0B;'>University of Lakki Marwat - LMS</h2>" +
+                        "<h2 style='color:#F59E0B;'>University of Lakki Marwat — Central Campus Library</h2>" +
                         "<p>Frontend assets not found. Please run <code>npm run build</code> in the project directory, then rebuild in Visual Studio.</p>" +
                         "<p style='color:#94A3B8;'>Or start the dev server with <code>npm run dev</code> for live reload debugging.</p>" +
                         "</div></body></html>"
@@ -115,22 +123,39 @@ namespace UniversityOfLakkiMarwatLMS.Desktop
         {
             try
             {
-                string msg = e.TryGetWebMessageAsString();
+                string msg = "";
+                try
+                {
+                    msg = e.TryGetWebMessageAsString();
+                }
+                catch
+                {
+                    // Message was posted as a JSON object via postMessage({ type: 'WINDOW_CONTROL', action })
+                }
+
+                if (string.IsNullOrEmpty(msg))
+                {
+                    msg = e.WebMessageAsJson ?? "";
+                }
+
                 if (string.IsNullOrEmpty(msg)) return;
 
-                if (msg.Contains("\"action\":\"minimize\""))
+                if (msg.Contains("\"action\":\"minimize\"") || msg.Contains("\"action\": \"minimize\""))
                 {
-                    WindowState = WindowState.Minimized;
+                    Dispatcher.Invoke(() => WindowState = WindowState.Minimized);
                 }
-                else if (msg.Contains("\"action\":\"maximize\""))
+                else if (msg.Contains("\"action\":\"maximize\"") || msg.Contains("\"action\": \"maximize\""))
                 {
-                    WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
+                    Dispatcher.Invoke(() =>
+                    {
+                        WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
+                    });
                 }
-                else if (msg.Contains("\"action\":\"close\""))
+                else if (msg.Contains("\"action\":\"close\"") || msg.Contains("\"action\": \"close\""))
                 {
-                    Close();
+                    Dispatcher.Invoke(() => Close());
                 }
-                else if (msg.Contains("\"action\":\"browse-folder\""))
+                else if (msg.Contains("\"action\":\"browse-folder\"") || msg.Contains("\"action\": \"browse-folder\""))
                 {
                     Dispatcher.Invoke(() =>
                     {

@@ -16,7 +16,7 @@
     "seed:test": "tsx scripts/seed-test.ts",
     "test:stage1": "tsx scripts/stage1-verification.ts",
     "check:contrast": "tsx scripts/verify-contrast.ts",
-    "build:exe": "npm run build && powershell -ExecutionPolicy Bypass -File scripts/build-windows-exe.ps1"
+    "build:exe": "powershell -ExecutionPolicy Bypass -File ./scripts/build-desktop.ps1"
   },
   "dependencies": {
     "@fontsource/noto-naskh-arabic": "^5.3.0",
