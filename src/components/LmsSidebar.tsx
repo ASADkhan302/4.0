@@ -213,19 +213,19 @@ export function LmsSidebar({
   return (
     <>
       <aside 
-        className={`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none border-r border-white/[0.07] ulm-liquid-glass text-slate-200 transition-[width] duration-200 ease-out relative z-20 ${getSidebarWidthClass()}`}
+        className={`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none bg-white/60 dark:bg-[#120C1F]/65 backdrop-blur-2xl backdrop-saturate-200 border-r border-[#C8963E]/35 dark:border-white/10 shadow-[4px_0_24px_-4px_rgba(30,20,43,0.06)] text-slate-800 dark:text-slate-200 transition-[width] duration-200 ease-out relative z-20 ${getSidebarWidthClass()}`}
       >
         {/* Top Section: Pinned Navigation Header */}
-        <div className="h-10 px-3 flex items-center justify-between border-b border-white/[0.06] shrink-0">
+        <div className="h-10 px-3 flex items-center justify-between border-b border-slate-200/70 dark:border-white/[0.06] shrink-0">
           {!isRail ? (
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 font-sans">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">
               Navigation
             </span>
           ) : <div className="w-2" />}
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
             title={isCollapsed ? "Expand Sidebar (⌘B)" : "Collapse Sidebar (⌘B)"}
             aria-label="Toggle Sidebar"
           >
@@ -240,14 +240,14 @@ export function LmsSidebar({
           {navGroups.map((group, gIdx) => (
             <div key={gIdx} className="flex flex-col gap-1">
               {group.heading && !isRail && (
-                <span className={`px-3 mb-1 text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-400 select-none ${
+                <span className={`px-3 mb-1 text-[11px] uppercase tracking-[0.08em] font-bold text-slate-500 dark:text-slate-400 select-none ${
                   isShortScreen ? 'mt-3' : 'mt-4'
                 }`}>
                   {group.heading}
                 </span>
               )}
               {isRail && group.heading && (
-                <div className={`h-[1px] mx-3 bg-white/[0.06] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
+                <div className={`h-[1px] mx-3 bg-slate-200 dark:bg-white/[0.06] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
               )}
               {group.items.map(item => {
                 const isActive = activeTab === item.id;
@@ -262,13 +262,13 @@ export function LmsSidebar({
                       isRail ? 'px-0 justify-center' : 'px-3 gap-3'
                     } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 text-left w-full border text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
                       isActive
-                        ? 'bg-[#541A72] !text-white border-[#BC881B]/60 shadow-sm'
+                        ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md'
                         : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
                     }`}
                   >
                     {/* 3px gold left bar for active item */}
                     {isActive && (
-                      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#BC881B] rounded-l-[10px]" />
+                      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
                     )}
 
                     <div className="relative flex items-center gap-3 min-w-0">
@@ -312,7 +312,7 @@ export function LmsSidebar({
                         {item.badge !== undefined && (
                           <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full font-mono text-xs font-semibold leading-none ${
                             isActive
-                              ? 'bg-[#BC881B] text-black font-bold shadow-xs'
+                              ? 'bg-[#FFD147] text-slate-950 font-extrabold shadow-xs'
                               : 'bg-slate-200/90 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-white/10'
                           }`}>
                             {item.badge}
@@ -328,7 +328,7 @@ export function LmsSidebar({
         </div>
 
         {/* Pinned Bottom Items & Collapse Control (40px high, shrinks to 36px on short screens) */}
-        <div className={`border-t border-[var(--border)] shrink-0 flex flex-col gap-1.5 ${
+        <div className={`border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-1.5 ${
           isShortScreen ? 'p-2' : 'p-3'
         }`}>
           {bottomItems.map(item => {
@@ -343,12 +343,12 @@ export function LmsSidebar({
                   isRail ? 'px-0 justify-center' : 'px-3 gap-3'
                 } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 w-full border text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
                   isActive
-                    ? 'bg-[#541A72] !text-white border-[#BC881B]/60 shadow-sm' 
+                    ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md' 
                     : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
                 }`}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#BC881B] rounded-l-[10px]" />
+                  <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
                 )}
                 <div className="relative flex items-center gap-3">
                   <Icon 
@@ -383,7 +383,7 @@ export function LmsSidebar({
             ) : (
               <div className="flex items-center justify-between w-full text-[14px] font-medium">
                 <span>Collapse Sidebar</span>
-                <PanelLeftClose className="w-5 h-5 text-[var(--text-muted)] group-hover:text-white" strokeWidth={1.75} />
+                <PanelLeftClose className="w-5 h-5 text-[var(--text-muted)] group-hover:text-slate-900 dark:group-hover:text-white" strokeWidth={1.75} />
               </div>
             )}
           </button>

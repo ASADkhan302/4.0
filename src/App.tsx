@@ -14,6 +14,8 @@ import { BarcodeScannerView } from './components/BarcodeScannerView';
 import { ExcelCenterView } from './components/ExcelCenterView';
 import { SettingsView } from './components/SettingsView';
 import { LmsSidebar } from './components/LmsSidebar';
+import { AlmariView } from './components/catalog/AlmariView';
+import { AlmariErrorBoundary } from './components/catalog/AlmariErrorBoundary';
 import { AppOpeningSplash } from './components/AppOpeningSplash';
 import { ToastSuccessDeco } from './components/decorative/ToastSuccessDeco';
 
@@ -46,11 +48,12 @@ import {
   getTrueDatabaseBookCount, 
   computeNextSerial,
   resetEntireDatabaseToZero,
-  repairAllBookSeriesAndBarcodes 
+  repairAllBookSeriesAndBarcodes,
+  isWorkstationAlreadyInstalledAndConfigured,
+  markWorkstationSetupCompleted
 } from './services/libraryStorageAndMigration';
 import { initDisplayAndThemeSystem } from './services/displayResolutionManager';
-import { ULM_CREST_LOGO } from './constants/branding';
-import { ULM_CREST_LOGO_SRC, ULM_CREST_WATERMARK_SRC } from './assets/brand/crestData';
+import { ULM_OFFICIAL_CREST_SRC, syncAppDesktopAndFaviconIcon } from './constants/ulmOfficialAssets';
 import { ULM_OFFICIAL_CREST_DATA_URI } from './constants/ulmOfficialCrest';
 
 export default function App() {
@@ -137,12 +140,9 @@ export default function App() {
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
   const [waitingSheetCount, setWaitingSheetCount] = useState<number>(0);
 
-  // Rule 1: Mandatory Setup Gate on First Install or Post-Reset
+  // Rule 1: Mandatory Setup Gate ONLY ONCE on First Install (or after explicit Factory Reset)
   const [isStorageSetupModalOpen, setIsStorageSetupModalOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return !localStorage.getItem('ulm_data_folder_config_v1');
-    }
-    return false;
+    return !isWorkstationAlreadyInstalledAndConfigured(0);
   });
   const [isStorageSetupResetMode, setIsStorageSetupResetMode] = useState(false);
   const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
@@ -154,11 +154,22 @@ export default function App() {
   // True Database Total Book Count (Queried from SQLite / IndexedDB without 5,000 localStorage limit)
   const [dbTotalBooksCount, setDbTotalBooksCount] = useState<number>(0);
 
+  // Auto-mark setup completed if IndexedDB / SQLite hydrates with existing books (> 0)
+  useEffect(() => {
+    const currentBooks = Math.max(dbTotalBooksCount, books.length);
+    if (currentBooks > 0) {
+      markWorkstationSetupCompleted('existing_catalog_hydrated');
+      setIsStorageSetupModalOpen(false);
+      setIsWelcomeModalOpen(false);
+    }
+  }, [dbTotalBooksCount, books.length]);
+
   const refreshTrueCount = useCallback(async () => {
     try {
       const count = await getTrueDatabaseBookCount();
       if (count > 0) {
         setDbTotalBooksCount(count);
+        markWorkstationSetupCompleted('existing_catalog_hydrated');
       }
     } catch (_) {}
   }, []);
@@ -215,38 +226,35 @@ export default function App() {
     });
   }, [refreshTrueCount]);
 
-  // Sync document.title with institutional credentials
+  // Sync document.title and Desktop/Favicon Icon with official ULM 2017 Crest
   useEffect(() => {
+    syncAppDesktopAndFaviconIcon(settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC);
     if (settings.university_name) {
-      document.title = `${settings.university_name} | ${settings.library_name || 'Library Management System'}`;
+      document.title = `${settings.university_name} — ${settings.library_name || 'ULM Central Library Management System'}`;
     }
-  }, [settings.university_name, settings.library_name]);
+  }, [settings.university_name, settings.library_name, settings.customLogoDataUri]);
 
   const handleSplashComplete = useCallback(async () => {
     setShowSplash(false);
     setIsAppEntered(true);
 
-    const hasFolderConfig = typeof window !== 'undefined' && 
-      (!!localStorage.getItem('ulm_storage_location_configured_v1') || !!localStorage.getItem('ulm_data_folder_config_v1'));
-    if (!hasFolderConfig) {
+    const trueCount = await getTrueDatabaseBookCount();
+    const alreadyConfigured = isWorkstationAlreadyInstalledAndConfigured(
+      Math.max(trueCount, dbTotalBooksCount, books.length)
+    );
+
+    if (!alreadyConfigured) {
       setIsStorageSetupResetMode(false);
       setIsStorageSetupModalOpen(true);
       return;
     }
 
-    const folderStatus = await LibraryFolderService.init();
-    if (folderStatus.status === 'first_run') {
-      setIsMissingLibrary(false);
-      setIsWelcomeModalOpen(true);
-    } else if (folderStatus.status === 'missing') {
-      setIsMissingLibrary(true);
-      setMissingLibraryPath(folderStatus.folderPath);
-      setIsWelcomeModalOpen(true);
-    } else {
-      const loc = LibraryStorage.getStorageLocation();
-      setStorageConfig(loc);
-    }
-  }, []);
+    // Workstation is already configured — ensure modals stay closed on subsequent launches
+    setIsStorageSetupModalOpen(false);
+    setIsWelcomeModalOpen(false);
+    const loc = LibraryStorage.getStorageLocation();
+    setStorageConfig(loc);
+  }, [dbTotalBooksCount, books.length]);
 
   const handleRetrySheetSync = async () => {
     const res = await BookSheetService.processQueue();
@@ -672,6 +680,7 @@ export default function App() {
           onOpenSearch={() => setIsSearchOpen(true)}
           universityName={settings.university_name}
           libraryName={settings.library_name}
+          customLogoDataUri={settings.customLogoDataUri}
           waitingBooksCount={waitingSheetCount}
           onRetrySheetSync={handleRetrySheetSync}
         />
@@ -702,6 +711,9 @@ export default function App() {
         <div className="flex-1 flex flex-col min-h-0 min-w-0 h-full relative overflow-hidden">
           {/* Ambient Refractive Background Orbs + Official ULM Crest Watermark */}
           <div id="ulm-liquid-orbs" className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden print:hidden" aria-hidden="true">
+            {/* Subtle Liquid-Glass Header/Sidebar Junction Glow Orbs */}
+            <div className="w-[460px] h-[220px] rounded-full bg-[#FFD147]/20 dark:bg-[#FFD147]/12 blur-3xl absolute -top-20 left-8 pointer-events-none" />
+            <div className="w-[520px] h-[240px] rounded-full bg-[#541A72]/15 dark:bg-[#541A72]/28 blur-3xl absolute -top-24 right-12 pointer-events-none" />
             {/* 1. ULM Royal Amethyst Orb (top-left) */}
             <div className="w-[580px] h-[580px] rounded-full ulm-ambient-purple-orb absolute -top-48 -left-48 pointer-events-none opacity-80" />
             {/* 2. ULM 24K Liquid Gold Orb (bottom-right) */}
@@ -713,7 +725,7 @@ export default function App() {
             {/* 5. Liquid Amber Orb (center) */}
             <div className="w-[500px] h-[500px] rounded-full ulm-ambient-amber-orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
 
-            {/* Official ULM Crest Watermark Layer (Fixing 97269561.png with pixel-exact ulm-crest.png) */}
+            {/* Official ULM 2017 Crest Full-Application Background Watermark */}
             <div
               id="app-bg-watermark"
               aria-hidden="true"
@@ -721,14 +733,14 @@ export default function App() {
               style={{ left: '15rem', top: '3.75rem' }}
             >
               <img
-                src={ULM_OFFICIAL_CREST_DATA_URI}
-                alt=""
+                src={settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC}
+                alt="ULM 2017 Official Crest Watermark"
                 draggable={false}
                 onError={(e) => {
                   e.currentTarget.onerror = null;
-                  e.currentTarget.src = './image_0.png';
+                  e.currentTarget.src = ULM_OFFICIAL_CREST_SRC;
                 }}
-                className="ulm-app-bg-watermark w-[360px] h-[360px] md:w-[420px] md:h-[420px] object-contain opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none"
+                className="ulm-app-bg-watermark w-[380px] h-[380px] md:w-[460px] md:h-[460px] object-contain opacity-[0.045] dark:opacity-[0.055] pointer-events-none select-none z-0"
               />
             </div>
           </div>
@@ -741,12 +753,12 @@ export default function App() {
               isScreenExiting ? 'screen-view-exit' : 'screen-view-enter'
             }`}
           >
-        {(activeTab === 'catalog' || activeTab === 'almaris' || !['circulation', 'borrowers', 'reports', 'scanner', 'excel', 'settings'].includes(activeTab)) && (
+        {(activeTab === 'catalog' || !['almaris', 'circulation', 'borrowers', 'reports', 'scanner', 'excel', 'settings'].includes(activeTab)) && (
           <BooksCatalogView
             books={books}
             transactions={transactions}
             totalDbBooksCount={totalBooksCount}
-            initialViewMode={activeTab === 'almaris' ? 'almari' : undefined}
+            onNavigateToAlmaris={() => handleTabChange('almaris')}
             onSelectBook={(book) => setSelectedBookForDetails(book)}
             onEditBook={(book) => {
               setBookToEdit(book);
@@ -772,6 +784,24 @@ export default function App() {
               showToast(msg);
             }}
           />
+        )}
+
+        {activeTab === 'almaris' && (
+          <AlmariErrorBoundary fallbackTitle="Error loading Almaris & Shelves" onReset={() => handleTabChange('almaris')}>
+            <AlmariView
+              books={books}
+              onOpenBook={(book) => setSelectedBookForDetails(book)}
+              onEditBook={(book) => {
+                setBookToEdit(book);
+                setIsAddEditOpen(true);
+              }}
+              onOpenSettingsTab={() => handleTabChange('settings')}
+              onCatalogBooksUpdated={(updatedBooks, msg) => {
+                setBooks(updatedBooks);
+                showToast(msg);
+              }}
+            />
+          </AlmariErrorBoundary>
         )}
 
         {activeTab === 'circulation' && (
@@ -1022,20 +1052,28 @@ export default function App() {
         }}
       />
 
-      {/* Mandatory First-Install & Post-Reset Storage Setup Gate (Rule 1) */}
+      {/* Mandatory First-Install & Post-Reset Storage Setup Gate (Rule 1 — Shows ONLY ONCE) */}
       <StorageSetupModal
         isOpen={isStorageSetupModalOpen}
         isResetMode={isStorageSetupResetMode}
+        onClose={() => {
+          markWorkstationSetupCompleted('dismissed');
+          setIsStorageSetupModalOpen(false);
+        }}
         onConfigured={(_path, action) => {
+          markWorkstationSetupCompleted(action || 'configured');
           setIsStorageSetupModalOpen(false);
           reloadData();
-          showToast('Library data folder configured & Master Excel initialized.');
+          showToast('Library workstation configured & Master Excel initialized.');
           if (action === 'add_manual') {
             setBookToEdit(null);
             setInitialBarcodeForAdd('');
             setIsAddEditOpen(true);
           } else if (action === 'import_excel') {
             setIsExcelImportModalOpen(true);
+          } else if (action === 'restore_package') {
+            setIsMissingLibrary(false);
+            setIsWelcomeModalOpen(true);
           }
         }}
       />

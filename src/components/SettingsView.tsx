@@ -42,7 +42,7 @@ import { RealStorageService, StorageStatus } from '../services/realStorageServic
 import { ResetToZeroService, UndoResetMeta } from '../services/resetToZeroService';
 import { ResetToZeroModal } from './modals/ResetToZeroModal';
 import { syncMasterExcelRegister, downloadMasterExcelRegister } from '../services/libraryStorageAndMigration';
-import { ULM_CREST_LOGO } from '../constants/branding';
+import { ULM_OFFICIAL_CREST_SRC, syncAppDesktopAndFaviconIcon } from '../constants/ulmOfficialAssets';
 import { ButtonAuditPanel } from './ui/ButtonAuditPanel';
 import { GroupsSettingsTab } from './settings/GroupsSettingsTab';
 import { AlmarisSettingsTab } from './settings/AlmarisSettingsTab';
@@ -485,14 +485,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         {/* Settings Navigation Sub-Tabs */}
-        <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-2 overflow-x-auto">
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-2 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveSettingsTab('general')}
-            className={`px-4 py-2 rounded-[8px] text-[13px] font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSettingsTab === 'general'
-                ? 'bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40'
-                : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5 border border-transparent'
+                ? 'bg-[#BC881B]/20 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/45 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border border-transparent'
             }`}
           >
             <Palette className="w-4 h-4" />
@@ -501,10 +501,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveSettingsTab('groups')}
-            className={`px-4 py-2 rounded-[8px] text-[13px] font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSettingsTab === 'groups'
-                ? 'bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40'
-                : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5 border border-transparent'
+                ? 'bg-[#BC881B]/20 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/45 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border border-transparent'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -513,10 +513,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveSettingsTab('almaris')}
-            className={`px-4 py-2 rounded-[8px] text-[13px] font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSettingsTab === 'almaris'
-                ? 'bg-[#BC881B]/20 text-[#E0B450] border border-[#BC881B]/40'
-                : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5 border border-transparent'
+                ? 'bg-[#BC881B]/20 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/45 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border border-transparent'
             }`}
           >
             <Building2 className="w-4 h-4" />
@@ -544,34 +544,78 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* Settings > About Application & Institutional Crest */}
+        {/* Settings > About Application & Official ULM 2017 Crest Branding */}
         <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
             {/* Crest with Refined Institutional Styling */}
-            <div className="relative shrink-0 flex items-center justify-center p-2 rounded-2xl bg-slate-50 dark:bg-[#0B1220] border border-[#BC881B]/40 shadow-xs">
+            <div className="relative shrink-0 flex items-center justify-center p-2 rounded-2xl bg-slate-50 dark:bg-[#0B1220] border border-[#BC881B]/40 ring-2 ring-[#BC881B]/25 shadow-xs">
               <img
-                src={ULM_CREST_LOGO}
-                alt="University of Lakki Marwat Crest"
+                src={formData.customLogoDataUri || ULM_OFFICIAL_CREST_SRC}
+                alt="University of Lakki Marwat Official 2017 Crest"
                 width={88}
                 height={88}
                 className="w-20 h-20 sm:w-22 sm:h-22 object-contain drop-shadow-xs select-none"
               />
             </div>
 
-            <div className="space-y-2 text-center sm:text-left flex-1 min-w-0">
+            <div className="space-y-3 text-center sm:text-left flex-1 min-w-0">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-cinzel tracking-wide">
                   University of Lakki Marwat LMS
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-[#BC881B]/20 text-[#8F4F00] dark:text-[#E0B450] border border-[#BC881B]/40">
-                  Version 2.4.0
+                  Version 3.0 Official 2017 Crest Edition
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-[#CBD5E1] leading-relaxed">
-                Central Campus Library Management System with offline SQLite transaction engine, multi-user file synchronization, and Code-128 barcode circulation desk.
+                Central Campus Library Management System with authentic ULM 2017 Crest across Desktop Icon, App Header, CR80 Library ID Cards, and Full-App Watermark.
               </p>
+
+              {/* Official Logo & Desktop Icon Controls */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 pt-1">
+                <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-slate-50 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold shadow-xs transition-all cursor-pointer">
+                  <span>Upload Custom Crest PNG</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const dataUri = typeof reader.result === 'string' ? reader.result : undefined;
+                        if (dataUri) {
+                          const updated: SystemSettings = { ...formData, customLogoDataUri: dataUri };
+                          setFormData(updated);
+                          LibraryStorage.saveSettings(updated);
+                          onUpdateSettings(updated);
+                          syncAppDesktopAndFaviconIcon(dataUri);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated: SystemSettings = { ...formData, customLogoDataUri: undefined };
+                    setFormData(updated);
+                    LibraryStorage.saveSettings(updated);
+                    onUpdateSettings(updated);
+                    syncAppDesktopAndFaviconIcon(ULM_OFFICIAL_CREST_SRC);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-[#BC881B]/20 dark:hover:bg-[#BC881B]/30 border border-[#BC881B]/45 text-[#8A4B00] dark:text-[#FFD147] text-xs font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Reset to Official ULM 2017 Crest</span>
+                </button>
+              </div>
+
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 pt-1 text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                <span>Build: 2026.1 Enterprise Desktop</span>
+                <span>Build: 2026.3 Enterprise Desktop</span>
                 <span>•</span>
                 <span>Lakki Marwat, Khyber Pakhtunkhwa, Pakistan</span>
                 <span>•</span>

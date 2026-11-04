@@ -129,6 +129,7 @@ export interface SystemSettings {
   fine_per_day_pkr?: number;
   barcode_prefix?: string; // Default 'ULM', max 6 alphanumeric characters
   first_accession_number?: number; // Default 1
+  customLogoDataUri?: string;
 }
 
 export interface LinkedSheetInfo {

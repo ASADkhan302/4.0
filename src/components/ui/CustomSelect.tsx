@@ -293,7 +293,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       {label && (
         <label
           htmlFor={selectId}
-          className="block text-xs font-semibold text-slate-300 mb-1 leading-normal"
+          className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 leading-normal"
         >
           {label}
         </label>
@@ -310,35 +310,34 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         aria-disabled={disabled}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2 rounded-[10px] border text-left transition-colors cursor-pointer ${
+        style={{ minWidth: 0 }}
+        className={`w-full max-w-full min-w-0 overflow-hidden flex items-center justify-between gap-2 rounded-[10px] border text-left transition-colors cursor-pointer ${
           compact ? 'h-10 px-3 py-2 text-[13px]' : 'h-10 px-3.5 py-2 text-[13px]'
         } ${
           disabled
-            ? 'bg-[#1A1A1A] border-white/[0.06] text-[#B3AABD] cursor-not-allowed pointer-events-none'
+            ? 'bg-slate-100 dark:bg-[#1A1A1A] border-slate-200 dark:border-white/[0.06] text-slate-400 dark:text-[#B3AABD] cursor-not-allowed pointer-events-none'
             : isOpen
-            ? 'bg-[#141214] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-white'
-            : variant === 'dark'
-            ? 'bg-[#141214] hover:bg-[#1E1B22] border-white/[0.08] hover:border-white/[0.2] text-[#E7E2EC] hover:text-white'
-            : 'bg-[#0B1220] hover:bg-[#0F172A] border-[#334155] hover:border-slate-500 text-slate-200'
+            ? 'bg-white dark:bg-[#141214] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-slate-900 dark:text-white'
+            : 'bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60 text-slate-900 dark:text-[#F1F5F9]'
         } ${triggerClassName}`}
       >
-        <span className="truncate block font-medium">
+        <span className="truncate block font-semibold min-w-0 flex-1">
           {selectedOption ? (
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 min-w-0">
               <span className="truncate">{selectedOption.label}</span>
               {selectedOption.badge && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#BC881B]/20 text-[#E0B450] font-mono border border-[#BC881B]/30 shrink-0">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] font-mono border border-amber-500/30 dark:border-[#BC881B]/30 shrink-0">
                   {selectedOption.badge}
                 </span>
               )}
             </span>
           ) : (
-            <span className="text-[#B3AABD]">{placeholder}</span>
+            <span className="text-slate-400 dark:text-[#B3AABD] truncate">{placeholder}</span>
           )}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-[#B3AABD] shrink-0 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-[#E0B450]' : ''
+          className={`w-4 h-4 text-slate-500 dark:text-[#B3AABD] shrink-0 transition-transform duration-150 ${
+            isOpen ? 'rotate-180 text-amber-700 dark:text-[#E0B450]' : ''
           }`}
         />
       </button>
@@ -356,33 +355,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             left: `${coords.left}px`,
             width: `${coords.width}px`,
             maxHeight: `${coords.maxHeight}px`,
-            zIndex: 1000, // Z-index token: dropdown 1000
-            backgroundColor: variant === 'dark' ? '#1A1A1A' : 'var(--cream-100, #FBF3DF)',
-            color: variant === 'dark' ? '#FFFFFF' : 'var(--on-cream, #1C1917)',
-            borderColor: variant === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'var(--cream-300, #E6D3A3)',
+            zIndex: 1000,
           }}
-          className={`rounded-[12px] border shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100 ${panelClassName}`}
+          className={`rounded-[12px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100 ${panelClassName}`}
         >
           {/* Optional Search Input */}
           {isSearchable && (
-            <div
-              style={
-                variant === 'dark'
-                  ? {
-                      borderColor: 'rgba(255, 255, 255, 0.08)',
-                      backgroundColor: '#141214',
-                    }
-                  : {
-                      borderColor: 'var(--cream-300, #E6D3A3)',
-                      backgroundColor: 'var(--cream-100, #FBF3DF)',
-                    }
-              }
-              className="p-2 border-b flex items-center gap-1.5"
-            >
-              <Search
-                style={{ color: variant === 'dark' ? '#B3AABD' : 'var(--on-cream, #1C1917)' }}
-                className="w-3.5 h-3.5 opacity-70 shrink-0"
-              />
+            <div className="p-2 border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#120D1D] flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#B3AABD] shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -392,27 +372,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   setActiveIndex(0);
                 }}
                 placeholder="Search..."
-                style={
-                  variant === 'dark'
-                    ? {
-                        backgroundColor: '#1A1A1A',
-                        color: '#FFFFFF',
-                        borderColor: 'rgba(255, 255, 255, 0.12)',
-                      }
-                    : {
-                        backgroundColor: 'var(--cream-200, #F2E6C4)',
-                        color: 'var(--on-cream, #1C1917)',
-                        borderColor: 'var(--cream-300, #E6D3A3)',
-                      }
-                }
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border outline-none placeholder:text-[#B3AABD] focus:ring-1 focus:ring-[#BC881B] focus:border-[#BC881B]"
+                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-[#B3AABD] focus:ring-1 focus:ring-[#BC881B] focus:border-[#BC881B]"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  style={{ color: variant === 'dark' ? '#B3AABD' : 'var(--on-cream, #1C1917)' }}
-                  className="p-0.5 hover:opacity-100 opacity-60 text-xs cursor-pointer"
+                  className="p-0.5 text-slate-400 hover:text-slate-700 dark:text-[#B3AABD] dark:hover:text-white text-xs cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -423,36 +389,16 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
           {/* List Options */}
           <ul
             ref={listboxRef}
-            className="max-h-60 overflow-y-auto p-1.5 space-y-0.5"
-            style={{
-              scrollbarColor: variant === 'dark' ? 'rgba(255, 255, 255, 0.2) #1A1A1A' : 'var(--cream-300, #E6D3A3) var(--cream-100, #FBF3DF)',
-            }}
+            className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar"
           >
             {filteredOptions.length === 0 ? (
-              <li
-                style={{ color: variant === 'dark' ? '#B3AABD' : 'var(--on-cream, #1C1917)' }}
-                className="px-3 py-3 text-xs text-center opacity-70 italic"
-              >
+              <li className="px-3 py-3 text-xs text-center text-slate-500 dark:text-[#B3AABD] italic">
                 No matching options found
               </li>
             ) : (
               filteredOptions.map((opt, idx) => {
                 const isSelected = String(opt.value) === String(value);
                 const isActive = idx === activeIndex;
-
-                const itemBg = isSelected
-                  ? '#BC881B'
-                  : isActive
-                  ? variant === 'dark'
-                    ? 'rgba(255, 255, 255, 0.08)'
-                    : 'var(--cream-200, #F2E6C4)'
-                  : 'transparent';
-
-                const itemColor = isSelected
-                  ? '#1A1A1A'
-                  : variant === 'dark'
-                  ? '#FFFFFF'
-                  : 'var(--on-cream, #1C1917)';
 
                 return (
                   <li
@@ -462,13 +408,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     aria-disabled={opt.disabled}
                     onClick={() => handleSelect(opt)}
                     onMouseEnter={() => !opt.disabled && setActiveIndex(idx)}
-                    style={{
-                      backgroundColor: itemBg,
-                      color: itemColor,
-                    }}
                     className={`relative flex items-center justify-between gap-2 px-3 py-2 rounded-[8px] text-[13px] font-semibold cursor-pointer transition-colors ${
-                      opt.disabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
-                    }`}
+                      isSelected
+                        ? 'bg-[#BC881B] text-[#1A1A1A]'
+                        : isActive
+                        ? 'bg-slate-100 dark:bg-white/[0.08] text-slate-900 dark:text-white'
+                        : 'text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08]'
+                    } ${opt.disabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                   >
                     <div className="flex flex-col truncate">
                       <span className="truncate">{opt.label}</span>
@@ -482,15 +428,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     <div className="flex items-center gap-1.5 shrink-0">
                       {opt.badge && (
                         <span
-                          style={{
-                            backgroundColor: isSelected
-                              ? 'rgba(26, 26, 26, 0.2)'
-                              : variant === 'dark'
-                              ? 'rgba(188, 136, 27, 0.2)'
-                              : 'var(--cream-300, #E6D3A3)',
-                            color: isSelected ? '#1A1A1A' : variant === 'dark' ? '#E0B450' : '#1C1917',
-                          }}
-                          className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold"
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                            isSelected
+                              ? 'bg-black/20 text-[#1A1A1A]'
+                              : 'bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450]'
+                          }`}
                         >
                           {opt.badge}
                         </span>
@@ -507,20 +449,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
           {/* Optional "Add New" footer */}
           {allowAdd && (
-            <div
-              style={
-                variant === 'dark'
-                  ? {
-                      borderColor: 'rgba(255, 255, 255, 0.08)',
-                      backgroundColor: '#141214',
-                    }
-                  : {
-                      borderColor: 'var(--cream-300, #E6D3A3)',
-                      backgroundColor: 'var(--cream-200, #F2E6C4)',
-                    }
-              }
-              className="p-2 border-t"
-            >
+            <div className="p-2 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#120D1D]">
               {!isAddingNew ? (
                 <button
                   type="button"
@@ -528,8 +457,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     setIsAddingNew(true);
                     setTimeout(() => addInputRef.current?.focus(), 50);
                   }}
-                  style={{ color: variant === 'dark' ? '#E0B450' : 'var(--on-cream, #1C1917)' }}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-white/[0.05] text-xs font-bold transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/[0.05] text-amber-800 dark:text-[#E0B450] text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Add custom entry...</span>
@@ -542,20 +470,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     value={newInputValue}
                     onChange={(e) => setNewInputValue(e.target.value)}
                     placeholder={addNewPlaceholder}
-                    style={
-                      variant === 'dark'
-                        ? {
-                            backgroundColor: '#1A1A1A',
-                            color: '#FFFFFF',
-                            borderColor: 'rgba(255, 255, 255, 0.12)',
-                          }
-                        : {
-                            backgroundColor: 'var(--cream-100, #FBF3DF)',
-                            color: 'var(--on-cream, #1C1917)',
-                            borderColor: 'var(--cream-300, #E6D3A3)',
-                          }
-                    }
-                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border outline-none placeholder:text-[#B3AABD] focus:ring-1 focus:ring-[#BC881B]"
+                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white outline-none placeholder:text-slate-400 focus:ring-1 focus:ring-[#BC881B]"
                   />
                   <button
                     type="submit"
@@ -569,7 +484,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                       setIsAddingNew(false);
                       setNewInputValue('');
                     }}
-                    className="p-1 text-[#B3AABD] hover:text-white cursor-pointer"
+                    className="p-1 text-slate-500 hover:text-slate-900 dark:text-[#B3AABD] dark:hover:text-white cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

@@ -650,22 +650,24 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                   />
 
                   {/* Row 1: Accession Number + Issue Date + Status Pill */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[12px] font-bold text-[#BC881B] dark:text-[#E0B450] bg-[#BC881B]/15 px-2.5 py-0.5 rounded-[6px] border border-[#BC881B]/30" title={`Transaction ${tx.id} · Barcode ${tx.barcode || ''}`}>
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[12px] font-bold text-[#BC881B] dark:text-[#E0B450] bg-[#BC881B]/15 px-2.5 py-0.5 rounded-[6px] border border-[#BC881B]/30 whitespace-nowrap shrink-0" title={`Transaction ${tx.id} · Barcode ${tx.barcode || ''}`}>
                         {getLoanAccessionLabel(tx)}
                       </span>
-                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {tx.issue_date ? `Issued ${tx.issue_date}` : ''}
                       </span>
                     </div>
-                    {isReturned ? (
-                      <StatusPill label="Returned" variant="muted" dot />
-                    ) : isOverdue ? (
-                      <StatusPill label="OVERDUE" variant="danger" dot />
-                    ) : (
-                      <StatusPill label="Active Loan" variant="green" dot />
-                    )}
+                    <div className="shrink-0">
+                      {isReturned ? (
+                        <StatusPill label="Returned" variant="muted" dot />
+                      ) : isOverdue ? (
+                        <StatusPill label="OVERDUE" variant="danger" dot />
+                      ) : (
+                        <StatusPill label="Active Loan" variant="green" dot />
+                      )}
+                    </div>
                   </div>
 
                   {/* Title & ISBN */}
@@ -685,15 +687,15 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                   </div>
 
                   {/* Borrower Row: 38px avatar, name, and gold university ID chip */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/80 dark:border-[#2E2A33]">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-slate-200/80 dark:border-[#2E2A33] flex-wrap">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className="w-[38px] h-[38px] rounded-full bg-[#541A72]/20 border border-[#A66BC9]/30 text-[#A66BC9] dark:text-[#C084FC] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                         {getInitials(tx.borrower_name || '')}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span
                           onClick={() => onOpenBorrowerDetails(tx.borrower_id)}
-                          className="text-[14px] font-semibold text-slate-900 dark:text-white hover:text-[#BC881B] dark:hover:text-[#E0B450] cursor-pointer transition-colors block truncate max-w-[150px] sm:max-w-[180px]"
+                          className="text-[14px] font-semibold text-slate-900 dark:text-white hover:text-[#BC881B] dark:hover:text-[#E0B450] cursor-pointer transition-colors block truncate"
                           title={tx.borrower_name}
                           dir="auto"
                         >
@@ -702,7 +704,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                       </div>
                     </div>
 
-                    <span className="px-2 py-0.5 rounded-[6px] text-[11px] font-mono font-bold bg-[rgba(188,136,27,0.14)] text-amber-800 dark:text-[#E0B450] border border-[#BC881B]/35 shrink-0">
+                    <span className="px-2.5 py-0.5 rounded-[6px] text-[11px] font-mono font-bold bg-[rgba(188,136,27,0.14)] text-amber-800 dark:text-[#E0B450] border border-[#BC881B]/35 shrink-0 whitespace-nowrap">
                       {tx.student_id}
                     </span>
                   </div>

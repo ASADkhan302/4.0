@@ -33,7 +33,7 @@ import { LibraryStorage } from '../../services/storage';
 import { BarcodeService } from '../../services/barcodeService';
 import { BookSheetService } from '../../services/bookSheetService';
 import { AlmariService } from '../../services/almariService';
-import { computeNextSerial, parseSerialNumber, syncMasterExcelRegister } from '../../services/libraryStorageAndMigration';
+import { computeNextSerial, parseSerialNumber, syncMasterExcelRegister, resolveBookAlmariAndShelf } from '../../services/libraryStorageAndMigration';
 import CustomSelect from '../ui/CustomSelect';
 import { getTodayIso, formatDisplayDate, normalizeDateAdded } from '../../utils/dateUtils';
 import { isArabicOrUrduScript, sanitizeBidiOverrides } from '../../utils/urduUtils';
@@ -175,8 +175,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
     if (bookToEdit) {
       // Editing existing book
-      const numMatch = bookToEdit.barcode.match(/\d+/);
-      const acc = numMatch ? numMatch[0] : '10001';
+      const numMatch = (bookToEdit.accession_no || bookToEdit.barcode || '').match(/\d+/);
+      const acc = numMatch ? numMatch[0] : '1';
+      const resolvedPlacement = resolveBookAlmariAndShelf(
+        bookToEdit,
+        AlmariService.getAlmaris(),
+        AlmariService.getGroups()
+      );
       setAccessionNo(acc);
       setBarcode(bookToEdit.barcode);
       setIsbn(bookToEdit.isbn || '');
@@ -193,13 +198,18 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       setBookImagePath(bookToEdit.book_image_path || '');
       setTotalQuantity(bookToEdit.total_quantity || 1);
       setAvailableQuantity(bookToEdit.available_quantity || 1);
-      setShelf(bookToEdit.shelf || 'CS-Rack-01');
-      setRow(bookToEdit.row || 'A-1');
+      setShelf(
+        bookToEdit.shelf ||
+          (resolvedPlacement.almariCode
+            ? `${resolvedPlacement.almariCode} · Shelf ${resolvedPlacement.shelfNo}`
+            : 'Unassigned (No Almari)')
+      );
+      setRow(bookToEdit.row || (resolvedPlacement.shelfNo ? String(resolvedPlacement.shelfNo) : ''));
       setSection(bookToEdit.section || 'Main Stacks');
       setDeweyCallNumber(bookToEdit.dewey_call_number || '005.133 ULM');
-      setGroupId(bookToEdit.group_id || '');
-      setAlmariId(bookToEdit.almari_id || '');
-      setShelfNo(bookToEdit.shelf_no || 1);
+      setGroupId(bookToEdit.group_id || resolvedPlacement.groupId || '');
+      setAlmariId(bookToEdit.almari_id || resolvedPlacement.almariId || '');
+      setShelfNo(bookToEdit.shelf_no || resolvedPlacement.shelfNo || 1);
       const editDate = bookToEdit.date_added || (bookToEdit.created_at ? bookToEdit.created_at.split(' ')[0] : getTodayIso());
       setDateAdded(editDate);
       setDateAddedRaw(formatDisplayDate(editDate));
@@ -254,14 +264,18 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       const initialCat = cachedValues.category || 'Computer Science';
       setCategory(initialCat);
       setDeweyCallNumber('005.133 ULM');
-      setShelf('CS-Rack-01');
-      setRow('A-1');
+      setShelf('Unassigned (No Almari)');
+      setRow('');
       setSection('Main Stacks');
       setLanguage('English');
 
       // Manual Group & Almari assignment (no auto-suggest)
+      const activeManualAlmaris = AlmariService.getAlmaris().filter(a => a.is_active);
       const chosenGrpId = cachedValues.groupId || '';
-      const chosenAlmId = cachedValues.almariId || '';
+      const chosenAlmId =
+        cachedValues.almariId && activeManualAlmaris.some(a => a.id === cachedValues.almariId)
+          ? cachedValues.almariId
+          : '';
       const chosenShelf = cachedValues.shelfNo || 1;
 
       setGroupId(chosenGrpId);
@@ -544,10 +558,6 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       setErrorMessage('Category / Discipline is mandatory.');
       return;
     }
-    if (!shelf.trim() && !almariId) {
-      setErrorMessage('Almari / Shelf location is mandatory.');
-      return;
-    }
     if (!barcode.trim()) {
       setErrorMessage('Barcode / Accession is mandatory.');
       return;
@@ -566,6 +576,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
     }
 
     setSaveState('loading');
+
+    const chosenAlmariObj = almariId
+      ? AlmariService.getAlmaris().find(a => a.id === almariId && a.is_active)
+      : undefined;
+    const computedShelfStr = chosenAlmariObj
+      ? `${chosenAlmariObj.code} · Shelf ${Number(shelfNo) || 1}`
+      : 'Unassigned (No Almari)';
 
     // Build payload conforming exactly to Book schema
     const payload = {
@@ -590,13 +607,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       book_image_path: bookImagePath.trim(),
       total_quantity: Number(totalQuantity) || 1,
       available_quantity: Math.min(Number(availableQuantity), Number(totalQuantity)),
-      shelf: shelf.trim(),
-      row: row.trim(),
+      shelf: computedShelfStr,
+      row: chosenAlmariObj ? String(Number(shelfNo) || 1) : '',
       section: section.trim(),
       dewey_call_number: deweyCallNumber.trim(),
       group_id: groupId || null,
-      almari_id: almariId || null,
-      shelf_no: shelfNo ? Number(shelfNo) : null,
+      almari_id: chosenAlmariObj ? chosenAlmariObj.id : null,
+      shelf_no: chosenAlmariObj ? Number(shelfNo) || 1 : null,
       date_added: dateRes.date!,
     };
 
@@ -723,31 +740,34 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
   if (!isOpen) return null;
 
+  const inputBaseClass =
+    'w-full h-10 bg-white dark:bg-[#121014] border border-slate-300 dark:border-[#2B2730] rounded-lg px-3 text-sm text-slate-900 dark:text-[#F1F5F9] placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors';
+
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 ulm-modal-backdrop bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 ulm-modal-backdrop bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       {/* Modal Dialog Window */}
       <div 
-        className="w-full max-w-5xl bg-white dark:bg-[#17141A] border border-slate-300 dark:border-[#2E2A33] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] select-none text-slate-900 dark:text-[#F1F5F9]"
+        className="w-full max-w-5xl bg-white/95 dark:bg-[#17141A]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-[#2E2A33] rounded-2xl shadow-[0_25px_70px_-15px_rgba(20,12,32,0.55)] overflow-hidden flex flex-col max-h-[92vh] select-none text-slate-900 dark:text-[#F1F5F9]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle Gold / Amber Accent Hairline on Top */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#BC881B] to-transparent shrink-0" />
+        <div className="h-[3px] w-full bg-gradient-to-r from-[#541A72] via-[#D49B27] to-[#541A72] shrink-0" />
 
         {/* 1. INSTITUTIONAL ACCREDITED MODAL HEADER */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-[#141214] border-b border-slate-200 dark:border-[#2E2A33] flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-slate-50/90 dark:bg-[#141214] border-b border-slate-200 dark:border-[#2E2A33] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-700 dark:text-[#E0B450] shrink-0 shadow-inner">
               <BookOpen className="w-5 h-5 stroke-[2]" />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="font-display text-base sm:text-lg font-bold tracking-wider text-slate-900 dark:text-white">
+                <h3 className="font-display text-base sm:text-lg font-extrabold tracking-wider text-slate-900 dark:text-white">
                   {bookToEdit ? 'EDIT ACCESSION RECORD' : 'ACCESSION REGISTER · NEW VOLUME'}
                 </h3>
-                <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] border border-amber-500/30 dark:border-[#BC881B]/40">
+                <span className="font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] border border-amber-500/30 dark:border-[#BC881B]/40">
                   {bookToEdit ? `RECORD #${accessionNo}` : `ACCESSION #${accessionNo}`}
                 </span>
               </div>
@@ -765,10 +785,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
               <button
                 type="button"
                 onClick={handleDetectDuplicateTitleOrIsbn}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#541A72]/30 hover:bg-[#541A72]/50 text-[#E0B450] border border-[#BC881B]/40 text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#541A72]/10 hover:bg-[#541A72]/20 dark:bg-[#541A72]/30 dark:hover:bg-[#541A72]/50 text-[#541A72] dark:text-[#E0B450] border border-[#541A72]/25 dark:border-[#BC881B]/40 text-xs font-bold cursor-pointer transition-colors shadow-xs"
                 title="Detect existing copy by Title or ISBN, auto-fill details, and assign fresh Accession # and Barcode"
               >
-                <Copy className="w-3.5 h-3.5 text-[#BC881B]" />
+                <Copy className="w-3.5 h-3.5 text-[#8A4B00] dark:text-[#BC881B]" />
                 <span>Detect Duplicate Title/ISBN</span>
               </button>
             )}
@@ -777,22 +797,22 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             {!bookToEdit && (
               <label 
                 title="When active, pressing Enter saves and prepares the next sequential accession number automatically"
-                className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1F1B24] border border-[#2E2A33] text-xs font-mono cursor-pointer hover:border-[#BC881B]/60 transition-colors"
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-[#1F1B24] border border-slate-300 dark:border-[#2E2A33] text-xs font-mono cursor-pointer hover:border-[#BC881B]/60 transition-colors shadow-2xs"
               >
-                <Zap className={`w-3.5 h-3.5 ${fastEntryMode ? 'text-[#E0B450]' : 'text-slate-500'}`} />
-                <span className="text-slate-300 font-medium text-[11px]">Save &amp; Next (Enter ↵)</span>
+                <Zap className={`w-3.5 h-3.5 ${fastEntryMode ? 'text-amber-600 dark:text-[#E0B450]' : 'text-slate-400'}`} />
+                <span className="text-slate-700 dark:text-slate-300 font-semibold text-[11px]">Save &amp; Next (Enter ↵)</span>
                 <input 
                   type="checkbox"
                   checked={fastEntryMode}
                   onChange={(e) => setFastEntryMode(e.target.checked)}
-                  className="rounded text-[#BC881B] focus:ring-[#BC881B] bg-[#121014] border-[#2E2A33] cursor-pointer"
+                  className="rounded text-[#BC881B] focus:ring-[#BC881B] bg-white dark:bg-[#121014] border-slate-300 dark:border-[#2E2A33] cursor-pointer"
                 />
               </label>
             )}
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-slate-300 hover:text-white transition-colors border border-[#2E2A33] cursor-pointer"
+              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-[#2B2730] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-200 dark:border-[#2E2A33] cursor-pointer"
               aria-label="Close dialog"
             >
               <X className="w-5 h-5" />
@@ -801,14 +821,14 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         </div>
 
         {/* Navigation Tabs Bar for Instant Section Filtering & Clean Order */}
-        <div className="px-6 py-2.5 bg-[#121013] border-b border-[#2E2A33] flex items-center gap-2 overflow-x-auto shrink-0 select-none scrollbar-none">
+        <div className="px-6 py-2.5 bg-slate-100/90 dark:bg-[#121013] border-b border-slate-200 dark:border-[#2E2A33] flex items-center gap-2 overflow-x-auto shrink-0 select-none scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveFormTab('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeFormTab === 'all'
                 ? 'bg-[#BC881B] text-[#0F0D11] shadow-xs font-bold'
-                : 'text-slate-300 hover:text-white bg-[#1B171F] hover:bg-[#25202B] border border-[#2B2730]'
+                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-[#1B171F] hover:bg-slate-50 dark:hover:bg-[#25202B] border border-slate-200 dark:border-[#2B2730]'
             }`}
           >
             All Sections (1–26)
@@ -819,7 +839,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeFormTab === 'identity'
                 ? 'bg-[#BC881B] text-[#0F0D11] shadow-xs font-bold'
-                : 'text-slate-300 hover:text-white bg-[#1B171F] hover:bg-[#25202B] border border-[#2B2730]'
+                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-[#1B171F] hover:bg-slate-50 dark:hover:bg-[#25202B] border border-slate-200 dark:border-[#2B2730]'
             }`}
           >
             <Bookmark className="w-3.5 h-3.5" />
@@ -831,7 +851,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeFormTab === 'publication'
                 ? 'bg-[#BC881B] text-[#0F0D11] shadow-xs font-bold'
-                : 'text-slate-300 hover:text-white bg-[#1B171F] hover:bg-[#25202B] border border-[#2B2730]'
+                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-[#1B171F] hover:bg-slate-50 dark:hover:bg-[#25202B] border border-slate-200 dark:border-[#2B2730]'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
@@ -843,7 +863,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeFormTab === 'shelving'
                 ? 'bg-[#BC881B] text-[#0F0D11] shadow-xs font-bold'
-                : 'text-slate-300 hover:text-white bg-[#1B171F] hover:bg-[#25202B] border border-[#2B2730]'
+                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-[#1B171F] hover:bg-slate-50 dark:hover:bg-[#25202B] border border-slate-200 dark:border-[#2B2730]'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -855,7 +875,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               activeFormTab === 'inventory'
                 ? 'bg-[#BC881B] text-[#0F0D11] shadow-xs font-bold'
-                : 'text-slate-300 hover:text-white bg-[#1B171F] hover:bg-[#25202B] border border-[#2B2730]'
+                : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-[#1B171F] hover:bg-slate-50 dark:hover:bg-[#25202B] border border-slate-200 dark:border-[#2B2730]'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -864,13 +884,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         </div>
 
         {/* 2. FORM BODY - ORDERLY, SYMMETRICAL 4-COLUMN ALIGNED GRID */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 bg-[#0E0C10] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 sm:p-6 space-y-6 bg-slate-50/70 dark:bg-[#0E0C10]">
           
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span className="font-medium">{errorMessage}</span>
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+              <span className="font-semibold">{errorMessage}</span>
             </div>
           )}
 
@@ -879,15 +899,15 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
             {/* SECTION 1: BOOK IDENTITY & PRIMARY DETAILS */}
             {(activeFormTab === 'all' || activeFormTab === 'identity') && (
-              <div className="p-5 sm:p-6 rounded-xl bg-[#17141A] border border-[#2E2A33] shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-[#2E2A33] pb-3">
+              <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#17141A] border border-slate-200/90 dark:border-[#2E2A33] shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2E2A33] pb-3">
                   <div className="flex items-center gap-2">
-                    <Bookmark className="w-4 h-4 text-[#E0B450]" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    <Bookmark className="w-4 h-4 text-amber-700 dark:text-[#E0B450]" />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
                       1. Book Identity &amp; Accession Code
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-[#B3AABD]">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#B3AABD]">
                     Fields 1 to 8
                   </span>
                 </div>
@@ -896,11 +916,11 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                   {/* Field 1: Accession Number */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">1</span>
-                        <span className="text-slate-200 truncate">Accession No</span>
-                        <span className="text-rose-400 font-bold">*</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">1</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Accession No</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </span>
                     </label>
                     <div className="relative">
@@ -910,16 +930,16 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         value={accessionNo}
                         onChange={(e) => handleAccessionChange(e.target.value)}
                         placeholder="e.g. 1"
-                        className={`w-full h-10 bg-[#121014] border rounded-lg px-3 text-sm font-mono font-bold focus:outline-none transition-colors ${
+                        className={`w-full h-10 bg-white dark:bg-[#121014] border rounded-lg px-3 text-sm font-mono font-bold focus:outline-none transition-colors ${
                           accessionError
-                            ? 'border-rose-500 text-rose-300 focus:border-rose-500'
-                            : 'border-[#2B2730] text-[#E0B450] focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B]'
+                            ? 'border-rose-500 text-rose-600 dark:text-rose-300 focus:border-rose-500'
+                            : 'border-slate-300 dark:border-[#2B2730] text-amber-800 dark:text-[#E0B450] focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B]'
                         }`}
                       />
-                      <Hash className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-3.5 pointer-events-none" />
+                      <Hash className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-3 top-3.5 pointer-events-none" />
                     </div>
                     {accessionError && (
-                      <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1 truncate">
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1 mt-1 truncate">
                         <AlertCircle className="w-3 h-3 shrink-0" />
                         <span className="truncate">{accessionError}</span>
                       </p>
@@ -928,10 +948,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 2: Barcode */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">2</span>
-                        <span className="text-slate-200 truncate">Barcode No</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">2</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Barcode No</span>
                       </span>
                     </label>
                     <div className="relative">
@@ -941,19 +961,19 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         tabIndex={-1}
                         value={barcode}
                         placeholder="ULM-00000"
-                        className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-mono font-bold text-[#E0B450] cursor-not-allowed select-all"
+                        className="w-full h-10 bg-slate-100 dark:bg-[#121014] border border-slate-300 dark:border-[#2B2730] rounded-lg px-3 text-sm font-mono font-bold text-amber-800 dark:text-[#E0B450] cursor-not-allowed select-all"
                       />
-                      <BarcodeIcon className="w-3.5 h-3.5 text-[#B3AABD] absolute right-3 top-3.5 pointer-events-none" />
+                      <BarcodeIcon className="w-3.5 h-3.5 text-slate-400 dark:text-[#B3AABD] absolute right-3 top-3.5 pointer-events-none" />
                     </div>
                   </div>
 
                   {/* Field 3: Title of the Book (Spans 2 columns) */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-200">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">3</span>
-                        <span className="text-slate-200 font-semibold truncate">Title of the Book</span>
-                        <span className="text-rose-400 font-bold">*</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">3</span>
+                        <span className="text-slate-800 dark:text-slate-200 font-semibold truncate">Title of the Book</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </span>
                     </label>
                     <input
@@ -971,7 +991,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         }
                       }}
                       placeholder="e.g. Introduction to Algorithms or بانگِ درا"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-semibold text-[#F1F5F9] placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`${inputBaseClass} font-semibold ${
                         isArabicOrUrduScript(bookName) ? 'font-urdu text-base leading-tight' : ''
                       }`}
                     />
@@ -979,10 +999,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 4: Author / Editor / Org (Spans 2 columns) */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-200">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">4</span>
-                        <span className="text-slate-200 font-semibold truncate">Author / Editor / Org</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">4</span>
+                        <span className="text-slate-800 dark:text-slate-200 font-semibold truncate">Author / Editor / Org</span>
                       </span>
                     </label>
                     <input
@@ -994,7 +1014,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       onChange={(e) => setAuthor(e.target.value)}
                       placeholder="e.g. Thomas H. Cormen or علامہ محمد اقبال"
                       list="authors-list"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`${inputBaseClass} ${
                         isArabicOrUrduScript(author) ? 'font-urdu text-base leading-tight' : ''
                       }`}
                     />
@@ -1007,10 +1027,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 5: Category */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">5</span>
-                        <span className="text-slate-200 truncate">Discipline / Category</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">5</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Discipline / Category</span>
                       </span>
                     </label>
                     <CustomSelect
@@ -1019,38 +1039,37 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       options={CATEGORY_OPTIONS.map((c) => ({ value: c, label: c }))}
                       searchable
                       className="h-10 w-full"
-                      triggerClassName="h-10 bg-[#121014] border-[#2B2730] text-[#F1F5F9]"
                     />
                   </div>
 
                   {/* Field 6: Language */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">6</span>
-                        <span className="text-slate-200 truncate">Language / زبان</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">6</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Language / زبان</span>
                       </span>
                     </label>
                     <select
                       value={language}
                       onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     >
-                      <option value="English" className="bg-[#18151C] text-white">English</option>
-                      <option value="Urdu" className="bg-[#18151C] text-white">Urdu (اردو)</option>
-                      <option value="Arabic" className="bg-[#18151C] text-white">Arabic (العربية)</option>
-                      <option value="Pashto" className="bg-[#18151C] text-white">Pashto (پښتو)</option>
-                      <option value="Persian" className="bg-[#18151C] text-white">Persian (فارسی)</option>
-                      <option value="Other" className="bg-[#18151C] text-white">Other</option>
+                      <option value="English">English</option>
+                      <option value="Urdu">Urdu (اردو)</option>
+                      <option value="Arabic">Arabic (العربية)</option>
+                      <option value="Pashto">Pashto (پښتو)</option>
+                      <option value="Persian">Persian (فارسی)</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
 
                   {/* Field 7: ISBN */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">7</span>
-                        <span className="text-slate-200 truncate">ISBN (10 or 13)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">7</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">ISBN (10 or 13)</span>
                       </span>
                     </label>
                     <input
@@ -1059,14 +1078,14 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={isbn}
                       onChange={(e) => setIsbn(e.target.value)}
                       placeholder="978-0-262-03384-8"
-                      className={`w-full h-10 bg-[#121014] border rounded-lg px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none transition-colors ${
+                      className={`w-full h-10 bg-white dark:bg-[#121014] border rounded-lg px-3 text-sm font-mono text-slate-900 dark:text-[#F1F5F9] focus:outline-none transition-colors ${
                         isDuplicateIsbn 
                           ? 'border-amber-500/80 focus:border-amber-400' 
-                          : 'border-[#2B2730] focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B]'
+                          : 'border-slate-300 dark:border-[#2B2730] focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B]'
                       }`}
                     />
                     {isbnWarning && (
-                      <p className="text-[11px] font-mono text-amber-400 flex items-center gap-1 mt-1 truncate">
+                      <p className="text-[11px] font-mono text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1 truncate">
                         <span className="truncate">{isbnWarning}</span>
                       </p>
                     )}
@@ -1074,10 +1093,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 8: Phonetic Search / Romanized Title */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">8</span>
-                        <span className="text-slate-200 truncate">Romanized Title</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">8</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Romanized Title</span>
                       </span>
                     </label>
                     <input
@@ -1085,7 +1104,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={titleRoman}
                       onChange={(e) => setTitleRoman(e.target.value)}
                       placeholder="e.g. Bang-e-Dra or Algorithms"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     />
                   </div>
                 </div>
@@ -1094,15 +1113,15 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
             {/* SECTION 2: PUBLICATION & PRICING SPECIFICS */}
             {(activeFormTab === 'all' || activeFormTab === 'publication') && (
-              <div className="p-5 sm:p-6 rounded-xl bg-[#17141A] border border-[#2E2A33] shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-[#2E2A33] pb-3">
+              <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#17141A] border border-slate-200/90 dark:border-[#2E2A33] shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2E2A33] pb-3">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-[#6FA8D2]" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    <FileText className="w-4 h-4 text-sky-600 dark:text-[#6FA8D2]" />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
                       2. Publication &amp; Pricing Specifics
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-[#B3AABD]">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#B3AABD]">
                     Fields 9 to 16
                   </span>
                 </div>
@@ -1111,10 +1130,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                   {/* Field 9: Edition */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">9</span>
-                        <span className="text-slate-200 truncate">Edition</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">9</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Edition</span>
                       </span>
                     </label>
                     <input
@@ -1123,16 +1142,16 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={edition}
                       onChange={(e) => setEdition(e.target.value)}
                       placeholder="e.g. 1st Edition"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     />
                   </div>
 
                   {/* Field 10: Place of Publication */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">10</span>
-                        <span className="text-slate-200 truncate">Place of Pub.</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">10</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Place of Pub.</span>
                       </span>
                     </label>
                     <input
@@ -1144,7 +1163,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       onChange={(e) => setPlace(e.target.value)}
                       placeholder="e.g. Lakki Marwat or Lahore"
                       list="places-list"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3.5 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`${inputBaseClass} ${
                         isArabicOrUrduScript(place) ? 'font-urdu' : ''
                       }`}
                     />
@@ -1157,10 +1176,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 11: Publisher */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">11</span>
-                        <span className="text-slate-200 truncate">Publisher</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">11</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Publisher</span>
                       </span>
                     </label>
                     <input
@@ -1172,7 +1191,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       onChange={(e) => setPublisher(e.target.value)}
                       placeholder="e.g. ULM Press or Oxford"
                       list="publishers-list"
-                      className={`w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3.5 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors ${
+                      className={`${inputBaseClass} ${
                         isArabicOrUrduScript(publisher) ? 'font-urdu' : ''
                       }`}
                     />
@@ -1185,10 +1204,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 12: Publication Year */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">12</span>
-                        <span className="text-slate-200 truncate">Year (4 Digits)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">12</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Year (4 Digits)</span>
                       </span>
                     </label>
                     <input
@@ -1198,16 +1217,16 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       max={2030}
                       value={publicationYear}
                       onChange={(e) => setPublicationYear(Number(e.target.value))}
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={`${inputBaseClass} font-mono`}
                     />
                   </div>
 
                   {/* Field 13: Pages */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">13</span>
-                        <span className="text-slate-200 truncate">Total Pages</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">13</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Total Pages</span>
                       </span>
                     </label>
                     <input
@@ -1216,20 +1235,20 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={pages}
                       onChange={(e) => setPages(e.target.value)}
                       placeholder="e.g. 480"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={`${inputBaseClass} font-mono`}
                     />
                   </div>
 
                   {/* Field 14: Price (Pakistani Rupees & Paisa) */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">14</span>
-                        <span className="text-slate-200 truncate">Price (PKR)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">14</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Price (PKR)</span>
                       </span>
                     </label>
-                    <div className="h-10 flex items-center bg-[#121014] border border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
-                      <div className="flex items-center pl-3 pr-1 text-xs font-mono text-slate-400 font-bold shrink-0">
+                    <div className="h-10 flex items-center bg-white dark:bg-[#121014] border border-slate-300 dark:border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
+                      <div className="flex items-center pl-3 pr-1 text-xs font-mono text-slate-500 dark:text-slate-400 font-bold shrink-0">
                         Rs
                       </div>
                       <input
@@ -1238,10 +1257,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         value={priceRs}
                         onChange={(e) => setPriceRs(e.target.value)}
                         placeholder="850"
-                        className="w-full h-full bg-transparent px-2 text-sm font-mono text-[#F1F5F9] focus:outline-none"
+                        className="w-full h-full bg-transparent px-2 text-sm font-mono text-slate-900 dark:text-[#F1F5F9] focus:outline-none"
                       />
-                      <div className="h-5 w-[1px] bg-[#2E2A33] shrink-0" />
-                      <div className="flex items-center pl-2 pr-1 text-xs font-mono text-slate-400 font-bold shrink-0">
+                      <div className="h-5 w-[1px] bg-slate-200 dark:bg-[#2E2A33] shrink-0" />
+                      <div className="flex items-center pl-2 pr-1 text-xs font-mono text-slate-500 dark:text-slate-400 font-bold shrink-0">
                         Ps
                       </div>
                       <input
@@ -1251,17 +1270,17 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         value={pricePs}
                         onChange={(e) => setPricePs(e.target.value)}
                         placeholder="00"
-                        className="w-14 h-full bg-transparent px-2 text-sm font-mono text-[#F1F5F9] focus:outline-none"
+                        className="w-14 h-full bg-transparent px-2 text-sm font-mono text-slate-900 dark:text-[#F1F5F9] focus:outline-none"
                       />
                     </div>
                   </div>
 
                   {/* Field 15: Binding & Code */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">15</span>
-                        <span className="text-slate-200 truncate">Binding &amp; Code</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">15</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Binding &amp; Code</span>
                       </span>
                     </label>
                     <select
@@ -1274,7 +1293,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         else if (val.startsWith('03')) setBindingCode('03');
                         else if (val.startsWith('04')) setBindingCode('04');
                       }}
-                      className="w-full h-10 px-3.5 rounded-lg bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white text-sm focus:border-[#BC881B] outline-none transition-colors"
+                      className={inputBaseClass}
                     >
                       <option value="01 — Hardbound">01 — Hardbound</option>
                       <option value="02 — Paperback">02 — Paperback</option>
@@ -1285,13 +1304,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 16: Date Added */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">16</span>
-                        <span className="text-slate-200 truncate">Date Added</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">16</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Date Added</span>
                       </span>
                     </label>
-                    <div className="h-10 flex items-center bg-[#121014] border border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
+                    <div className="h-10 flex items-center bg-white dark:bg-[#121014] border border-slate-300 dark:border-[#2B2730] rounded-lg overflow-hidden focus-within:border-[#BC881B] focus-within:ring-1 focus-within:ring-[#BC881B] transition-colors">
                       <input
                         type="text"
                         tabIndex={16}
@@ -1299,8 +1318,8 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         onChange={(e) => handleDateTextChange(e.target.value)}
                         onBlur={handleDateBlur}
                         placeholder="02-Oct-2026"
-                        className={`flex-1 h-full bg-transparent px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none ${
-                          dateAddedError ? 'text-rose-400' : ''
+                        className={`flex-1 h-full bg-transparent px-3 text-sm font-mono text-slate-900 dark:text-[#F1F5F9] focus:outline-none ${
+                          dateAddedError ? 'text-rose-500 dark:text-rose-400' : ''
                         }`}
                       />
                       <div className="relative shrink-0 pr-1">
@@ -1313,7 +1332,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                           className="w-8 h-8 opacity-0 absolute inset-0 cursor-pointer z-10"
                           title="Pick date"
                         />
-                        <div className="w-8 h-8 rounded-md bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] flex items-center justify-center text-[#E0B450] pointer-events-none transition-colors">
+                        <div className="w-8 h-8 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-[#2B2730] border border-slate-200 dark:border-[#2E2A33] flex items-center justify-center text-amber-700 dark:text-[#E0B450] pointer-events-none transition-colors">
                           <Calendar className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -1325,15 +1344,15 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
             {/* SECTION 3: ARCHIVAL SHELVING & ALMARI LOCATION */}
             {(activeFormTab === 'all' || activeFormTab === 'shelving') && (
-              <div className="p-5 sm:p-6 rounded-xl bg-[#17141A] border border-[#2E2A33] shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-[#2E2A33] pb-3">
+              <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#17141A] border border-slate-200/90 dark:border-[#2E2A33] shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2E2A33] pb-3">
                   <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-[#A66BC9]" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    <Layers className="w-4 h-4 text-purple-700 dark:text-[#A66BC9]" />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
                       3. Archival Shelving &amp; Almari Location
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-[#B3AABD]">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-[#B3AABD]">
                     Fields 17 to 22
                   </span>
                 </div>
@@ -1342,20 +1361,20 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                   {/* Field 17: Almari (الماری) */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">17</span>
-                        <span className="text-slate-200 truncate">Almari (الماری)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">17</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Almari (الماری)</span>
                       </span>
                     </label>
                     <select
                       value={almariId}
                       onChange={(e) => setAlmariId(e.target.value)}
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-2.5 text-xs sm:text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     >
-                      <option value="" className="bg-[#18151C] text-white">(No almari assigned)</option>
+                      <option value="">(Unassigned — No Almari)</option>
                       {AlmariService.getAlmaris().filter(a => a.is_active).map(a => (
-                        <option key={a.id} value={a.id} className="bg-[#18151C] text-white">
+                        <option key={a.id} value={a.id}>
                           {a.code} - {a.name_en}
                         </option>
                       ))}
@@ -1364,10 +1383,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 18: Shelf Number */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">18</span>
-                        <span className="text-slate-200 truncate">Shelf Level (1-12)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">18</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Shelf Level (1-12)</span>
                       </span>
                     </label>
                     <input
@@ -1376,26 +1395,26 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       max="12"
                       value={shelfNo}
                       onChange={(e) => setShelfNo(parseInt(e.target.value, 10) || 1)}
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={`${inputBaseClass} font-mono`}
                     />
                   </div>
 
                   {/* Field 19: Book Group (گروپ) */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">19</span>
-                        <span className="text-slate-200 truncate">Classification Group</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">19</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Classification Group</span>
                       </span>
                     </label>
                     <select
                       value={groupId}
                       onChange={(e) => setGroupId(e.target.value)}
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-2.5 text-xs sm:text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     >
-                      <option value="" className="bg-[#18151C] text-white">(Unassigned group)</option>
+                      <option value="">(Auto-resolved from Category)</option>
                       {AlmariService.getGroups().filter(g => g.is_active).map(g => (
-                        <option key={g.id} value={g.id} className="bg-[#18151C] text-white">
+                        <option key={g.id} value={g.id}>
                           {g.name_en} ({g.name_ur})
                         </option>
                       ))}
@@ -1404,10 +1423,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 20: Dewey Call Number */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">20</span>
-                        <span className="text-slate-200 truncate">Dewey Call No</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">20</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Dewey Call No</span>
                       </span>
                     </label>
                     <input
@@ -1416,16 +1435,16 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={deweyCallNumber}
                       onChange={(e) => setDeweyCallNumber(e.target.value)}
                       placeholder="005.133 ULM"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm font-mono text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={`${inputBaseClass} font-mono`}
                     />
                   </div>
 
                   {/* Field 21: Archival Section (2 columns) */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">21</span>
-                        <span className="text-slate-200 truncate">Archival Stacks Section</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">21</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Archival Stacks Section</span>
                       </span>
                     </label>
                     <input
@@ -1434,32 +1453,26 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={section}
                       onChange={(e) => setSection(e.target.value)}
                       placeholder="e.g. Main Stacks or Reference Wing"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     />
                   </div>
 
                   {/* Field 22: Source / Acquisition Remarks (2 columns) */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">22</span>
-                        <span className="text-slate-200 truncate">Source / Acquisition Remarks</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">22</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Source / Acquisition Remarks</span>
                       </span>
                       <div className="relative group inline-flex items-center">
                         <button
                           type="button"
                           onClick={() => handleDittoField('source')}
-                          className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
+                          className="w-5 h-5 rounded flex items-center justify-center text-amber-700 dark:text-[#E0B450] hover:text-amber-900 dark:hover:text-amber-200 bg-slate-100 dark:bg-[#221F26] hover:bg-slate-200 dark:hover:bg-[#2B2730] border border-slate-300 dark:border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
                           aria-label="Copy previous source remarks"
                         >
                           <Copy className="w-3 h-3 opacity-90" />
                         </button>
-                        <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                          <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                            Copy from previous entry
-                          </div>
-                          <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                        </div>
                       </div>
                     </label>
                     <input
@@ -1470,7 +1483,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                       value={sourceRemarks}
                       onChange={(e) => setSourceRemarks(e.target.value)}
                       placeholder="e.g. University Purchase or HEC Grant"
-                      className="w-full h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-sm text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                      className={inputBaseClass}
                     />
                   </div>
                 </div>
@@ -1479,18 +1492,18 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
             {/* SECTION 4: INVENTORY, COVER ART & DESCRIPTION */}
             {(activeFormTab === 'all' || activeFormTab === 'inventory') && (
-              <div className="p-5 sm:p-6 rounded-xl bg-[#17141A] border border-[#2E2A33] shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-[#2E2A33] pb-3">
+              <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#17141A] border border-slate-200/90 dark:border-[#2E2A33] shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2E2A33] pb-3">
                   <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[#34D399]" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    <BookOpen className="w-4 h-4 text-emerald-600 dark:text-[#34D399]" />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
                       4. Inventory Quantity, Cover &amp; Notes
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowMediaStudio(!showMediaStudio)}
-                    className="text-xs font-mono text-[#E0B450] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-mono font-bold text-amber-700 dark:text-[#E0B450] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <ImageIcon className="w-3.5 h-3.5" />
                     <span>{showMediaStudio ? 'Hide Cover Studio' : 'Edit Cover Image'}</span>
@@ -1501,18 +1514,18 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                   {/* Field 23: Total Copies */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">23</span>
-                        <span className="text-slate-200 truncate">Copies / Quantity (1–50)</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">23</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Copies / Quantity (1–50)</span>
                       </span>
-                      <span className="text-[10px] text-[#E0B450] font-mono">1–50 unique</span>
+                      <span className="text-[10px] text-amber-700 dark:text-[#E0B450] font-mono font-bold">1–50 unique</span>
                     </label>
-                    <div className="flex items-center h-10 border border-[#2B2730] rounded-lg overflow-hidden bg-[#121014]">
+                    <div className="flex items-center h-10 border border-slate-300 dark:border-[#2B2730] rounded-lg overflow-hidden bg-white dark:bg-[#121014]">
                       <button
                         type="button"
                         onClick={() => setTotalQuantity(Math.max(1, totalQuantity - 1))}
-                        className="w-10 h-full text-slate-400 hover:text-white hover:bg-[#221F26] flex items-center justify-center font-bold text-base cursor-pointer transition-colors"
+                        className="w-10 h-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#221F26] flex items-center justify-center font-bold text-base cursor-pointer transition-colors"
                       >
                         -
                       </button>
@@ -1522,12 +1535,12 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         max={50}
                         value={totalQuantity}
                         onChange={(e) => setTotalQuantity(Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-                        className="flex-1 w-16 bg-transparent text-center font-mono font-bold text-sm text-[#F1F5F9] focus:outline-none"
+                        className="flex-1 w-16 bg-transparent text-center font-mono font-bold text-sm text-slate-900 dark:text-[#F1F5F9] focus:outline-none"
                       />
                       <button
                         type="button"
                         onClick={() => setTotalQuantity(Math.min(50, totalQuantity + 1))}
-                        className="w-10 h-full text-slate-400 hover:text-white hover:bg-[#221F26] flex items-center justify-center font-bold text-base cursor-pointer transition-colors"
+                        className="w-10 h-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#221F26] flex items-center justify-center font-bold text-base cursor-pointer transition-colors"
                       >
                         +
                       </button>
@@ -1536,13 +1549,13 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 24: Available in Circulation */}
                   <div className="space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">24</span>
-                        <span className="text-slate-200 truncate">Loan Availability</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">24</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Loan Availability</span>
                       </span>
                     </label>
-                    <div className="h-10 px-3 rounded-lg bg-[#121014] border border-[#2B2730] flex items-center justify-between text-xs font-mono font-bold text-emerald-400">
+                    <div className="h-10 px-3 rounded-lg bg-emerald-50/70 dark:bg-[#121014] border border-emerald-300 dark:border-[#2B2730] flex items-center justify-between text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
                       <span>In Stacks:</span>
                       <span>{Math.min(availableQuantity, totalQuantity)} of {totalQuantity} Copies</span>
                     </div>
@@ -1550,10 +1563,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                   {/* Field 25: Cover Preview / Toggle (2 columns) */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5 truncate">
-                        <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">25</span>
-                        <span className="text-slate-200 truncate">Book Cover Image</span>
+                        <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">25</span>
+                        <span className="text-slate-800 dark:text-slate-200 truncate">Book Cover Image</span>
                       </span>
                     </label>
                     <div className="flex items-center gap-2">
@@ -1562,12 +1575,12 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         value={bookImagePath}
                         onChange={(e) => setBookImagePath(e.target.value)}
                         placeholder="Image URL or upload below..."
-                        className="flex-1 h-10 bg-[#121014] border border-[#2B2730] rounded-lg px-3 text-xs sm:text-sm font-mono text-[#F1F5F9] focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-colors"
+                        className={`${inputBaseClass} flex-1 font-mono`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowMediaStudio(!showMediaStudio)}
-                        className="h-10 px-3 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-xs font-semibold text-white border border-[#2E2A33] shrink-0 cursor-pointer transition-colors"
+                        className="h-10 px-3.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-[#2B2730] text-xs font-bold text-slate-800 dark:text-white border border-slate-300 dark:border-[#2E2A33] shrink-0 cursor-pointer transition-colors"
                       >
                         {showMediaStudio ? 'Close' : 'Presets / Upload'}
                       </button>
@@ -1577,10 +1590,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
                 {/* Collapsible Cover Studio */}
                 {showMediaStudio && (
-                  <div className="p-4 rounded-xl bg-[#141214] border border-[#2E2A33] space-y-3">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#141214] border border-slate-200 dark:border-[#2E2A33] space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                        <ImageIcon className="w-3.5 h-3.5 text-[#E0B450]" />
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-amber-700 dark:text-[#E0B450]" />
                         Choose Cover Image or Upload
                       </span>
                       <input
@@ -1594,7 +1607,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 rounded-lg bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] text-xs font-medium text-slate-200 cursor-pointer transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 dark:bg-[#221F26] dark:hover:bg-[#2B2730] border border-slate-300 dark:border-[#2E2A33] text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer transition-colors"
                         >
                           {isProcessingImage ? 'Processing...' : 'Upload Image'}
                         </button>
@@ -1602,7 +1615,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setBookImagePath('')}
-                            className="px-2 py-1 text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+                            className="px-2 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-500 cursor-pointer"
                           >
                             Remove
                           </button>
@@ -1611,14 +1624,14 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                     </div>
 
                     {/* Presets Row */}
-                    <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[#2E2A33]">
-                      <span className="text-[11px] text-[#B3AABD] font-mono">Academic Presets:</span>
+                    <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-200 dark:border-[#2E2A33]">
+                      <span className="text-[11px] text-slate-500 dark:text-[#B3AABD] font-mono">Academic Presets:</span>
                       {PRESET_COVERS.map((preset) => (
                         <button
                           key={preset.name}
                           type="button"
                           onClick={() => setBookImagePath(preset.url)}
-                          className="px-2.5 py-1 rounded-md bg-[#121014] hover:bg-[#25202B] border border-[#2B2730] text-[11px] text-slate-300 font-medium cursor-pointer transition-colors"
+                          className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-100 dark:bg-[#121014] dark:hover:bg-[#25202B] border border-slate-300 dark:border-[#2B2730] text-[11px] text-slate-700 dark:text-slate-300 font-semibold cursor-pointer transition-colors"
                         >
                           {preset.name}
                         </button>
@@ -1628,11 +1641,11 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 )}
 
                 {/* Field 26: Description / Syllabus Notes */}
-                <div className="space-y-1.5 pt-3 border-t border-[#2E2A33]">
-                  <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-300">
+                <div className="space-y-1.5 pt-3 border-t border-slate-200 dark:border-[#2E2A33]">
+                  <label className="h-5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                     <span className="flex items-center gap-1.5 truncate">
-                      <span className="w-4 h-4 rounded-full bg-[#BC881B]/20 text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">26</span>
-                      <span className="text-slate-200 truncate">Catalog Description, Syllabus Reference &amp; Course Notes</span>
+                      <span className="w-4 h-4 rounded-full bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">26</span>
+                      <span className="text-slate-800 dark:text-slate-200 truncate">Catalog Description, Syllabus Reference &amp; Course Notes</span>
                     </span>
                   </label>
                   <textarea
@@ -1641,7 +1654,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Course codes, syllabus overview, prerequisites, or condition notes..."
-                    className="w-full bg-[#121014] border border-[#2B2730] rounded-lg p-3 text-xs sm:text-sm text-[#F1F5F9] placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] leading-relaxed resize-y transition-colors"
+                    className="w-full bg-white dark:bg-[#121014] border border-slate-300 dark:border-[#2B2730] rounded-lg p-3 text-xs sm:text-sm text-slate-900 dark:text-[#F1F5F9] placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] leading-relaxed resize-y transition-colors"
                   />
                 </div>
               </div>
@@ -1650,7 +1663,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
         </div>
 
         {/* 3. MODAL FOOTER BAR */}
-        <div className="px-6 py-3.5 bg-[#141214] border-t border-[#2E2A33] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-3.5 bg-slate-50/95 dark:bg-[#141214] border-t border-slate-200 dark:border-[#2E2A33] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 w-full sm:w-auto">
             {bookToEdit && onDelete && (
               <button
@@ -1659,14 +1672,14 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                   onClose();
                   onDelete(bookToEdit);
                 }}
-                className="px-3.5 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                 <span>Withdraw Title</span>
               </button>
             )}
-            <div className="text-[11px] text-[#B3AABD] flex items-center gap-1.5 font-mono">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="text-[11px] text-slate-500 dark:text-[#B3AABD] flex items-center gap-1.5 font-mono">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>SQLite WAL Atomic Record</span>
             </div>
           </div>
@@ -1675,7 +1688,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-slate-300 text-xs font-semibold border border-[#2E2A33] transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-white hover:bg-slate-100 dark:bg-[#221F26] dark:hover:bg-[#2B2730] text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-300 dark:border-[#2E2A33] transition-colors cursor-pointer"
             >
               Cancel (Esc)
             </button>
@@ -1685,10 +1698,10 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
                 type="button"
                 onClick={() => executeSave(true)}
                 disabled={saveState !== 'idle'}
-                className="px-4 py-2 rounded-lg bg-[#1F1B24] hover:bg-[#2B2533] text-[#E0B450] font-semibold text-xs border border-[#BC881B]/40 flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-[#1F1B24] dark:hover:bg-[#2B2533] text-amber-900 dark:text-[#E0B450] font-bold text-xs border border-amber-300 dark:border-[#BC881B]/40 flex items-center gap-1.5 transition-all cursor-pointer"
                 title="Save current volume and immediately prepare next accession entry"
               >
-                <Zap className="w-3.5 h-3.5 text-[#E0B450]" />
+                <Zap className="w-3.5 h-3.5 text-amber-700 dark:text-[#E0B450]" />
                 <span>Save &amp; Next (Enter ↵)</span>
               </button>
             )}
@@ -1697,21 +1710,21 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
               type="button"
               onClick={() => executeSave(false)}
               disabled={saveState !== 'idle'}
-              className="px-6 py-2 rounded-lg bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:brightness-110 active:scale-[0.98] text-[#0F0D11] font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-2 rounded-lg bg-gradient-to-r from-[#541A72] to-[#3B1054] hover:from-[#65208A] hover:to-[#4A1568] active:scale-[0.98] text-white font-extrabold text-xs border border-[#FFD147]/45 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               {saveState === 'loading' ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FFD147]" />
                   <span>Recording...</span>
                 </>
               ) : saveState === 'success' ? (
                 <>
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <Check className="w-3.5 h-3.5 stroke-[3] text-[#FFD147]" />
                   <span>Committed</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-3.5 h-3.5 stroke-[2.2]" />
+                  <Save className="w-3.5 h-3.5 stroke-[2.2] text-[#FFD147]" />
                   <span>{bookToEdit ? 'Save Changes' : 'Register Volume'}</span>
                 </>
               )}
@@ -1723,3 +1736,4 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
     </div>
   );
 };
+

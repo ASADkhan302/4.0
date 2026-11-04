@@ -1,27 +1,34 @@
 import React, { useState } from 'react';
-import { 
-  FolderOpen, 
-  Database, 
-  FileSpreadsheet, 
-  CheckCircle2, 
-  HardDrive, 
+import {
+  FolderOpen,
+  FileSpreadsheet,
   ArrowRight,
   ShieldCheck,
-  Hash,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  ArchiveRestore,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
-import { ULM_CREST_LOGO } from '../../constants/branding';
-import { syncMasterExcelRegister } from '../../services/libraryStorageAndMigration';
+import { ULM_OFFICIAL_CREST_DATA_URI, handleCrestFallback } from '../../constants/ulmOfficialCrest';
+import {
+  syncMasterExcelRegister,
+  markWorkstationSetupCompleted,
+} from '../../services/libraryStorageAndMigration';
 
 export interface StorageSetupModalProps {
   isOpen: boolean;
   onClose?: () => void;
-  onConfigured: (folderPath: string, action?: 'add_manual' | 'import_excel') => void;
+  onConfigured: (
+    folderPath: string,
+    action?: 'add_manual' | 'import_excel' | 'restore_package' | 'new_library'
+  ) => void;
   isResetMode?: boolean;
 }
 
 export const StorageSetupModal: React.FC<StorageSetupModalProps> = ({
   isOpen,
+  onClose,
   onConfigured,
   isResetMode = false,
 }) => {
@@ -35,7 +42,7 @@ export const StorageSetupModal: React.FC<StorageSetupModalProps> = ({
     setIsSelecting(true);
     setErrorMsg(null);
     try {
-      // 1. Electron Native folder selection
+      // 1. Electron / WebView2 Native folder selection
       if (typeof window !== 'undefined' && window.ulmLibraryApi?.selectCustomDataFolder) {
         const res = await window.ulmLibraryApi.selectCustomDataFolder();
         if (res && !res.canceled && res.activeDataDir) {
@@ -70,21 +77,26 @@ export const StorageSetupModal: React.FC<StorageSetupModalProps> = ({
     }
   };
 
-  const handleInitializeStorage = async (action?: 'add_manual' | 'import_excel') => {
+  const handleCompleteOnboarding = async (
+    mode: string,
+    action?: 'add_manual' | 'import_excel' | 'restore_package' | 'new_library'
+  ) => {
     const finalPath = folderPath.trim() || 'Documents\\ULM Library Data';
     try {
-      // Bind folder config to localStorage
       const config = {
+        mode,
         folderPath: finalPath,
         configuredAt: new Date().toISOString(),
         isConfigured: true,
       };
-      localStorage.setItem('ulm_storage_location_configured_v1', 'true');
       localStorage.setItem('ulm_data_folder_config_v1', JSON.stringify(config));
       localStorage.removeItem('ulm_database_cleared');
+      markWorkstationSetupCompleted(mode);
 
       // Initialize Master Excel Register in persistent folder
-      await syncMasterExcelRegister([]);
+      try {
+        await syncMasterExcelRegister([]);
+      } catch (_) {}
 
       onConfigured(finalPath, action);
     } catch (err: any) {
@@ -92,152 +104,257 @@ export const StorageSetupModal: React.FC<StorageSetupModalProps> = ({
     }
   };
 
+  const handleDismissClose = () => {
+    const finalPath = folderPath.trim() || 'Documents\\ULM Library Data';
+    markWorkstationSetupCompleted('dismissed_close');
+    if (onClose) {
+      onClose();
+    } else {
+      onConfigured(finalPath);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Institutional Header with ULM Crest */}
-        <div className="p-6 bg-slate-50 dark:bg-gradient-to-b dark:from-[#131B2E] dark:to-[#0B1120] border-b border-slate-200 dark:border-white/[0.08] text-center flex flex-col items-center">
-          <img
-            src={ULM_CREST_LOGO}
-            alt="University of Lakki Marwat Crest"
-            className="w-16 h-16 object-contain mb-3 drop-shadow-md select-none"
-          />
-          <h2 className="text-xl font-bold font-cinzel text-slate-900 dark:text-white tracking-wide">
-            University of Lakki Marwat
-          </h2>
-          <p className="text-xs font-semibold text-[#BC881B] tracking-[0.16em] uppercase mt-0.5">
-            Central Campus Library · System Setup Gate
-          </p>
-          <div className="mt-3 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>
-              {isResetMode ? 'Post-Reset Data Initialization' : 'First-Install Storage & Master Excel Binding'}
-            </span>
-          </div>
-        </div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={handleDismissClose}
+    >
+      <div
+        className="relative max-w-5xl w-full rounded-2xl overflow-hidden flex flex-col max-h-[90dvh] bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#150E22] dark:via-[#110B1C] dark:to-[#0C0814] border-2 border-[#C8963E]/70 dark:border-[#FFD147]/35 shadow-[0_25px_70px_-15px_rgba(20,12,32,0.65)] text-slate-900 dark:text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top 24K Gold Accent Bar */}
+        <div className="h-2 w-full bg-gradient-to-r from-[#541A72] via-[#D49B27] to-[#541A72] shrink-0" />
 
-        {/* Setup Content */}
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 text-slate-800 dark:text-slate-200">
-          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-1">
-            <p>
-              Please designate or confirm your official <strong>Library Data Folder</strong>. All physical book accession records, circulation data, and the live <strong>Master Excel Register</strong> will be bound to this directory.
-            </p>
+        {/* Scrollable Executive Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 sm:p-7 space-y-5">
+          {/* Header Block with Official ULM 2017 Crest Pedestal */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 pb-5 border-b border-[#DCCB9E]/80 dark:border-white/10 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 flex-1 min-w-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-2 bg-gradient-to-br from-white via-[#FBF4E4] to-[#EFE0BE] dark:from-white/15 dark:to-white/5 border-2 border-[#C8963E]/65 dark:border-[#FFD147]/40 shadow-[0_8px_24px_-4px_rgba(180,105,14,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] flex items-center justify-center shrink-0">
+                <img
+                  src={ULM_OFFICIAL_CREST_DATA_URI}
+                  alt="University of Lakki Marwat Official Crest"
+                  onError={handleCrestFallback}
+                  className="w-full h-full object-contain drop-shadow-sm select-none"
+                  draggable={false}
+                />
+              </div>
+
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#F5E1B0] to-[#EBC97E] dark:from-[#FFD147]/20 dark:to-[#B8731B]/20 border border-[#C59032]/55 text-[#5E3200] dark:text-[#FFD147] text-xs font-extrabold uppercase tracking-wider">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {isResetMode
+                      ? 'Post-Reset Workstation Initialization'
+                      : 'Official First-Install Workstation Onboarding'}
+                  </span>
+                </div>
+
+                <h2 className="text-2xl sm:text-[26px] font-display font-extrabold text-[#1A1027] dark:text-white tracking-tight leading-tight">
+                  University of Lakki Marwat
+                </h2>
+
+                <p className="text-xs sm:text-sm font-extrabold uppercase tracking-[0.18em] text-[#8A4B00] dark:text-[#FFD147]">
+                  Central Campus Library · Workstation Setup Suite
+                </p>
+
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-w-2xl pt-0.5">
+                  Welcome to the official offline campus library workstation. Choose how you would like to initialize your local 100,000+ volume catalog and live Master Excel Register below.
+                </p>
+              </div>
+            </div>
+
+            {/* Top-Right Close Button aligned cleanly inside Header */}
+            <button
+              type="button"
+              onClick={handleDismissClose}
+              title="Close and Enter Workstation"
+              style={{ minWidth: '36px', minHeight: '36px', padding: 0 }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center bg-white hover:bg-slate-100 dark:bg-white/10 dark:hover:bg-white/20 text-slate-800 dark:text-white border border-[#DCCB9E] dark:border-white/15 shadow-xs transition-all cursor-pointer shrink-0 self-end sm:self-start"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Folder Path Input & Picker */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <FolderOpen className="w-3.5 h-3.5 text-[#BC881B]" />
-              <span>Library Data Folder</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={folderPath}
-                onChange={(e) => setFolderPath(e.target.value)}
-                placeholder="C:\Users\Librarian\Documents\ULM Library Data"
-                className="flex-1 h-11 px-3.5 bg-slate-50 dark:bg-[#131B2E] border border-slate-300 dark:border-white/10 rounded-lg text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#BC881B] transition-colors"
-              />
+          {/* Compact Folder Path Selector Bar */}
+          <div className="p-4 rounded-2xl bg-white/95 dark:bg-[#1A132B]/90 border border-[#DCCB9E] dark:border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="space-y-1 flex-1 min-w-0">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-[#8A4B00] dark:text-[#FFD147] flex items-center gap-1.5 mb-1">
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>Designated Library Repository Path</span>
+              </label>
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+                <input
+                  type="text"
+                  value={folderPath}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                  placeholder="Documents\ULM Library Data"
+                  className="flex-1 min-w-[200px] h-10 px-3.5 rounded-xl bg-[#FAF6EC] dark:bg-[#0C0814] border border-[#D4B475]/70 dark:border-white/15 text-xs font-mono font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#B8731B]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSelectFolder}
+                  disabled={isSelecting}
+                  className="h-10 px-4 rounded-xl bg-white hover:bg-[#FAF5E8] dark:bg-white/10 dark:hover:bg-white/15 text-slate-900 dark:text-white border border-[#C8963E]/60 dark:border-white/15 text-xs font-bold inline-flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-2xs"
+                >
+                  <FolderOpen className="w-4 h-4 text-[#B8731B] dark:text-[#FFD147] shrink-0" />
+                  <span>{isSelecting ? 'Selecting...' : 'Browse Folder'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3-Column Horizontal Onboarding Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1 (Recommended — Gold Rim): Start as a New Library */}
+            <div
+              onClick={() => handleCompleteOnboarding('new_library')}
+              className="group relative min-w-0 overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#1A132B]/90 border-2 border-[#C8963E] dark:border-[#FFD147]/60 shadow-[0_10px_25px_-8px_rgba(180,105,14,0.20)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-4"
+            >
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A] dark:from-[#FFD147]/25 dark:to-[#B8731B]/20 border border-[#D49B27]/50 flex items-center justify-center text-[#92400E] dark:text-[#FFD147] shadow-2xs shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-amber-100 dark:bg-[#FFD147]/20 text-[#78350F] dark:text-[#FFD147] border border-[#D49B27]/50 shrink-0">
+                    Recommended
+                  </span>
+                </div>
+
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                    Start as a New Library
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+                    Initialize a clean 0-book institutional catalog with continuous accession series starting at <span className="font-mono font-bold text-[#8A4B00] dark:text-[#FFD147]">#1</span> and auto-synced Master Excel Register.
+                  </p>
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={handleSelectFolder}
-                disabled={isSelecting}
-                className="h-11 px-4 bg-slate-200 dark:bg-[#1F293D] hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-xs font-semibold inline-flex items-center gap-2 border border-slate-300 dark:border-white/10 transition-colors cursor-pointer shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCompleteOnboarding('new_library');
+                }}
+                style={{ minWidth: 0, color: '#FFFFFF' }}
+                className="w-full max-w-full min-w-0 overflow-hidden h-10 px-3 rounded-xl bg-gradient-to-r from-[#B8731B] to-[#D49B27] hover:from-[#9E6012] hover:to-[#B8731B] text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
-                <FolderOpen className="w-4 h-4 text-[#BC881B]" />
-                <span>{isSelecting ? 'Selecting...' : 'Browse...'}</span>
+                <span className="truncate">Initialize Clean Catalog</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Native SQLite database and Master Excel will be bound inside this folder.
-            </p>
-          </div>
 
-          {/* Verification & Storage Binding Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div className="p-3 bg-slate-50 dark:bg-[#131B2E] border border-slate-200 dark:border-white/[0.06] rounded-xl flex items-start gap-3">
-              <Database className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Unlimited SQLite / IDB</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                  1,000,000+ books capacity with 0 MB localStorage overhead.
-                </p>
+            {/* Card 2 (Emerald Rim): Import My Existing Excel Sheet */}
+            <div
+              onClick={() => handleCompleteOnboarding('import_excel', 'import_excel')}
+              className="group relative min-w-0 overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#1A132B]/90 border-2 border-emerald-600/55 dark:border-emerald-400/45 hover:border-emerald-600 dark:hover:border-emerald-400 shadow-[0_10px_25px_-8px_rgba(5,150,105,0.16)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-4"
+            >
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-700 dark:text-emerald-300 shadow-2xs shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
+                    Excel / CSV
+                  </span>
+                </div>
+
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                    Import My Existing Excel Sheet
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+                    Upload your existing <span className="font-mono font-bold">.xlsx</span> or <span className="font-mono font-bold">.csv</span> register. Streams up to 100,000+ books with automatic 13-digit Code-128 barcodes.
+                  </p>
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCompleteOnboarding('import_excel', 'import_excel');
+                }}
+                style={{ minWidth: 0, color: '#FFFFFF' }}
+                className="w-full max-w-full min-w-0 overflow-hidden h-10 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              >
+                <span className="truncate">Select Excel / CSV File</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
             </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-[#131B2E] border border-slate-200 dark:border-white/[0.06] rounded-xl flex items-start gap-3">
-              <FileSpreadsheet className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Master Excel Register</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                  <span className="font-mono text-amber-600 dark:text-amber-300">ULM_Master_Books_Register.xlsx</span> live sync.
-                </p>
-              </div>
-            </div>
+            {/* Card 3 (Royal Purple Rim): Restore Library Package (.ulmpack) */}
+            <div
+              onClick={() => handleCompleteOnboarding('restore_package', 'restore_package')}
+              className="group relative min-w-0 overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#1A132B]/90 border-2 border-[#7A28A3]/50 dark:border-purple-400/45 hover:border-[#541A72] dark:hover:border-purple-400 shadow-[0_10px_25px_-8px_rgba(84,26,114,0.18)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer flex flex-col justify-between gap-4"
+            >
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="w-11 h-11 rounded-xl bg-[#541A72]/15 dark:bg-purple-500/20 border border-[#541A72]/35 dark:border-purple-400/35 flex items-center justify-center text-[#541A72] dark:text-purple-300 shadow-2xs shrink-0">
+                    <ArchiveRestore className="w-5 h-5" />
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-[#541A72]/15 dark:bg-purple-500/20 text-[#541A72] dark:text-purple-300 border border-[#541A72]/30 shrink-0">
+                    Backup Restore
+                  </span>
+                </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-[#131B2E] border border-slate-200 dark:border-white/[0.06] rounded-xl flex items-start gap-3">
-              <Hash className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Monotonic Series Engine</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                  Strict numbering: <span className="font-mono text-blue-600 dark:text-blue-300">100000 → 100001</span>.
-                </p>
+                <div className="min-w-0">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                    Restore Library Package (.ulmpack)
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+                    Restore a verified <span className="font-mono font-bold">.ulmpack</span> or USB transfer snapshot including books, members, circulation loans, and almari shelves.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-[#131B2E] border border-slate-200 dark:border-white/[0.06] rounded-xl flex items-start gap-3">
-              <HardDrive className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Zero Demo Data Policy</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                  Starts with exactly 0 books. Zero synthetic mixing.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCompleteOnboarding('restore_package', 'restore_package');
+                }}
+                style={{ minWidth: 0, color: '#FFFFFF' }}
+                className="w-full max-w-full min-w-0 overflow-hidden h-10 px-3 rounded-xl bg-[#541A72] hover:bg-[#3E1156] text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              >
+                <span className="truncate">Restore Backup Package</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
             </div>
           </div>
 
           {errorMsg && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-600 dark:text-rose-300 flex items-center gap-2">
+            <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
         </div>
 
-        {/* Footer Actions: Direct Onboarding */}
-        <div className="p-4 bg-slate-50 dark:bg-[#131B2E] border-t border-slate-200 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Ready for official campus inventory</span>
+        {/* Bottom Assurance Footer Bar */}
+        <div className="px-6 py-4 bg-[#F3EBD9]/95 dark:bg-[#0C0814]/95 border-t border-[#DCCB9E] dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              100% Offline Local Storage · Saved permanently so this setup screen never interrupts you again
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleInitializeStorage('add_manual')}
-              className="h-9 px-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <span>➕ Add Books Manually</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleInitializeStorage('import_excel')}
-              className="h-9 px-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <span>📥 Import Books from Excel / CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleInitializeStorage()}
-              className="h-9 px-4 bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 text-xs font-bold uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <span>Enter Workspace</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => handleCompleteOnboarding('enter_workstation')}
+            style={{ color: '#FFD147' }}
+            className="h-10 px-5 rounded-xl bg-gradient-to-r from-[#2D124D] via-[#431975] to-[#5E239D] hover:from-[#391761] hover:to-[#6E2AB8] text-[#FFD147] border border-[#FFD147]/55 font-extrabold text-xs sm:text-sm tracking-wide inline-flex items-center gap-2 shadow-[0_6px_18px_-4px_rgba(67,25,117,0.5)] hover:-translate-y-0.5 transition-all cursor-pointer shrink-0"
+          >
+            <span>Enter Library Workstation</span>
+            <ArrowRight className="w-4 h-4 shrink-0" />
+          </button>
         </div>
       </div>
     </div>
   );
 };
+
 export default StorageSetupModal;

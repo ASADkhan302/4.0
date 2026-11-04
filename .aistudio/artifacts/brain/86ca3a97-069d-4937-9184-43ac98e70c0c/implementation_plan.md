@@ -1,66 +1,81 @@
-# University of Lakki Marwat — Central Campus Library Management System: Offline Windows Desktop (.exe) Readiness Plan
+# ULM Library v3.0 — Exact Byte-for-Byte ULM 2017 Crest Preservation & Asset Synchronization
 
-## 1. Confirmed Decisions & Scope
-- **Full Offline Bundle Architecture**: Eliminate all external internet/CDN links (Google Fonts preconnect/stylesheets, CDN scripts, or import maps) so the application compiles cleanly offline via Vite (`base: './'`) into a self-contained static bundle mapped to `https://app.local/` inside WebView2.
-- **Complete C# .NET 8 WPF + WebView2 Builder Included**: Provide a turnkey desktop packaging workflow that compiles the production frontend bundle, converts the ULM 2017 crest into a multi-resolution Windows `.ico` (`16x16` through `256x256`), and builds the native C# .NET 8 WPF + WebView2 `.exe` host mapped to `https://app.local/`.
-- **Custom Top Windows Title Bar Retained**: Keep the custom top workstation title bar (`ULM Library — Central Campus Workstation`) permanently visible with the official ULM 2017 crest badge on the left and native WebView2 window control buttons (`Minimize`, `Maximize/Restore`, `Close`) on the right.
-- **Locked Executive UI & Scroll Geometry Preserved**:
-  - **Full-Width Executive Institutional Header**: Retains the full-width edge-to-edge shell (`min-h-[96px] xl:min-h-[108px]`) with the large ULM crest pedestal and title block pinned flush-left (`mr-auto`) and the 6 large executive toolbar buttons (`White Glass`, `125%`, `Sync Sheet`, `Export`, `Master Excel`, `+ Add Book`) pinned flush-right (`ml-auto`).
-  - **Fixed Left Navigation Sidebar**: Remains permanently docked on the left (`240px` expanded / `72px` collapsed icon rail) and never scrolls vertically with page content.
-  - **Dedicated Vertical Scroll Container**: `#ulm-main-scroll-view` (`flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar`) serves as the single smooth vertical scroll viewport across all 8 workstation modules.
+This plan locks in your exact uploaded **University of Lakki Marwat (ULM 2017) Crest PNG** (`863417491_2133473440593759_7550028921333764276_n.png` — featuring the four-quadrant gold and purple shield with the open book, crescent and star, camel, and circuit-plant, purple sun rays over mountains, gold wheat wreath, `"UNIVERSITY OF LAKKI MARWAT"`, and `"2017"`) across all asset directories, desktop icons, and code modules **without altering a single byte, pixel, color, or proportion of the image**.
+
+## User Review & Critical Decisions
+
+> [!IMPORTANT]
+> **Zero Pixel Modification Guarantee ("Don't Change Any Atom of the Picture")**:
+> The uploaded PNG file will be copied as an exact 1:1 raw binary duplicate (`cp`) and encoded directly into Base64 from its raw bytes without any image processing, resizing, cropping, color filtering, or re-compression.
+
+- **Confirmed Decision 1 — 1:1 Unmodified Binary Copy Across All Asset Folders**: Every crest file in the public directory, internal source image directories, and Windows desktop packaging folder will be replaced with an exact byte-for-byte copy of your uploaded `863417491_2133473440593759_7550028921333764276_n.png`, and any AI-generated shield files will be permanently deleted.
+- **Confirmed Decision 2 — Uncropped, Unaltered Rendering in UI & ID Cards**: Every logo container in the header, modals, splash screen, full-app background watermark, and CR80 Student/Staff ID cards (both screen and PDF) will render the complete, uncropped image (`object-contain`) with zero CSS color filters (`filter: none`) so every detail—from the top sun rays to the bottom `"2017"` wreath—remains 100% intact.
 
 ---
 
-## 2. System & Desktop Host Architecture
+## 1. Overview & Core Concept
+
+- **What It Does**: Replaces every remaining outdated shield graphic in the repository's image folders and code constants with an exact, untouched binary copy of your uploaded ULM 2017 Crest PNG.
+- **Target Audience / Persona**: University of Lakki Marwat librarians, staff, and students using the web interface, printed reports, CR80 Library ID cards, and Windows desktop application.
+- **Key Value**: Ensures that your exact uploaded official ULM 2017 Crest appears everywhere—untouched and unmodified down to the last pixel—in both online and offline modes.
+
+---
+
+## 2. User Experience & Visual Design
+
+- **Key User Flows**:
+  1. **App Header, Splash Screen & Modals**: Displays your exact uploaded ULM 2017 Crest inside an unclipped `object-contain` frame with zero cropping of the sun rays or wheat wreath and zero color/contrast filters.
+  2. **CR80 Student & Staff Library ID Cards (Screen & PDF)**: Renders your exact uploaded crest in the top-left header and as the centered security watermark on both Front and Back cards.
+  3. **Asset Directory & Code Synchronization**: Directly exports the exact uploaded crest and bundled image assets from the internal image asset directory so every module imports the same unmodified image.
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: Royal Purple & Gold Liquid-Glass workspace that frames the original ULM 2017 Crest without modifying the image itself.
+  - *Color Palette & Mood*: Preserves the exact original gold, royal purple, and white pixels of your uploaded PNG at 100% fidelity.
+  - *Component Styling & Layout*: Uses `object-contain` without `rounded-full` clipping on the image element itself so the top sun rays and bottom crossed wheat stems are never cut off.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Raw Byte-for-Byte Copying (`cp`) Only**
+  - *Chosen Approach*: Copy the raw bytes of the uploaded PNG directly into every target asset slot and generate the Base64 Data URI directly from those exact bytes.
+  - *Why*: Guarantees that file size (51,384 bytes), SHA checksum, dimensions, transparency, and every single pixel remain 100% identical to the uploaded picture.
+  - *Alternatives Considered*: Any canvas re-encoding, SVG tracing, or thumbnail resizing was rejected because it alters the original image bytes.
+- **Decision 2: Non-Destructive Watermark Transparency**
+  - *Chosen Approach*: Keep the watermark PNG file itself 100% identical to your uploaded picture (zero pixel alteration to the file), and let the container layer apply gentle visual opacity when used behind text.
+  - *Why*: Preserves the exact original image file everywhere on disk while keeping foreground text readable on ID cards and workspace views.
+
+---
+
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
+
+### Architecture & Component Diagram
 
 ```
-+--------------------------------------------------------------------------------------------------+
-| C# .NET 8 WPF Host Window (WebView2 Virtual Host: https://app.local/ -> dist/)                   |
-| +----------------------------------------------------------------------------------------------+ |
-| | Custom Windows Title Bar (32px, Fixed)                                                       | |
-| | [ULM 2017 Crest] ULM Library — Central Campus Workstation        [ _ ] [ [] ] [ X ] (IPC)    | |
-| +----------------------------------------------------------------------------------------------+ |
-| | Full-Width Executive Institutional Header (96px-108px, Fixed, Flush-Left / Flush-Right)      | |
-| | [ULM 2017 Crest Pedestal + Title + 100,000 Volumes]  [Glass][125%][Sync][Export][Excel][+Add]| |
-| +----------------------------------------------------------------------------------------------+ |
-| | Workspace Body (flex-1 min-h-0 overflow-hidden)                                              | |
-| | +------------------------+ +---------------------------------------------------------------+ | |
-| | | Fixed Left Sidebar     | | Dedicated Vertical Scroll Container (#ulm-main-scroll-view)   | | |
-| | | (240px / 72px Rail)    | | - Unified smooth vertical scrolling across all 8 views        | | |
-| | | - 8 Core Modules       | | - 100,000-Volume IndexedDB Engine + Bundled Offline XLSX      | | |
-| | | - Expand/Collapse      | | - Student/Faculty ID Cards + Barcode Printing + Crest Mark    | | |
-| | | - Reset Workspace      | | - Institutional Footer with ULM 2017 Crest Seal               | | |
-| | +------------------------+ +---------------------------------------------------------------+ | |
-+--------------------------------------------------------------------------------------------------+
+┌────────────────────────────────────────────────────────────────────────────┐
+│        Exact Uploaded ULM 2017 Crest PNG (51,384 Bytes — Untouched)        │
+│    (4-Quadrant Shield: Book, Crescent-Star, Camel, Circuit-Plant, 2017)    │
+└─────────────────────────────────────┬──────────────────────────────────────┘
+                                      │ 1:1 Raw Binary Copy (Zero Alteration)
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│             Synchronized Binary Asset Folders & Code Constants             │
+│  • Public Static Icons & Desktop Packager Icons (Exact Binary Copy)        │
+│  • Internal Source Image Asset Folders (Exact Binary Copy + Typed Index)   │
+│  • Offline Base64 Data URI (Encoded Directly from Raw Unmodified Bytes)    │
+└───────┬─────────────────────┬──────────────────────┬───────────────────────┘
+        │                     │                      │
+        ▼                     ▼                      ▼
+┌───────────────────┐ ┌────────────────────┐ ┌───────────────────────────────┐
+│  App Shell & UI   │ │  CR80 ID Cards &   │ │   Modals, Reports & Settings  │
+│  • Uncropped Logo │ │  PDF Print Engine  │ │   • Welcome & Storage Modals  │
+│  • App Watermark  │ │  • Front/Back Crest│ │   • Clearance Certificates    │
+│  • Window Favicon │ │  • Exact PNG Bytes │ │   • Bundled Asset Exports     │
+└───────────────────┘ └────────────────────┘ └───────────────────────────────┘
 ```
 
----
+### Data Model & State
+- **Unmodified Binary Assets**: All crest files across the public folder, internal source image directories, and Windows desktop folder hold the exact 51,384-byte uploaded PNG.
+- **Typed Image Asset Module**: Exports the unmodified crest and bundled catalog cover images for direct TypeScript consumption across the codebase.
 
-## 3. Visual & Offline Bundling Specifications
-
-### A. Startup Anti-Flash & Offline Font Stack
-- **Anti-Flash Viewport Shell**: Inline root styles lock `html, body, #root` to `height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #f8fafc;` so WebView2 never flashes an unstyled frame during initialization.
-- **100% Offline Typography**:
-  - **Display & Institutional Headers**: Bundled `@fontsource/playfair-display` with fallback to `'Playfair Display', Georgia, serif`.
-  - **UI & Dense Data Tables**: `'Inter', 'Segoe UI', system-ui, sans-serif` with `tabular-nums` alignment for catalog counters, accession codes, and call numbers.
-  - **RTL Urdu & Arabic Cataloging**: Bundled `@fontsource/noto-nastaliq-urdu` and `@fontsource/noto-naskh-arabic` with fallback to `'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', Tahoma, serif`.
-- **Bundled Offline Spreadsheet Engine**: Local `xlsx` ES module imported at startup and bound to `window.XLSX` so 100,000-volume Excel imports, Master Workbook exports, and PC Migration backups operate with zero network dependency.
-
-### B. Unified ULM 2017 Crest Identity (`image_0.png`)
-- **Offline Data URI + Public Asset Fallback**: The official ULM 2017 crest is exported both as a self-contained Base64 PNG data URI (`ULM_CREST_URL` / `ULM_OFFICIAL_CREST_DATA_URI`) and as a static public asset (`./image_0.png`) referenced in the HTML `<link rel="icon" type="image/png" href="./image_0.png" />`.
-- **Consistent Crest Placement**:
-  1. **Top Windows Title Bar**: Compact ULM 2017 crest icon (`18px × 18px`) beside `ULM Library — Central Campus Workstation`.
-  2. **Executive Institutional Header**: Luxury double-rimmed pedestal (`64px–80px`) flush-left alongside the university title.
-  3. **Borrower & Faculty Library ID Cards**: Official ULM 2017 crest in the ID card header and subtle centered security watermark behind borrower credentials.
-  4. **Workspace Watermark & Institutional Footer**: Fixed subtle background watermark (`opacity-[0.025]`) and footer seal at the bottom of `#ulm-main-scroll-view`.
-
----
-
-## 4. Desktop Host Bridge & Build Pipeline Specifications
-
-| Capability | Mechanism & Behavior |
-| :--- | :--- |
-| **Window Control Bridge** | Sends `{ type: 'WINDOW_CONTROL', action: 'minimize' \| 'maximize' \| 'close' }` (plus legacy string fallback) via `window.chrome?.webview?.postMessage(...)` with graceful browser no-op when testing in standard web preview. |
-| **Desktop Shortcut & Context Guards** | When running inside WebView2 (`window.chrome?.webview` or `location.hostname === 'app.local'`), blocks accidental browser refresh/devtools keys (`F5`, `Ctrl+R`, `Ctrl+Shift+R`, `F12`) and suppresses the default browser right-click menu on non-input UI chrome while keeping standard cut/copy/paste inside `<input>` and `<textarea>`. |
-| **Relative Production Bundle** | Vite configured with `base: './'`, `outDir: 'dist'`, `assetsDir: 'assets'`, `emptyOutDir: true`, `sourcemap: false`, and `chunkSizeWarningLimit: 2500` so all JS, CSS, and font assets resolve cleanly via `https://app.local/` or local file paths. |
-| **Automated `.exe` Builder** | PowerShell build script (`build:exe`) validates dependencies, runs `npm run build`, generates multi-size `app.ico` from `image_0.png`, scaffolds/updates the C# .NET 8 WPF + WebView2 host (`SetVirtualHostNameToFolderMapping("app.local", ...)`), and publishes a standalone Windows executable. |
+### Interactive Component & State Mapping
+- **Uncropped Rendering**: All `<img>` tags rendering the ULM 2017 Crest use `object-contain` with no circular clipping or CSS filters on the image so every ray and leaf of the original picture is displayed faithfully.

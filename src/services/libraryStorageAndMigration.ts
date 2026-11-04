@@ -702,6 +702,43 @@ export async function downloadMasterExcelRegister(): Promise<void> {
   XLSX.writeFile(wb, MASTER_EXCEL_FILENAME);
 }
 
+export const SETUP_COMPLETED_KEY = 'ulm_workstation_setup_completed_v1';
+
+export function isWorkstationAlreadyInstalledAndConfigured(existingBookCount = 0): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  if (existingBookCount > 0) {
+    localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+    return true;
+  }
+  return Boolean(
+    localStorage.getItem(SETUP_COMPLETED_KEY) === 'true' ||
+    localStorage.getItem('ulm_setup_complete') === 'true' ||
+    localStorage.getItem('ulm_onboarding_complete') === 'true' ||
+    localStorage.getItem('ulm_data_folder_config_v1') ||
+    localStorage.getItem('ulm_storage_location_configured_v1') === 'true' ||
+    localStorage.getItem('ulm_library_initialized') === 'true' ||
+    Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0) > 0 ||
+    Number(localStorage.getItem('ulm_master_excel_book_count') || 0) > 0
+  );
+}
+
+export function markWorkstationSetupCompleted(mode = 'configured'): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+    localStorage.setItem('ulm_library_initialized', 'true');
+    localStorage.setItem('ulm_storage_location_configured_v1', 'true');
+    if (!localStorage.getItem('ulm_data_folder_config_v1')) {
+      localStorage.setItem('ulm_data_folder_config_v1', JSON.stringify({
+        mode,
+        folderPath: 'Documents\\ULM Library Data',
+        configuredAt: new Date().toISOString(),
+        isConfigured: true,
+      }));
+    }
+  } catch (_) {}
+}
+
 /**
  * Complete reset of database to 0 books (Rule 1-3).
  * Clears IndexedDB books store, SQLite, removes folder config, serial keys, and all legacy book caches.
@@ -726,6 +763,11 @@ export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; c
     } catch (_) {}
 
     const keysToRemove = [
+      SETUP_COMPLETED_KEY,
+      'ulm_library_initialized',
+      'ulm_setup_complete',
+      'ulm_onboarding_complete',
+      'ulm_storage_location_configured_v1',
       'ulm_data_folder_config_v1',
       'ulm_highest_serial_number_v1',
       'ulm_master_excel_synced_at',
@@ -742,6 +784,10 @@ export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; c
       'ulm_lms_active_view',
       'ulm_lms_last_entry_cache',
       'ulm_lms_catalog_sort',
+      'ulm_lms_almaris_v1',
+      'ulm_lms_almari_groups_v1',
+      'ulm_lms_almari_shelves_v1',
+      'ulm_lms_location_history_v1',
     ];
     for (const k of keysToRemove) {
       try { localStorage.removeItem(k); } catch (_) {}
@@ -2015,3 +2061,294 @@ export async function getFullBookRecordOnDemand(idOrAccession: string): Promise<
   }
   return api.lookupByScanCode(idOrAccession);
 }
+
+export interface ResolvedAlmariPlacement {
+  almariId: string;
+  almari_id: string;
+  almariCode: string;
+  almari_code: string;
+  almariName: string;
+  almari_name_en: string;
+  shelfNo: number;
+  shelf_no: number;
+  shelfLabel: string;
+  shelf_label: string;
+  groupId: string;
+  group_id: string;
+  displayGroup: string;
+  group_name_en: string;
+  groupColor: string;
+  group_color: string;
+  spineTheme: 'purple' | 'sapphire' | 'emerald' | 'amber' | 'crimson';
+}
+
+/**
+ * 100% Manual Almari & Shelf Resolution:
+ * Matches a book ONLY when it has been manually assigned to an active, manually created Almari
+ * (by book.almari_id, book.almariId, book.almari, or an explicit shelf string matching a manual Almari's code).
+ * Never auto-distributes unassigned books into dummy Almaris.
+ */
+export function resolveBookAlmariAndShelf(
+  book: Record<string, any>,
+  indexOrAlmaris?: number | Array<{ id: string; code: string; name_en: string; shelf_count?: number }>,
+  almarisOrGroups?: Array<any>
+): ResolvedAlmariPlacement {
+  const almarisInput = Array.isArray(indexOrAlmaris)
+    ? indexOrAlmaris
+    : Array.isArray(almarisOrGroups) && almarisOrGroups.length > 0 && 'code' in almarisOrGroups[0]
+    ? almarisOrGroups
+    : [];
+  const groupsInput =
+    Array.isArray(almarisOrGroups) && almarisOrGroups.length > 0 && 'color' in almarisOrGroups[0]
+      ? (almarisOrGroups as Array<{ id: string; name_en: string; color: string }>)
+      : undefined;
+
+  const almaris = almarisInput || [];
+
+  // 1. Check if book has an explicit manual assignment matching an existing active Almari
+  const rawAlmariId = String(book.almari_id || book.almariId || book.almari || '').trim();
+  const rawShelfStr = String(book.shelf || book.shelf_label || book.shelfLabel || '').trim();
+  const isGenericDefaultPlaceholder =
+    /^(stack[-_\s]?0?1|cs[-_\s]?rack[-_\s]?0?1|unassigned.*|no\s*almari.*)$/i.test(rawShelfStr) && !rawAlmariId;
+
+  let matchedAlmari = rawAlmariId
+    ? almaris.find(
+        (a) =>
+          String(a.id).trim().toUpperCase() === rawAlmariId.toUpperCase() ||
+          String(a.code).trim().toUpperCase() === rawAlmariId.toUpperCase() ||
+          String(a.name_en).trim().toUpperCase() === rawAlmariId.toUpperCase()
+      )
+    : undefined;
+
+  if (!matchedAlmari && rawShelfStr && !isGenericDefaultPlaceholder && almaris.length > 0) {
+    const shelfUpper = rawShelfStr.toUpperCase();
+    // Match if rawShelfStr starts with or contains an active manual Almari code (e.g. "A-01 · Shelf 2" or "A-01 - Shelf 1")
+    matchedAlmari = almaris.find((a) => {
+      const c = String(a.code).trim().toUpperCase();
+      if (!c) return false;
+      return (
+        shelfUpper === c ||
+        shelfUpper.startsWith(`${c} `) ||
+        shelfUpper.startsWith(`${c}-`) ||
+        shelfUpper.startsWith(`${c}·`) ||
+        shelfUpper.startsWith(`${c},`)
+      );
+    });
+  }
+
+  // 2. Discipline / Subject / Language classification (for badge & 3D spine color)
+  const rawCat = String(
+    book.group || book.discipline || book.category || book.subject || ''
+  ).trim();
+  const rawLang = String(book.language || '').trim();
+  const rawTitle = String(book.book_name || book.title || '').trim();
+  const combinedText = `${rawCat} ${rawLang} ${rawTitle}`.toLowerCase();
+
+  let groupId = String(book.group_id || '').trim();
+  let displayGroup = rawCat && rawCat.toLowerCase() !== 'general' ? rawCat : '';
+  let groupColor = '#6D28D9';
+  let spineTheme: 'purple' | 'sapphire' | 'emerald' | 'amber' | 'crimson' = 'purple';
+
+  if (
+    /computer|software|programming|algorithm|data|network|cyber|ai|artificial|system|it\b|tech/i.test(
+      combinedText
+    )
+  ) {
+    groupId = groupId || 'grp-cs';
+    displayGroup = displayGroup || 'Computer Science';
+    groupColor = '#8B5CF6';
+    spineTheme = 'purple';
+  } else if (
+    /math|calculus|algebra|geometry|statistic|physics|quantum|mechanics|chemistry|organic|biology|botany|zoology|science/i.test(
+      combinedText
+    )
+  ) {
+    if (/physics/i.test(combinedText)) {
+      groupId = groupId || 'grp-phy';
+      displayGroup = displayGroup || 'Physics';
+    } else if (/chem|engineer/i.test(combinedText)) {
+      groupId = groupId || 'grp-chem';
+      displayGroup = displayGroup || 'Chemistry & Engineering';
+    } else {
+      groupId = groupId || 'grp-math';
+      displayGroup = displayGroup || 'Mathematics';
+    }
+    groupColor = '#2563EB';
+    spineTheme = 'sapphire';
+  } else if (
+    /islam|quran|hadith|fiqh|seerah|tafseer|arabic|history|philosophy|sociology|political|humanities|اسلام/i.test(
+      combinedText
+    )
+  ) {
+    groupId = groupId || 'grp-isl';
+    displayGroup = displayGroup || 'Islamic Studies';
+    groupColor = '#059669';
+    spineTheme = 'emerald';
+  } else if (
+    /urdu|pashto|persian|literature|poetry|novel|linguistics|english literature|اردو|پشتو|فارسی/i.test(
+      combinedText
+    ) ||
+    /^(urdu|pashto|persian|arabic)$/i.test(rawLang)
+  ) {
+    if (/pashto|پشتو/i.test(combinedText)) {
+      groupId = groupId || 'grp-ps';
+      displayGroup = displayGroup || 'Pashto Literature';
+    } else {
+      groupId = groupId || 'grp-ur';
+      displayGroup = displayGroup || 'Urdu Literature';
+    }
+    groupColor = '#D97706';
+    spineTheme = 'amber';
+  } else if (
+    /law|legal|constitution|governance|education|teaching|economics|business|management|commerce|reference|encyclopedia/i.test(
+      combinedText
+    )
+  ) {
+    if (/law|legal|constitution/i.test(combinedText)) {
+      groupId = groupId || 'grp-law';
+      displayGroup = displayGroup || 'Law & Governance';
+    } else if (/education|teaching/i.test(combinedText)) {
+      groupId = groupId || 'grp-edu';
+      displayGroup = displayGroup || 'Education';
+    } else {
+      groupId = groupId || 'grp-gen';
+      displayGroup = displayGroup || 'General Reference';
+    }
+    groupColor = '#DC2626';
+    spineTheme = 'crimson';
+  }
+
+  // Match against configured BookGroup list if provided
+  if (groupsInput && groupsInput.length > 0) {
+    const matchedGroup =
+      groupsInput.find((g) => g.id === groupId) ||
+      (displayGroup
+        ? groupsInput.find((g) => g.name_en.toLowerCase() === displayGroup.toLowerCase()) ||
+          groupsInput.find((g) =>
+            displayGroup.toLowerCase().includes(g.name_en.toLowerCase().split(' ')[0])
+          )
+        : undefined);
+    if (matchedGroup) {
+      groupId = matchedGroup.id;
+      displayGroup = matchedGroup.name_en;
+      groupColor = matchedGroup.color || groupColor;
+    }
+  }
+
+  const finalGroupId = groupId || 'grp-gen';
+  const finalGroupName = displayGroup || rawCat || 'General Reference';
+
+  // If NOT assigned to any active manual Almari, return unassigned placement
+  if (!matchedAlmari) {
+    return {
+      almariId: '',
+      almari_id: '',
+      almariCode: '',
+      almari_code: '',
+      almariName: '',
+      almari_name_en: '',
+      shelfNo: 0,
+      shelf_no: 0,
+      shelfLabel: 'Unassigned (No Almari)',
+      shelf_label: 'Unassigned (No Almari)',
+      groupId: finalGroupId,
+      group_id: finalGroupId,
+      displayGroup: finalGroupName,
+      group_name_en: finalGroupName,
+      groupColor,
+      group_color: groupColor,
+      spineTheme,
+    };
+  }
+
+  // 3. Parse Manual Shelf Number ("Shelf 1", "1", "S1", or book.shelf_no)
+  const shelfCount = Math.max(1, matchedAlmari.shelf_count || 5);
+  let shelfNo = Number(book.shelf_no ?? book.shelfNo ?? 0);
+  if (!shelfNo || shelfNo < 1) {
+    const shelfMatch =
+      rawShelfStr.match(/(?:shelf|row|s)[-_\s#]*(\d+)/i) ||
+      String(book.row || '').match(/(\d+)/);
+    if (shelfMatch) {
+      const parsed = parseInt(shelfMatch[1], 10);
+      if (parsed >= 1) {
+        shelfNo = Math.min(parsed, shelfCount);
+      }
+    } else if (/^\d+$/.test(rawShelfStr)) {
+      const parsed = parseInt(rawShelfStr, 10);
+      if (parsed >= 1) {
+        shelfNo = Math.min(parsed, shelfCount);
+      }
+    }
+  }
+  if (!shelfNo || shelfNo < 1) {
+    shelfNo = 1;
+  } else if (shelfNo > shelfCount) {
+    shelfNo = shelfCount;
+  }
+
+  const resolvedLabel = `${matchedAlmari.code} · Shelf ${shelfNo}`;
+
+  return {
+    almariId: matchedAlmari.id,
+    almari_id: matchedAlmari.id,
+    almariCode: matchedAlmari.code,
+    almari_code: matchedAlmari.code,
+    almariName: matchedAlmari.name_en,
+    almari_name_en: matchedAlmari.name_en,
+    shelfNo,
+    shelf_no: shelfNo,
+    shelfLabel: resolvedLabel,
+    shelf_label: resolvedLabel,
+    groupId: finalGroupId,
+    group_id: finalGroupId,
+    displayGroup: finalGroupName,
+    group_name_en: finalGroupName,
+    groupColor,
+    group_color: groupColor,
+    spineTheme,
+  };
+}
+
+/**
+ * Legacy helper retained for type compatibility — no longer auto-distributes unassigned books.
+ */
+export function persistManualBookShelfAssignments<T extends Record<string, any>>(
+  updatedBooks: T[]
+): void {
+  if (typeof window !== 'undefined') {
+    void (async () => {
+      try {
+        const db = await getIndexedDb();
+        await new Promise<void>((resolve) => {
+          const tx = db.transaction('books', 'readwrite');
+          const store = tx.objectStore('books');
+          for (const item of updatedBooks) {
+            const rawItem = item as Record<string, any>;
+            const acc = String(rawItem.accession_no || rawItem.accession_number || rawItem.accessionNumber || '');
+            store.put({
+              ...rawItem,
+              accession_number: acc || rawItem.id,
+              accessionNumber: acc || rawItem.id,
+              is_active: 1,
+              isActive: true,
+            });
+          }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        });
+      } catch (_) {}
+    })();
+
+    invalidateRamPageCache();
+    notifyLibraryDataChanged('manual_almari_assign');
+  }
+}
+
+export function autoOrganizeAllBooksIntoAlmaris<T extends Record<string, any>>(
+  booksInput: T[],
+  _almarisInput?: Array<{ id: string; code: string; name_en: string; shelf_count?: number }>,
+  _groupsInput?: Array<any>
+): T[] {
+  return booksInput;
+}
+

@@ -64,7 +64,7 @@ export const DeleteBookConfirmModal: React.FC<DeleteBookConfirmModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-lg bg-[#0F172A] border border-rose-200 dark:border-rose-900/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150 animate-delete-shake"
+        className="w-full max-w-lg bg-white/95 dark:bg-[#0F172A] border border-rose-200 dark:border-rose-900/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150 animate-delete-shake text-slate-900 dark:text-[#F1F5F9]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -74,7 +74,7 @@ export const DeleteBookConfirmModal: React.FC<DeleteBookConfirmModalProps> = ({
               <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
             </div>
             <div>
-              <h3 className="font-header text-sm sm:text-base font-bold text-[#F1F5F9]">
+              <h3 className="font-header text-sm sm:text-base font-bold text-slate-900 dark:text-[#F1F5F9]">
                 Delete Book from Library
               </h3>
               <p className="text-[11px] text-rose-600 dark:text-rose-400 font-mono-code font-normal">
@@ -85,7 +85,7 @@ export const DeleteBookConfirmModal: React.FC<DeleteBookConfirmModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />

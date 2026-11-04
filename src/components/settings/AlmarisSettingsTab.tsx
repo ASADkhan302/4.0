@@ -173,22 +173,22 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
     <div className="space-y-6">
       {/* Toast */}
       {toastMsg && (
-        <div className="p-3 bg-[#1A1A1A] border border-[var(--gold)]/40 rounded-[10px] text-[var(--gold-text)] text-[13px] flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[var(--gold)]" />
+        <div className="p-3 bg-white/90 dark:bg-[#140D22]/90 border border-[#C8963E]/50 rounded-[10px] text-[#8A4B00] dark:text-[#FFD147] text-[13px] font-semibold flex items-center gap-2 shadow-xs">
+          <Sparkles className="w-4 h-4 text-[#B4690E] dark:text-[#FFD147]" />
           <span>{toastMsg}</span>
         </div>
       )}
 
       {/* Warnings Panel */}
       {groupsWithNoAlmari.length > 0 && (
-        <div className="p-4 bg-amber-950/20 border border-amber-600/40 rounded-[14px] flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="p-4 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-400/60 dark:border-amber-600/40 rounded-2xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="text-[13px]">
-            <span className="font-semibold text-amber-300 block mb-1">
+            <span className="font-bold text-amber-900 dark:text-amber-300 block mb-1">
               Warning: Unassigned Book Groups
             </span>
-            <p className="text-amber-200/80 mb-2">
-              The following active groups have no designated Almari. Books in these groups cannot be automatically slotted:
+            <p className="text-amber-800 dark:text-amber-200/80 mb-2">
+              The following active groups have no designated Almari. Books in these groups will be auto-slotted by discipline:
             </p>
             <div className="flex flex-wrap gap-1.5">
               {groupsWithNoAlmari.map(g => (
@@ -210,13 +210,13 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
       )}
 
       {/* Header & Add Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[14px]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 bg-white/90 dark:bg-[#140D22]/85 border border-slate-200/90 dark:border-white/10 rounded-2xl shadow-sm">
         <div>
-          <h3 className="text-[15px] font-semibold text-white flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[var(--gold)]" />
-            Almaris & Cupboards (الماریاں) Management
+          <h3 className="text-[15px] font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-[#B4690E] dark:text-[#FFD147]" />
+            Almaris &amp; Cupboards (الماریاں) Management
           </h3>
-          <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+          <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-0.5">
             Configure physical cupboards, shelf capacity guidance, and check the book groups assigned to each Almari.
           </p>
         </div>
@@ -227,7 +227,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
               setNewCode(`A-${String(nextNum).padStart(2, '0')}`);
               setIsAdding(true);
             }}
-            className="px-4 py-2 bg-[var(--gold)] hover:bg-[var(--gold-hover)] text-[#1A1A1A] font-semibold text-[13px] rounded-[8px] transition-colors flex items-center gap-2 shrink-0 cursor-pointer shadow-sm"
+            className="px-4 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white font-extrabold text-[13px] rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Add New Almari
@@ -237,15 +237,15 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
 
       {/* Add New Almari Form */}
       {isAdding && (
-        <div className="p-4 bg-[#221F26] border border-[var(--gold)]/40 rounded-[14px] space-y-4">
+        <div className="p-5 bg-white/95 dark:bg-[#181028] border border-[#C8963E]/50 rounded-2xl space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h4 className="text-[14px] font-semibold text-[var(--gold-text)] flex items-center gap-2">
-              <Plus className="w-4 h-4 text-[var(--gold)]" />
+            <h4 className="text-[14px] font-bold text-[#8A4B00] dark:text-[#FFD147] flex items-center gap-2">
+              <Plus className="w-4 h-4 text-[#B4690E] dark:text-[#FFD147]" />
               New Physical Almari (الماری)
             </h4>
             <button
               onClick={() => setIsAdding(false)}
-              className="text-[var(--text-muted)] hover:text-white p-1 rounded hover:bg-black/20"
+              className="text-slate-500 hover:text-slate-900 dark:hover:text-white p-1 rounded hover:bg-black/10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -253,7 +253,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 Almari Code *
               </label>
               <input
@@ -261,11 +261,11 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 value={newCode}
                 onChange={e => setNewCode(e.target.value)}
                 placeholder="e.g. A-08"
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white font-mono focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#B4690E]"
               />
             </div>
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 English Name *
               </label>
               <input
@@ -273,11 +273,11 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 value={newNameEn}
                 onChange={e => setNewNameEn(e.target.value)}
                 placeholder="e.g. Research & Journals"
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-[#B4690E]"
               />
             </div>
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 Urdu Name (اردو) *
               </label>
               <input
@@ -286,14 +286,14 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 value={newNameUr}
                 onChange={e => setNewNameUr(e.target.value)}
                 placeholder="الماری نام"
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white font-urdu focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white font-urdu focus:outline-none focus:border-[#B4690E]"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 Shelf Count
               </label>
               <input
@@ -302,11 +302,11 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 max="12"
                 value={newShelves}
                 onChange={e => setNewShelves(parseInt(e.target.value, 10) || 5)}
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-[#B4690E]"
               />
             </div>
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 Books Per Shelf (Capacity Guidance)
               </label>
               <input
@@ -315,11 +315,11 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 max="100"
                 value={newBooksPerShelf}
                 onChange={e => setNewBooksPerShelf(parseInt(e.target.value, 10) || 30)}
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-[#B4690E]"
               />
             </div>
             <div>
-              <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1">
+              <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-1">
                 Location Notes / Bay
               </label>
               <input
@@ -327,33 +327,33 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 value={newNotes}
                 onChange={e => setNewNotes(e.target.value)}
                 placeholder="e.g. Ground Floor, East Wing"
-                className="w-full h-9 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                className="w-full h-9 px-3 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:border-[#B4690E]"
               />
             </div>
           </div>
 
           {/* Group assignment checkboxes */}
           <div>
-            <label className="block text-[11px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-2">
+            <label className="block text-[11px] uppercase font-bold text-slate-600 dark:text-slate-300 tracking-wider mb-2">
               Book Groups Held in this Almari (Tick all that apply)
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[10px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-50 dark:bg-[#0B1220] border border-slate-200 dark:border-white/15 rounded-xl">
               {groups.map(grp => (
                 <label
                   key={grp.id}
-                  className="flex items-center gap-2 p-1.5 rounded hover:bg-[#2B2730] cursor-pointer text-[12px]"
+                  className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer text-[12px]"
                 >
                   <input
                     type="checkbox"
                     checked={newGroupIds.includes(grp.id)}
                     onChange={() => toggleGroupCheckbox(grp.id, false)}
-                    className="accent-[var(--gold)] rounded"
+                    className="accent-[#B4690E] rounded"
                   />
                   <span
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: grp.color }}
                   />
-                  <span className="truncate text-white">{grp.name_en}</span>
+                  <span className="truncate text-slate-900 dark:text-white font-medium">{grp.name_en}</span>
                 </label>
               ))}
             </div>
@@ -362,14 +362,14 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
           <div className="flex justify-end gap-2 pt-2">
             <button
               onClick={() => setIsAdding(false)}
-              className="px-3 py-1.5 bg-[#2B2730] hover:bg-[#3F3B45] text-[var(--text-body)] text-[12px] font-medium rounded-[8px]"
+              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-[12px] font-bold rounded-lg cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleSaveAdd}
               disabled={!newCode.trim() || !newNameEn.trim()}
-              className="px-4 py-1.5 bg-[var(--gold)] hover:bg-[var(--gold-hover)] text-[#1A1A1A] text-[12px] font-semibold rounded-[8px] disabled:opacity-50"
+              className="px-4 py-1.5 bg-gradient-to-r from-[#8E4F0B] to-[#CE851D] !text-white text-[12px] font-extrabold rounded-lg disabled:opacity-50 cursor-pointer"
             >
               Save Almari
             </button>
@@ -378,20 +378,20 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
       )}
 
       {/* Almaris Table */}
-      <div className="bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[14px] overflow-hidden">
+      <div className="bg-white/90 dark:bg-[#140D22]/85 border border-slate-200/90 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[var(--border-subtle)] bg-[#221F26] text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-100/90 dark:bg-black/30 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 <th className="py-3 px-3 w-16 text-center">Code</th>
-                <th className="py-3 px-4">Almari Name & Location</th>
-                <th className="py-3 px-4">Shelves & Capacity</th>
+                <th className="py-3 px-4">Almari Name &amp; Location</th>
+                <th className="py-3 px-4">Shelves &amp; Capacity</th>
                 <th className="py-3 px-4">Assigned Book Groups</th>
                 <th className="py-3 px-3 text-center">Current Load</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-subtle)] text-[13px]">
+            <tbody className="divide-y divide-slate-200/70 dark:divide-white/5 text-[13px] text-slate-800 dark:text-slate-200">
               {almaris.map(alm => {
                 const isEditing = editingAlmariId === alm.id;
                 const almGroups = AlmariService.getGroupsForAlmari(alm.id);
@@ -400,15 +400,15 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                 const pct = totalCap > 0 ? Math.round((currentBooksCount / totalCap) * 100) : 0;
 
                 return (
-                  <tr key={alm.id} className="hover:bg-[#221F26]/60 transition-colors">
+                  <tr key={alm.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                     {/* Code */}
-                    <td className="py-3 px-3 text-center font-mono font-bold text-[var(--gold-text)]">
+                    <td className="py-3 px-3 text-center font-mono font-extrabold text-[#8A4B00] dark:text-[#FFD147]">
                       {isEditing ? (
                         <input
                           type="text"
                           value={editCode}
                           onChange={e => setEditCode(e.target.value)}
-                          className="w-16 h-7 px-1 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[12px] text-center font-mono text-white"
+                          className="w-16 h-7 px-1 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[12px] text-center font-mono text-slate-900 dark:text-white"
                         />
                       ) : (
                         alm.code
@@ -423,7 +423,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                             type="text"
                             value={editNameEn}
                             onChange={e => setEditNameEn(e.target.value)}
-                            className="w-full h-8 px-2 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[12px] text-white"
+                            className="w-full h-8 px-2 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[12px] text-slate-900 dark:text-white"
                             placeholder="English Name"
                           />
                           <input
@@ -431,42 +431,42 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                             dir="auto"
                             value={editNameUr}
                             onChange={e => setEditNameUr(e.target.value)}
-                            className="w-full h-8 px-2 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[12px] text-white font-urdu"
+                            className="w-full h-8 px-2 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[12px] text-slate-900 dark:text-white font-urdu"
                             placeholder="اردو نام"
                           />
                           <input
                             type="text"
                             value={editNotes}
                             onChange={e => setEditNotes(e.target.value)}
-                            className="w-full h-7 px-2 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[11px] text-[var(--text-muted)]"
+                            className="w-full h-7 px-2 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[11px] text-slate-600 dark:text-slate-300"
                             placeholder="Notes / Bay location"
                           />
-                          <label className="flex items-center gap-1.5 text-[11px] text-[#E0B450] cursor-pointer pt-0.5">
+                          <label className="flex items-center gap-1.5 text-[11px] text-[#8A4B00] dark:text-[#E0B450] cursor-pointer pt-0.5">
                             <input
                               type="checkbox"
                               checked={editNameLocked}
                               onChange={e => setEditNameLocked(e.target.checked)}
-                              className="accent-[var(--gold)]"
+                              className="accent-[#B4690E]"
                             />
                             <span>Lock name (prevent automatic renaming during auto-arrange)</span>
                           </label>
                         </div>
                       ) : (
                         <div>
-                          <div className="font-semibold text-white flex items-center gap-2">
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>{alm.name_en} - {alm.code}</span>
-                            <span className="text-[var(--text-muted)] font-urdu text-[13px]" dir="auto">
+                            <span className="text-slate-500 dark:text-slate-400 font-urdu text-[13px]" dir="auto">
                               ({alm.name_ur})
                             </span>
                             {alm.name_locked && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/30 font-mono" title="Name is locked">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/30 font-mono" title="Name is locked">
                                 <Lock className="w-2.5 h-2.5" />
                                 Locked
                               </span>
                             )}
                           </div>
                           {alm.notes && (
-                            <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {alm.notes}
                             </div>
                           )}
@@ -479,32 +479,32 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                       {isEditing ? (
                         <div className="flex gap-2 items-center">
                           <div>
-                            <span className="text-[10px] text-[var(--text-muted)] uppercase block">Shelves</span>
+                            <span className="text-[10px] text-slate-500 uppercase block">Shelves</span>
                             <input
                               type="number"
                               min="1"
                               max="12"
                               value={editShelves}
                               onChange={e => setEditShelves(parseInt(e.target.value, 10) || 5)}
-                              className="w-14 h-7 px-1.5 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[12px] text-white"
+                              className="w-14 h-7 px-1.5 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[12px] text-slate-900 dark:text-white"
                             />
                           </div>
                           <div>
-                            <span className="text-[10px] text-[var(--text-muted)] uppercase block">Per Shelf</span>
+                            <span className="text-[10px] text-slate-500 uppercase block">Per Shelf</span>
                             <input
                               type="number"
                               min="5"
                               max="100"
                               value={editBooksPerShelf}
                               onChange={e => setEditBooksPerShelf(parseInt(e.target.value, 10) || 30)}
-                              className="w-16 h-7 px-1.5 bg-[#2B2730] border border-[var(--border-subtle)] rounded text-[12px] text-white"
+                              className="w-16 h-7 px-1.5 bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 rounded text-[12px] text-slate-900 dark:text-white"
                             />
                           </div>
                         </div>
                       ) : (
                         <div className="text-[12px]">
-                          <span className="font-semibold text-white">{alm.shelf_count} Shelves</span>
-                          <span className="text-[var(--text-muted)] block text-[11px]">
+                          <span className="font-bold text-slate-900 dark:text-white">{alm.shelf_count} Shelves</span>
+                          <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
                             ~{alm.books_per_shelf} bks/shelf (Cap: {totalCap})
                           </span>
                         </div>
@@ -514,17 +514,17 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                     {/* Groups */}
                     <td className="py-3 px-4">
                       {isEditing ? (
-                        <div className="grid grid-cols-2 gap-1 max-w-sm max-h-36 overflow-y-auto p-1.5 bg-[#2B2730] rounded border border-[var(--border-subtle)]">
+                        <div className="grid grid-cols-2 gap-1 max-w-sm max-h-36 overflow-y-auto p-1.5 bg-slate-50 dark:bg-[#0B1220] rounded border border-slate-300 dark:border-white/15">
                           {groups.map(grp => (
                             <label
                               key={grp.id}
-                              className="flex items-center gap-1.5 text-[11px] text-white cursor-pointer"
+                              className="flex items-center gap-1.5 text-[11px] text-slate-900 dark:text-white cursor-pointer"
                             >
                               <input
                                 type="checkbox"
                                 checked={editGroupIds.includes(grp.id)}
                                 onChange={() => toggleGroupCheckbox(grp.id, true)}
-                                className="accent-[var(--gold)]"
+                                className="accent-[#B4690E]"
                               />
                               <span
                                 className="w-2 h-2 rounded-full shrink-0"
@@ -555,7 +555,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                               </span>
                             ))
                           ) : (
-                            <span className="text-[11px] text-amber-400 italic">No groups assigned</span>
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 italic">No groups assigned</span>
                           )}
                         </div>
                       )}
@@ -564,10 +564,10 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                     {/* Current load */}
                     <td className="py-3 px-3 text-center">
                       <div className="flex flex-col items-center">
-                        <span className="font-mono text-[12px] font-bold text-white">
+                        <span className="font-mono text-[12px] font-bold text-slate-900 dark:text-white">
                           {currentBooksCount} / {totalCap}
                         </span>
-                        <div className="w-16 h-1.5 bg-[#2B2730] rounded-full overflow-hidden mt-1">
+                        <div className="w-16 h-1.5 bg-slate-200 dark:bg-[#2B2730] rounded-full overflow-hidden mt-1">
                           <div
                             className={`h-full rounded-full ${
                               pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
@@ -575,7 +575,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                             style={{ width: `${Math.min(100, pct)}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-[var(--text-muted)] mt-0.5">{pct}% full</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{pct}% full</span>
                       </div>
                     </td>
 
@@ -585,14 +585,14 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={handleSaveEdit}
-                            className="p-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-[12px] flex items-center gap-1"
+                            className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[12px] flex items-center gap-1"
                             title="Save Almari changes"
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setEditingAlmariId(null)}
-                            className="p-1.5 bg-[#2B2730] hover:bg-[#3F3B45] text-[var(--text-muted)] rounded text-[12px]"
+                            className="p-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 text-slate-700 dark:text-slate-300 rounded text-[12px]"
                             title="Cancel"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -602,14 +602,14 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleStartEdit(alm)}
-                            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--gold)] hover:bg-[#2B2730] rounded transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-[#B4690E] dark:hover:text-[#FFD147] hover:bg-slate-100 dark:hover:bg-white/10 rounded transition-colors cursor-pointer"
                             title="Edit Almari"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDelete(alm)}
-                            className="p-1.5 text-[var(--text-muted)] hover:text-rose-400 hover:bg-[#2B2730] rounded transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
                             title="Delete Almari"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -626,20 +626,20 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
       </div>
 
       {/* Almari Plan (Master Disciplines & Auto-Naming Rules) */}
-      <div className="bg-[#1E1B22] border border-[var(--border-subtle)] rounded-[14px] p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
+      <div className="bg-white/90 dark:bg-[#140D22]/85 border border-slate-200/90 dark:border-white/10 rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#541A72]/20 border border-[#A66BC9]/30 flex items-center justify-center text-[#C084FC]">
-              <Sparkles className="w-5 h-5 text-[var(--gold)]" />
+            <div className="w-10 h-10 rounded-xl bg-[#541A72]/15 dark:bg-[#541A72]/30 border border-[#541A72]/30 dark:border-[#A66BC9]/30 flex items-center justify-center text-[#541A72] dark:text-[#C084FC]">
+              <Sparkles className="w-5 h-5 text-[#B4690E] dark:text-[#FFD147]" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Almari Plan (ماسٹر الماری پلان)</span>
-                <span className="text-xs font-mono font-normal text-[var(--gold)] bg-[#BC881B]/15 px-2 py-0.5 rounded border border-[#BC881B]/30">
+                <span className="text-xs font-mono font-bold text-[#8A4B00] dark:text-[#FFD147] bg-amber-500/15 px-2 py-0.5 rounded border border-[#BC881B]/30">
                   {almariPlan.length} Disciplines
                 </span>
               </h3>
-              <p className="text-xs text-[var(--text-muted)]">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 Defines canonical naming and group mappings for auto-arranging books and creating overflow Almaris.
               </p>
             </div>
@@ -648,7 +648,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
           <button
             type="button"
             onClick={handleResetPlanToDefault}
-            className="px-3.5 py-1.5 bg-[#2B2730] hover:bg-[#38333F] text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-[#8A4B00] dark:text-amber-300 border border-[#C8963E]/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Reset Almari Plan to canonical 12 disciplines"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -662,19 +662,19 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
             return (
               <div 
                 key={entry.key}
-                className="p-3.5 bg-[#141214] rounded-xl border border-white/[0.06] hover:border-[var(--gold)]/30 transition-all space-y-2"
+                className="p-3.5 bg-slate-50/90 dark:bg-[#0B0714] rounded-xl border border-slate-200/90 dark:border-white/10 hover:border-[#C8963E]/50 transition-all space-y-2"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white text-[13px]">{entry.name_en}</span>
-                  <span className="font-urdu text-[13px] text-[var(--gold)]" dir="auto">{entry.name_ur}</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-[13px]">{entry.name_en}</span>
+                  <span className="font-urdu text-[13px] text-[#8A4B00] dark:text-[#FFD147]" dir="auto">{entry.name_ur}</span>
                 </div>
-                <div className="text-[11px] text-[var(--text-muted)] flex flex-wrap gap-1">
-                  <span className="font-medium text-slate-300">Target Disciplines:</span>
+                <div className="text-[11px] text-slate-600 dark:text-slate-400 flex flex-wrap gap-1">
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Target Disciplines:</span>
                   <span>{(entry.group_names_en || []).join(', ')}</span>
                 </div>
-                <div className="pt-2 border-t border-white/[0.05] flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Current Almaris:</span>
-                  <span className="font-mono text-white font-bold">{assignedCount > 0 ? `${assignedCount} active` : 'None yet'}</span>
+                <div className="pt-2 border-t border-slate-200/70 dark:border-white/[0.06] flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Current Almaris:</span>
+                  <span className="font-mono text-slate-900 dark:text-white font-extrabold">{assignedCount > 0 ? `${assignedCount} active` : 'None yet'}</span>
                 </div>
               </div>
             );

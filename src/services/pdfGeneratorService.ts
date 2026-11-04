@@ -662,12 +662,19 @@ export class PdfGeneratorService {
     doc.setFillColor(84, 26, 114); // Royal purple accent
     doc.roundedRect(x + inset, y + inset, w - (inset * 2), 12, 2.8, 2.8, 'F');
 
-    // 4. Real ULM Crest Watermark in Color (6% opacity in alpha channel, centered behind content)
+    // 4. Real ULM Crest Watermark in Color (exact unmodified PNG rendered at 8% layer opacity behind content)
     try {
       const wmSize = 36;
       const wmX = x + (w - wmSize) / 2;
       const wmY = y + (h - wmSize) / 2;
-      doc.addImage(ULM_CREST_WATERMARK_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
+      if (typeof (doc as any).saveGraphicsState === 'function' && typeof (doc as any).GState === 'function') {
+        (doc as any).saveGraphicsState();
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.08 }));
+        doc.addImage(ULM_CREST_WATERMARK_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
+        (doc as any).restoreGraphicsState();
+      } else {
+        doc.addImage(ULM_CREST_WATERMARK_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
+      }
     } catch {
       // Fallback
     }

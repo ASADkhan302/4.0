@@ -103,21 +103,44 @@ export class AlmariService {
     this.saveAlmariGroups(links);
   }
 
-  // --- ALMARIS ---
+  // --- ALMARIS (100% Manual Only — No Pre-Seeded Dummy Almaris) ---
+  private static readonly LEGACY_SEEDED_ALMARI_IDS = new Set([
+    'alm-01',
+    'alm-02',
+    'alm-03',
+    'alm-04',
+    'alm-05',
+    'alm-06',
+    'alm-07',
+  ]);
+
   static getAlmaris(): Almari[] {
     if (this.almarisCache) return this.almarisCache;
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.ALMARIS);
       if (raw) {
         const parsed: Almari[] = JSON.parse(raw);
-        // Ensure every almari has its shelves initialized
-        this.almarisCache = parsed.map(a => this.ensureAlmariShelves(a));
+        // Filter out legacy pre-seeded dummy Almaris (alm-01..alm-07) and auto-created Almaris
+        const manualOnly = parsed.filter(
+          a => !this.LEGACY_SEEDED_ALMARI_IDS.has(a.id) && !a.auto_created
+        );
+        this.almarisCache = manualOnly.map(a => this.ensureAlmariShelves(a));
+        if (manualOnly.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(this.almarisCache));
+        }
         return this.almarisCache;
       }
     } catch {}
     this.almarisCache = INITIAL_ALMARIS.map(a => this.ensureAlmariShelves(a));
     this.saveAlmaris(this.almarisCache);
     return this.almarisCache;
+  }
+
+  static resetCaches(): void {
+    this.almarisCache = null;
+    this.almariGroupsCache = null;
+    this.almariShelvesCache = null;
+    this.historyCache = null;
   }
 
   static saveAlmaris(almaris: Almari[]): void {

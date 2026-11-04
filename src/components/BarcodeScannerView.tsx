@@ -449,8 +449,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               </p>
             </div>
 
-            <div className="max-w-2xl w-full mx-auto relative flex items-center bg-white/90 dark:bg-[#0B1220] border-2 border-[#BC881B]/50 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 rounded-xl transition-all shadow-md">
-              <BarcodeIcon className="w-5 h-5 text-[#BC881B] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="max-w-2xl w-full mx-auto relative flex items-center gap-3 px-4 py-1.5 bg-white/95 dark:bg-[#0B1220] border-2 border-[#BC881B]/60 focus-within:border-[#BC881B] focus-within:ring-4 focus-within:ring-[#BC881B]/20 rounded-2xl transition-all shadow-md">
+              <BarcodeIcon className="w-5 h-5 text-[#BC881B] shrink-0 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
@@ -461,15 +461,15 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                     handleSearch(e.target.value);
                   }
                 }}
-                placeholder="[ Scan book barcode or borrower card ID ]"
-                className="w-full h-12 pl-11 pr-32 bg-transparent border-0 text-center text-base sm:text-lg font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 tracking-wider focus:outline-none focus:ring-0"
+                placeholder="Scan book barcode or borrower card ID..."
+                className="ulm-scanner-bare-input flex-1 min-w-0 h-11 px-2 bg-transparent border-0 text-left sm:text-center text-base sm:text-lg font-mono font-bold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 tracking-wider focus:outline-none focus:ring-0"
               />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1.5 bottom-1.5 px-5 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] active:bg-[#A87B16] text-[#0B1220] font-bold text-xs flex items-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 font-ui"
+                className="h-10 px-5 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] active:bg-[#A87B16] !text-[#0B1220] font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 whitespace-nowrap font-ui"
               >
-                <Search className="w-3.5 h-3.5 text-[#0B1220] stroke-[2.5]" />
-                <span>Lookup</span>
+                <Search className="w-4 h-4 !text-[#0B1220] stroke-[2.5] shrink-0" />
+                <span className="font-bold !text-[#0B1220] leading-none tracking-wide">Lookup</span>
               </button>
             </div>
           </form>
@@ -834,8 +834,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
                 {/* Fast Scan Barcode / Search Input */}
                 <form onSubmit={handleIssueBookToActiveBorrower} className="space-y-2">
-                  <div className="relative">
-                    <BarcodeIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#BC881B]" />
+                  <div className="relative flex items-center gap-2.5 px-3 py-1 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 focus-within:border-[#BC881B] focus-within:ring-2 focus-within:ring-[#BC881B]/20 transition-all">
+                    <BarcodeIcon className="w-4 h-4 text-[#BC881B] shrink-0 pointer-events-none" />
                     <input
                       ref={issueInputRef}
                       type="text"
@@ -845,18 +845,18 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                         setBookSearchForStudent(e.target.value);
                       }}
                       placeholder="Scan or enter book barcode (0092... / Acc # / ISBN)..."
-                      className="w-full h-11 pl-9 pr-24 rounded-xl bg-slate-50 dark:bg-[#0B1220] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-white font-mono placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B]"
+                      className="ulm-scanner-bare-input flex-1 min-w-0 h-9 px-1 bg-transparent border-0 text-xs text-slate-900 dark:text-white font-mono placeholder:text-slate-400 focus:outline-none focus:ring-0"
                     />
                     <button
                       type="submit"
                       disabled={isBlockedOverdue || isQuotaReached}
-                      className={`absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                      className={`h-8 px-3.5 rounded-lg text-xs font-bold inline-flex items-center justify-center shrink-0 whitespace-nowrap transition-all ${
                         isBlockedOverdue || isQuotaReached
                           ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                          : 'bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 cursor-pointer shadow-sm'
+                          : 'bg-[#BC881B] hover:bg-[#D4A02A] !text-slate-950 cursor-pointer shadow-sm'
                       }`}
                     >
-                      Prompt ↵
+                      <span>Prompt ↵</span>
                     </button>
                   </div>
                 </form>

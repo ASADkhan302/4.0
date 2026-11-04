@@ -217,19 +217,19 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl bg-[#141214] border border-[var(--border-subtle)] rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[85vh]"
+        className="w-full max-w-3xl bg-white/95 dark:bg-[#141214]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-slate-900 dark:text-white"
         onClick={e => e.stopPropagation()}
       >
-        <div className="h-[2px] w-full bg-[var(--gold)] shrink-0" />
+        <div className="h-[2px] w-full bg-[#BC881B] shrink-0" />
 
         {/* Header */}
-        <div className="px-6 py-4 bg-[#1A1A1A] border-b border-[var(--border-subtle)] flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50/90 dark:bg-[#1A1A1A] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[var(--gold)]/15 border border-[var(--gold)]/30 flex items-center justify-center text-[var(--gold-text)]">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-[#C8963E]/40 flex items-center justify-center text-[#8A4B00] dark:text-[#FFD147]">
               {mode === 'assign_group' ? (
                 <Layers className="w-5 h-5" />
               ) : (
@@ -237,11 +237,11 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
               )}
             </div>
             <div>
-              <h3 className="font-semibold text-white text-base">
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
                 {mode === 'assign_group' && `Assign Group (${selectedBooks.length} selected)`}
                 {mode === 'assign_almari' && `Assign to Almari (${selectedBooks.length} selected)`}
               </h3>
-              <p className="text-[12px] text-[var(--text-muted)]">
+              <p className="text-[12px] text-slate-600 dark:text-[#B3AABD]">
                 {mode === 'assign_group' && 'Choose a Book Group to apply to all selected titles.'}
                 {mode === 'assign_almari' && 'Assign a cupboard (Almari) and shelf level. Barcode and call number will not change.'}
               </p>
@@ -249,7 +249,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-[var(--text-muted)] hover:text-white p-1 rounded hover:bg-white/10"
+            className="text-slate-500 hover:text-slate-900 dark:text-[#B3AABD] dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-white/10 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -260,7 +260,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
           {/* Mode 1: Assign Group */}
           {mode === 'assign_group' && (
             <div className="space-y-4">
-              <label className="block text-[12px] font-semibold text-[var(--text-body)]">
+              <label className="block text-[12px] font-extrabold text-slate-800 dark:text-white">
                 Select Target Book Group:
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -271,8 +271,8 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                     onClick={() => setSelectedGroupId(grp.id)}
                     className={`p-3 rounded-[10px] border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
                       selectedGroupId === grp.id
-                        ? 'border-[var(--gold)] bg-[var(--gold)]/15 text-white font-semibold'
-                        : 'border-[var(--border-subtle)] bg-[#1A1A1A] text-[var(--text-body)] hover:border-[var(--border-field)]'
+                        ? 'border-[#C8963E] bg-amber-500/15 text-slate-900 dark:text-white font-bold'
+                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1A1A1A] text-slate-700 dark:text-[#B3AABD] hover:border-[#C8963E]'
                     }`}
                   >
                     <span
@@ -281,7 +281,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                     />
                     <div className="truncate">
                       <div className="text-[13px] truncate">{grp.name_en}</div>
-                      <div className="text-[11px] text-[var(--text-muted)] font-urdu" dir="auto">{grp.name_ur}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-[#B3AABD] font-urdu" dir="auto">{grp.name_ur}</div>
                     </div>
                   </button>
                 ))}
@@ -294,13 +294,13 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-body)] mb-1">
+                  <label className="block text-[12px] font-bold text-slate-800 dark:text-white mb-1">
                     Select Target Almari ({almariCapacityStats.capacityLeft} slots available):
                   </label>
                   <select
                     value={selectedAlmariId}
                     onChange={e => setSelectedAlmariId(e.target.value)}
-                    className="w-full h-10 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   >
                     {almaris.map(a => {
                       const total = AlmariService.getAlmariTotalCapacity(a);
@@ -315,13 +315,13 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-body)] mb-1">
+                  <label className="block text-[12px] font-bold text-slate-800 dark:text-white mb-1">
                     Shelf Placement Strategy:
                   </label>
                   <select
                     value={shelfPlacementMode}
                     onChange={e => setShelfPlacementMode(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   >
                     <option value="fill_onward">Fill from shelf X onward by capacity</option>
                     <option value="single">Choose a specific shelf</option>
@@ -333,13 +333,13 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {shelfPlacementMode !== 'keep' && (
                   <div>
-                    <label className="block text-[12px] font-semibold text-[var(--text-body)] mb-1">
+                    <label className="block text-[12px] font-bold text-slate-800 dark:text-white mb-1">
                       {shelfPlacementMode === 'fill_onward' ? 'Start From Shelf:' : 'Target Shelf:'}
                     </label>
                     <select
                       value={selectedShelfNo}
                       onChange={e => setSelectedShelfNo(Number(e.target.value))}
-                      className="w-full h-10 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                      className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                     >
                       {Array.from(
                         { length: targetAlmari?.shelf_count || 5 },
@@ -354,13 +354,13 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-[var(--text-body)] mb-1">
+                  <label className="block text-[12px] font-bold text-slate-800 dark:text-white mb-1">
                     Order Books By:
                   </label>
                   <select
                     value={orderBy}
                     onChange={e => setOrderBy(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[8px] text-[13px] text-white focus:outline-none focus:border-[var(--gold)]"
+                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   >
                     <option value="barcode_series">Barcode Series (Default)</option>
                     <option value="call_number">Call Number</option>
@@ -372,44 +372,35 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
 
               {/* Warnings */}
               {placementPlan?.isOverCapacity && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-200 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
                   <span>
                     Warning: Selected {selectedBooks.length} books exceed available space ({almariCapacityStats.capacityLeft} slots). Overflow books will be assigned to the final shelf.
                   </span>
                 </div>
               )}
 
-              {placementPlan && placementPlan.booksOfAnotherGroup.length > 0 && (
-                <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-200 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                  <span>
-                    Note: {placementPlan.booksOfAnotherGroup.length} book(s) belong to different subject disciplines than this Almari.
-                  </span>
-                </div>
-              )}
-
               {/* Preview table of shelves, ranges and counts */}
               {placementPlan && placementPlan.shelfBreakdown.length > 0 && (
-                <div className="space-y-2 border-t border-white/[0.08] pt-3">
-                  <div className="text-xs font-semibold text-[#E0B450] flex items-center justify-between">
+                <div className="space-y-2 border-t border-slate-200 dark:border-white/[0.08] pt-3">
+                  <div className="text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] flex items-center justify-between">
                     <span>Shelf Distribution Preview</span>
-                    <span className="text-[#B3AABD]">{placementPlan.updatedBooks.length} books assigned</span>
+                    <span className="text-slate-600 dark:text-[#B3AABD]">{placementPlan.updatedBooks.length} books assigned</span>
                   </div>
                   <div className="space-y-1.5 max-h-44 overflow-y-auto">
                     {placementPlan.shelfBreakdown.map((sb: { shelf_no: number; capacity: number; count: number; rangeStr: string }) => (
-                      <div key={sb.shelf_no} className="flex items-center justify-between bg-[#1A1A1A] px-3 py-2 rounded text-xs border border-white/[0.04]">
-                        <span className="font-semibold text-white">Shelf {sb.shelf_no}</span>
-                        <span className="font-mono text-[#E0B450]">{sb.rangeStr}</span>
-                        <span className="text-[#B3AABD]">{sb.count} / {sb.capacity} books</span>
+                      <div key={sb.shelf_no} className="flex items-center justify-between bg-slate-50 dark:bg-[#1A1A1A] px-3 py-2 rounded text-xs border border-slate-200 dark:border-white/[0.04]">
+                        <span className="font-bold text-slate-900 dark:text-white">Shelf {sb.shelf_no}</span>
+                        <span className="font-mono font-bold text-[#8A4B00] dark:text-[#E0B450]">{sb.rangeStr}</span>
+                        <span className="text-slate-600 dark:text-[#B3AABD] font-mono">{sb.count} / {sb.capacity} books</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="p-3 bg-[#1A1A1A] border border-[var(--border-subtle)] rounded-[10px] text-[12px] text-[var(--text-muted)] flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[var(--gold)] shrink-0" />
+              <div className="p-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-[10px] text-[12px] text-slate-600 dark:text-[#B3AABD] flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#B4690E] dark:text-[#FFD147] shrink-0" />
                 <span>Move runs in an atomic transaction with full Undo support. Barcodes and accession numbers are untouched.</span>
               </div>
             </div>
@@ -417,17 +408,17 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-[#1A1A1A] border-t border-[var(--border-subtle)] flex items-center justify-end gap-2.5">
+        <div className="px-6 py-4 bg-slate-50/90 dark:bg-[#1A1A1A] border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-2.5">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-[#2B2730] hover:bg-[#3F3B45] text-[var(--text-body)] text-[13px] font-medium rounded-[8px]"
+            className="px-4 py-2 bg-slate-200/80 hover:bg-slate-300/80 dark:bg-[#2B2730] dark:hover:bg-[#3F3B45] text-slate-800 dark:text-white text-[13px] font-bold rounded-xl cursor-pointer"
           >
             Cancel
           </button>
           {mode === 'assign_group' && (
             <button
               onClick={handleApplyGroup}
-              className="px-5 py-2 bg-[var(--gold)] hover:bg-[var(--gold-hover)] text-[#1A1A1A] text-[13px] font-semibold rounded-[8px] cursor-pointer shadow-sm"
+              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm"
             >
               Assign Group
             </button>
@@ -435,7 +426,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
           {mode === 'assign_almari' && (
             <button
               onClick={handleApplyAlmari}
-              className="px-5 py-2 bg-[var(--gold)] hover:bg-[var(--gold-hover)] text-[#1A1A1A] text-[13px] font-semibold rounded-[8px] cursor-pointer shadow-sm"
+              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm"
             >
               Assign to Almari
             </button>

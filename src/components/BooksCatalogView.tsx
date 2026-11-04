@@ -36,12 +36,10 @@ import { ULM_CREST_LOGO } from '../constants/branding';
 import { Book, Transaction } from '../types/library';
 import { LibraryStorage } from '../services/storage';
 import { CatalogChartsView } from './catalog/CatalogChartsView';
-import { AlmariView } from './catalog/AlmariView';
-import { AlmariErrorBoundary } from './catalog/AlmariErrorBoundary';
 import { BulkAssignModal } from './modals/BulkAssignModal';
 import { KpiCard } from './shared/SharedCards';
 import { AlmariService } from '../services/almariService';
-import { parseSerialNumber } from '../services/libraryStorageAndMigration';
+import { parseSerialNumber, resolveBookAlmariAndShelf } from '../services/libraryStorageAndMigration';
 import { sortBooksCatalog } from '../utils/almariSortUtils';
 import { CountUp } from '@/components/ui/count-up';
 import { CardSkeleton, TableSkeleton } from '@/components/ui/skeleton';
@@ -53,7 +51,7 @@ import { isArabicOrUrduScript, matchesUrduSearch } from '../utils/urduUtils';
 interface BooksCatalogViewProps {
   books: Book[];
   transactions: Transaction[];
-  initialViewMode?: 'grid' | 'list' | 'chart' | 'almari';
+  initialViewMode?: 'grid' | 'list' | 'chart';
   onOpenAddBook: () => void;
   onSelectBook: (book: Book) => void;
   onEditBook: (book: Book) => void;
@@ -63,6 +61,7 @@ interface BooksCatalogViewProps {
   onOpenImportBookEntrySheet?: () => void;
   onOpenBatchLabelPrint?: () => void;
   onBooksUpdated?: (updatedBooks: Book[], message: string, batchId?: string) => void;
+  onNavigateToAlmaris?: () => void;
   totalDbBooksCount?: number;
 }
 
@@ -79,6 +78,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   onOpenImportBookEntrySheet,
   onOpenBatchLabelPrint,
   onBooksUpdated,
+  onNavigateToAlmaris,
   totalDbBooksCount,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,9 +94,18 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   const [dateTo, setDateTo] = useState('');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [selectedAlmariFilter, setSelectedAlmariFilter] = useState('ALL');
-  const [almarisRevision, setAlmarisRevision] = useState(0);
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'chart' | 'almari'>(initialViewMode || 'list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'chart'>(initialViewMode || 'list');
   const [isSecondaryFiltersOpen, setIsSecondaryFiltersOpen] = useState(false);
+
+  const activeAlmarisList = useMemo(() => AlmariService.getAlmaris().filter(a => a.is_active), [books.length]);
+  const activeGroupsList = useMemo(() => AlmariService.getGroups().filter(g => g.is_active), [books.length]);
+  const placementByBookId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolveBookAlmariAndShelf>>();
+    for (const b of books) {
+      map.set(b.id, resolveBookAlmariAndShelf(b, activeAlmarisList, activeGroupsList));
+    }
+    return map;
+  }, [books, activeAlmarisList, activeGroupsList]);
 
   useEffect(() => {
     if (initialViewMode) {
@@ -276,19 +285,23 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         const matchesDateFrom = !dateFrom || dateFrom === '' || (bookDate && bookDate >= dateFrom);
         const matchesDateTo = !dateTo || dateTo === '' || (bookDate && bookDate <= dateTo);
 
+        const placement = placementByBookId.get(book.id);
+
         // Group filter
         const isDefaultGroup = !selectedGroupFilter || selectedGroupFilter === 'ALL' || selectedGroupFilter === 'All Groups' || selectedGroupFilter === '';
+        const resolvedGrpId = placement?.group_id || book.group_id;
         const matchesGroup = 
           isDefaultGroup ||
-          (selectedGroupFilter === 'NO_GROUP' && !book.group_id) ||
-          book.group_id === selectedGroupFilter;
+          (selectedGroupFilter === 'NO_GROUP' && !resolvedGrpId) ||
+          resolvedGrpId === selectedGroupFilter;
 
         // Almari filter
         const isDefaultAlmari = !selectedAlmariFilter || selectedAlmariFilter === 'ALL' || selectedAlmariFilter === 'All Almaris' || selectedAlmariFilter === '';
+        const resolvedAlmId = placement?.almari_id || book.almari_id;
         const matchesAlmari = 
           isDefaultAlmari ||
-          (selectedAlmariFilter === 'NO_ALMARI' && !book.almari_id) ||
-          book.almari_id === selectedAlmariFilter;
+          (selectedAlmariFilter === 'NO_ALMARI' && !resolvedAlmId) ||
+          resolvedAlmId === selectedAlmariFilter;
 
         return matchesQuery && matchesCategory && matchesStatus && matchesLanguage && matchesDateFrom && matchesDateTo && matchesGroup && matchesAlmari;
       });
@@ -445,176 +458,185 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     <div className="w-full h-auto min-h-0 flex flex-col gap-5 bg-transparent px-6 pt-5 pb-12 overflow-visible">
       <div className="max-w-[1920px] w-full mx-auto space-y-5">
         
-        {/* Only render KPI metrics and Catalog Toolbar when NOT in dedicated Almari View */}
-        {viewMode !== 'almari' && (
-          <>
-            {/* Operational Collection Metrics (Unified Institutional Surfaces - Rule 4) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard
-                label="Cataloged Titles"
-                value={totalTitles}
-                note="Distinct records"
-                icon={BookOpen}
-                subLabel={`Across ${categories.length} academic disciplines`}
+        {/* Operational Collection Metrics (Unified Institutional Surfaces - Rule 4) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            label="Cataloged Titles"
+            value={totalTitles}
+            note="Distinct records"
+            icon={BookOpen}
+            subLabel={`Across ${categories.length} academic disciplines`}
+          />
+          <KpiCard
+            label="Physical Volumes"
+            value={totalCopies}
+            note="Physical items"
+            icon={Layers}
+            subLabel="Total holdings in campus collection"
+          />
+          <KpiCard
+            label="Shelf Availability"
+            value={totalAvailable}
+            note="Available now"
+            icon={CheckCircle2}
+            subLabel={`${totalAvailable.toLocaleString()} / ${totalCopies.toLocaleString()} volumes on shelf`}
+          />
+          <KpiCard
+            label="Active Loans"
+            value={activeBorrowed}
+            note={overdueCount > 0 ? `${overdueCount} overdue` : 'On loan'}
+            icon={Clock}
+            isGoldNumber={activeBorrowed > 0}
+            isDanger={overdueCount > 0}
+            subLabel={overdueCount > 0 ? `${overdueCount} books require overdue follow-up` : 'Currently checked out to members'}
+          />
+        </div>
+
+        {/* Decluttered 2-Row Filter & Search Action Bar (Rule 5) */}
+        <div className="ulm-liquid-glass rounded-xl p-4 space-y-3 shadow-xs">
+          {/* Row 1: Search & Primary Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[260px]">
+              <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+              <input
+                ref={searchInputRef}
+                id="catalog-search-input"
+                name="catalogSearch"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && searchQuery) {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                  }
+                }}
+                placeholder="Search title, author, barcode, accession, ISBN..."
+                aria-label="Search catalog books"
+                autoComplete="off"
+                spellCheck={false}
+                style={{ paddingLeft: '2.5rem', paddingRight: searchQuery ? '2.25rem' : '0.875rem' }}
+                className={`w-full h-10 bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] focus:bg-white dark:focus:bg-[#141214] border rounded-[10px] pl-10 pr-9 text-[13px] font-medium text-slate-900 dark:text-white placeholder:text-slate-400 transition-colors ${
+                  isSearchFocused
+                    ? 'border-[#BC881B] ring-2 ring-[#BC881B]/25 outline-none'
+                    : 'border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60'
+                }`}
               />
-              <KpiCard
-                label="Physical Volumes"
-                value={totalCopies}
-                note="Physical items"
-                icon={Layers}
-                subLabel="Total holdings in campus collection"
-              />
-              <KpiCard
-                label="Shelf Availability"
-                value={totalAvailable}
-                note="Available now"
-                icon={CheckCircle2}
-                subLabel={`${totalAvailable.toLocaleString()} / ${totalCopies.toLocaleString()} volumes on shelf`}
-              />
-              <KpiCard
-                label="Active Loans"
-                value={activeBorrowed}
-                note={overdueCount > 0 ? `${overdueCount} overdue` : 'On loan'}
-                icon={Clock}
-                isGoldNumber={activeBorrowed > 0}
-                isDanger={overdueCount > 0}
-                subLabel={overdueCount > 0 ? `${overdueCount} books require overdue follow-up` : 'Currently checked out to members'}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '0.5rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    minWidth: '24px',
+                    minHeight: '24px',
+                    width: '24px',
+                    height: '24px',
+                    padding: 0,
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer z-10"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* 4 Clean Select Dropdowns */}
+            {/* 1. Discipline */}
+            <div className="w-48 min-w-[175px] shrink-0">
+              <CustomSelect
+                value={selectedCategory}
+                onChange={(val) => setSelectedCategory(val)}
+                options={[
+                  { value: 'ALL', label: 'All Disciplines' },
+                  ...categories.map(c => ({ value: c, label: c }))
+                ]}
+                searchable
+                variant="dark"
               />
             </div>
 
-            {/* Decluttered 2-Row Filter & Search Action Bar (Rule 5) */}
-            <div className="ulm-liquid-glass rounded-xl p-3.5 space-y-3 shadow-xs">
-              {/* Row 1: Search & Primary Filters */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Search Input */}
-                <div className="relative flex-1 min-w-[260px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    ref={searchInputRef}
-                    id="catalog-search-input"
-                    name="catalogSearch"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setIsSearchFocused(true)}
-                    onBlur={() => setIsSearchFocused(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape' && searchQuery) {
-                        e.stopPropagation();
-                        setSearchQuery('');
-                      }
-                    }}
-                    placeholder="Search title, author, barcode, accession, ISBN..."
-                    aria-label="Search catalog books"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className={`w-full h-10 bg-[#0B1220] hover:bg-[#0E1525] focus:bg-[#0B1220] border rounded-lg pl-10 pr-8 text-[13px] text-white placeholder:text-slate-400 transition-colors ${
-                      isSearchFocused
-                        ? 'border-[#BC881B] ring-1 ring-[#BC881B] outline-none'
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        searchInputRef.current?.focus();
-                      }}
-                      className="w-5 h-5 flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                      title="Clear search"
-                      aria-label="Clear search"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+            {/* 2. Language (Rule 5: Clean labels, never Nastaliq overflowing) */}
+            <div className="w-44 min-w-[160px] shrink-0">
+              <CustomSelect
+                value={selectedLanguage}
+                onChange={(val) => setSelectedLanguage(val)}
+                options={[
+                  { value: 'ALL', label: 'All Languages' },
+                  { value: 'English', label: 'English' },
+                  { value: 'Urdu', label: 'Urdu (اردو)' },
+                  { value: 'Pashto', label: 'Pashto (پښتو)' },
+                ]}
+                variant="dark"
+              />
+            </div>
 
-                {/* 4 Clean Select Dropdowns */}
-                {/* 1. Discipline */}
-                <div className="w-44 min-w-[150px]">
-                  <CustomSelect
-                    value={selectedCategory}
-                    onChange={(val) => setSelectedCategory(val)}
-                    options={[
-                      { value: 'ALL', label: 'All Disciplines' },
-                      ...categories.map(c => ({ value: c, label: c }))
-                    ]}
-                    searchable
-                    variant="dark"
-                  />
-                </div>
+            {/* 3. Almari */}
+            <div className="w-44 min-w-[160px] shrink-0">
+              <CustomSelect
+                value={selectedAlmariFilter}
+                onChange={(val) => setSelectedAlmariFilter(val)}
+                options={[
+                  { value: 'ALL', label: 'All Almaris' },
+                  { value: 'NO_ALMARI', label: 'No Almari' },
+                  ...AlmariService.getAlmaris().filter(a => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name_en}` }))
+                ]}
+                searchable
+                variant="dark"
+              />
+            </div>
 
-                {/* 2. Language (Rule 5: Clean labels, never Nastaliq overflowing) */}
-                <div className="w-36 min-w-[130px]">
-                  <CustomSelect
-                    value={selectedLanguage}
-                    onChange={(val) => setSelectedLanguage(val)}
-                    options={[
-                      { value: 'ALL', label: 'All Languages' },
-                      { value: 'English', label: 'English' },
-                      { value: 'Urdu', label: 'Urdu (اردو)' },
-                      { value: 'Pashto', label: 'Pashto (پښتو)' },
-                    ]}
-                    variant="dark"
-                  />
-                </div>
+            {/* 4. Sort */}
+            <div className="w-52 min-w-[190px] shrink-0">
+              <CustomSelect
+                value={sortBy}
+                onChange={(val) => handleSortChange(val)}
+                options={[
+                  { value: 'newest_added', label: 'Sort: Newest Added' },
+                  { value: 'oldest_added', label: 'Sort: Oldest Added' },
+                  { value: 'almari_order', label: 'Sort: Almari Order' },
+                  { value: 'group_then_almari', label: 'Sort: Group & Almari' },
+                  { value: 'dewey_decimal', label: 'Sort: Call # (Dewey)' },
+                  { value: 'accession', label: 'Sort: Accession (Asc)' },
+                  { value: 'accession_desc', label: 'Sort: Accession (Desc)' },
+                  { value: 'title', label: 'Sort: Title (A-Z)' },
+                  { value: 'author', label: 'Sort: Author (A-Z)' },
+                ]}
+                variant="dark"
+              />
+            </div>
 
-                {/* 3. Almari */}
-                <div className="w-40 min-w-[140px]">
-                  <CustomSelect
-                    value={selectedAlmariFilter}
-                    onChange={(val) => setSelectedAlmariFilter(val)}
-                    options={[
-                      { value: 'ALL', label: 'All Almaris' },
-                      { value: 'NO_ALMARI', label: 'No Almari' },
-                      ...AlmariService.getAlmaris().filter(a => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name_en}` }))
-                    ]}
-                    searchable
-                    variant="dark"
-                  />
-                </div>
-
-                {/* 4. Sort */}
-                <div className="w-44 min-w-[150px]">
-                  <CustomSelect
-                    value={sortBy}
-                    onChange={(val) => handleSortChange(val)}
-                    options={[
-                      { value: 'newest_added', label: 'Sort: Newest Added' },
-                      { value: 'oldest_added', label: 'Sort: Oldest Added' },
-                      { value: 'almari_order', label: 'Sort: Almari Order' },
-                      { value: 'group_then_almari', label: 'Sort: Group & Almari' },
-                      { value: 'dewey_decimal', label: 'Sort: Call # (Dewey)' },
-                      { value: 'accession', label: 'Sort: Accession (Asc)' },
-                      { value: 'accession_desc', label: 'Sort: Accession (Desc)' },
-                      { value: 'title', label: 'Sort: Title (A-Z)' },
-                      { value: 'author', label: 'Sort: Author (A-Z)' },
-                    ]}
-                    variant="dark"
-                  />
-                </div>
-
-                {/* Secondary Filters Popover Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsSecondaryFiltersOpen(!isSecondaryFiltersOpen)}
-                  className={`h-10 px-3.5 rounded-lg border text-[13px] font-medium flex items-center gap-2 transition-colors cursor-pointer shrink-0 ${
-                    isSecondaryFiltersOpen || activeSecondaryFilterCount > 0
-                      ? 'bg-[#151C2C] border-[#BC881B] text-[#E0B450]'
-                      : 'bg-[#0B1220] border-white/10 text-slate-300 hover:bg-[#151C2C] hover:text-white'
-                  }`}
-                  title="Toggle more filters (copies, groups, date added)"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Filters</span>
-                  {activeSecondaryFilterCount > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-[#BC881B] text-slate-950 font-bold text-[11px] flex items-center justify-center">
-                      {activeSecondaryFilterCount}
-                    </span>
-                  )}
-                </button>
-              </div>
+            {/* Secondary Filters Popover Button */}
+            <button
+              type="button"
+              onClick={() => setIsSecondaryFiltersOpen(!isSecondaryFiltersOpen)}
+              className={`h-10 px-4 rounded-[10px] border text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer shrink-0 ${
+                isSecondaryFiltersOpen || activeSecondaryFilterCount > 0
+                  ? 'bg-amber-50 dark:bg-[#141214] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-[#8F4F00] dark:text-[#E0B450]'
+                  : 'bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60 text-slate-900 dark:text-[#F1F5F9]'
+              }`}
+              title="Toggle more filters (copies, groups, date added)"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+              <span>Filters</span>
+              {activeSecondaryFilterCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-[#BC881B] text-slate-950 font-bold text-[11px] flex items-center justify-center shrink-0">
+                  {activeSecondaryFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
 
               {/* Secondary Filters Popover Panel */}
               {isSecondaryFiltersOpen && (
@@ -695,17 +717,17 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               )}
 
               {/* Row 2: View Switcher & Secondary Actions (Rule 5) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-white/[0.06]">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200/70 dark:border-white/[0.06]">
                 {/* Left: Segmented View Switcher */}
-                <div className="bg-[#0B1220] p-1 rounded-lg border border-white/10 inline-flex items-center gap-1">
+                <div className="bg-slate-100/90 dark:bg-[#0B1220] p-1 rounded-xl border border-slate-200/90 dark:border-white/10 inline-flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setViewMode('list')}
                     aria-pressed={viewMode === 'list'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                       viewMode === 'list' 
-                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
                     }`}
                     title="Switch to Table List View"
                   >
@@ -716,10 +738,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     type="button"
                     onClick={() => setViewMode('grid')}
                     aria-pressed={viewMode === 'grid'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                       viewMode === 'grid' 
-                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
                     }`}
                     title="Switch to Card Grid View"
                   >
@@ -728,26 +750,25 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setViewMode('almari')}
-                    aria-pressed={(viewMode as string) === 'almari'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                      (viewMode as string) === 'almari' 
-                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-                    }`}
-                    title="Switch to Almari & Shelves Visual View"
+                    onClick={() => {
+                      if (onNavigateToAlmaris) {
+                        onNavigateToAlmaris();
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
+                    title="Open Almaris & Shelves Visual Inspector (⌘A)"
                   >
-                    <Library className="w-3.5 h-3.5" />
+                    <Library className="w-3.5 h-3.5 text-[#B4690E] dark:text-[#FFD147]" />
                     <span>Almari View</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewMode('chart')}
                     aria-pressed={viewMode === 'chart'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                       viewMode === 'chart' 
-                        ? 'bg-[#BC881B] text-slate-950 font-semibold shadow-xs' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
                     }`}
                     title="Switch to Analytics View"
                   >
@@ -756,16 +777,16 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                   </button>
                 </div>
 
-                {/* Right: Quiet Secondary Actions (No duplicate Add Book, no neon button fills) */}
-                <div className="flex items-center gap-2">
+                {/* Right: Non-Merging Secondary & Primary Actions */}
+                <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
                   {onOpenImportBookEntrySheet && (
                     <button
                       type="button"
                       onClick={onOpenImportBookEntrySheet}
-                      className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
                       title="Upload a .xlsx or .csv file to validate and add books"
                     >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>Import Excel/CSV</span>
                     </button>
                   )}
@@ -774,51 +795,59 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     <button
                       type="button"
                       onClick={onOpenBatchLabelPrint}
-                      className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
                       title="Batch Barcode Labels Generator"
                     >
-                      <Printer className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>Batch Labels</span>
+                      <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                      <span>Print Barcodes</span>
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={handleDownloadBookCsvTemplate}
-                    className="h-9 px-3 rounded-lg bg-[#151C2C] border border-white/10 text-slate-200 hover:bg-slate-800 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
                     title="Download official catalog CSV template"
                   >
-                    <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                     <span>CSV Template</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleCleanInvalidRows}
-                    className="h-9 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-all cursor-pointer shadow-xs"
                     title="Scan and purge corrupt stubs (e.g. cz&quot; or dummy test records)"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
                     <span>Clean Invalid Rows</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onOpenAddBook}
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-[#541A72] via-[#6B21A8] to-[#B4690E] hover:brightness-110 !text-white border border-[#FFD147]/40 text-xs font-extrabold transition-all cursor-pointer shadow-md"
+                    title="Catalog a New Book Volume"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5] !text-white shrink-0" />
+                    <span className="!text-white">+ Add Book</span>
                   </button>
                 </div>
               </div>
             </div>
-          </>
-        )}
 
         {/* Floating/Sticky Selection Bar for Catalog Placement */}
-        {selectedBookIds.size > 0 && viewMode !== 'almari' && (
-          <div className="bg-[#221F26] border border-[#BC881B] rounded-[14px] p-3 sm:p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.6)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+        {selectedBookIds.size > 0 && (
+          <div className="bg-white/95 dark:bg-[#221F26] border-2 border-[#BC881B] rounded-[14px] p-3 sm:p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-[#BC881B] text-[#1A1A1A] font-extrabold flex items-center justify-center font-mono text-sm">
                 {selectedBookIds.size}
               </div>
               <div>
-                <span className="text-white font-bold text-sm">
+                <span className="text-slate-900 dark:text-white font-bold text-sm">
                   {selectedBookIds.size} book{selectedBookIds.size !== 1 ? 's' : ''} selected
                 </span>
-                <span className="text-xs text-[#B3AABD] ml-2">
+                <span className="text-xs text-slate-500 dark:text-[#B3AABD] ml-2">
                   ({filteredBooks.length} match current filters)
                 </span>
               </div>
@@ -829,7 +858,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
-                  className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-[#E0D8E6] rounded-lg text-xs font-semibold border border-white/10 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-800 dark:text-[#E0D8E6] rounded-lg text-xs font-semibold border border-slate-300 dark:border-white/10 transition-colors cursor-pointer"
                 >
                   Select all {filteredBooks.length} matching filter
                 </button>
@@ -853,7 +882,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 onClick={handleClearSelection}
-                className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-[#B3AABD] hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 Clear
               </button>
@@ -861,26 +890,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </div>
         )}
 
-        {/* Catalog Display: Almari View, Chart View, Grid View or List View */}
-        {viewMode === 'almari' ? (
-          <AlmariErrorBoundary fallbackTitle="Error loading Almari View" onReset={() => setViewMode('almari')}>
-            <AlmariView
-              books={books}
-              onOpenBook={onSelectBook}
-              onEditBook={onEditBook}
-              selectedCatalogBookIds={selectedBookIds}
-              onClearCatalogSelection={handleClearSelection}
-              onReloadAlmaris={() => setAlmarisRevision(r => r + 1)}
-              onFilterCatalogByShelf={(almariCode, shelfNo) => {
-                setSearchQuery(shelfNo ? `${almariCode} Shelf ${shelfNo}` : almariCode);
-                setViewMode('grid');
-              }}
-              onCatalogBooksUpdated={(updated, msg, batchId) => {
-                if (onBooksUpdated) onBooksUpdated(updated, msg, batchId);
-              }}
-            />
-          </AlmariErrorBoundary>
-        ) : viewMode === 'chart' ? (
+        {/* Catalog Display: Chart View, Grid View or List View */}
+        {viewMode === 'chart' ? (
           <CatalogChartsView
             books={books}
             transactions={transactions}
@@ -1078,55 +1089,68 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Clean unified card footer: Stack-01 · Row 1 + #Barcode on left, green Available badge + actions on right */}
-                    <div className="mt-auto px-3.5 py-3 bg-white/5 dark:bg-black/25 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
-                      <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--text-strong)] truncate">
-                          <MapPin className="w-3.5 h-3.5 text-[#29658E] shrink-0" />
-                          <span className="truncate">{book.shelf} · Row {book.row}</span>
+                    {/* Clean unified card footer: Location + Availability on top row, Action buttons on bottom row so nothing merges */}
+                    <div className="mt-auto px-3.5 py-3 bg-white/5 dark:bg-black/25 border-t border-[var(--border-subtle)] flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div
+                          onClick={() => onNavigateToAlmaris && onNavigateToAlmaris()}
+                          className="flex flex-col min-w-0 cursor-pointer group/loc"
+                          title="Click to inspect physical Almari & Shelf"
+                        >
+                          <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-[var(--text-strong)] group-hover/loc:text-[#B4690E] dark:group-hover/loc:text-[#FFD147] truncate">
+                            <MapPin className="w-3.5 h-3.5 text-[#29658E] shrink-0" />
+                            <span className="truncate">
+                              {placementByBookId.get(book.id)?.shelf_label || `${book.shelf} · Row ${book.row}`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[var(--text-muted)] pl-5 truncate">
+                            {book.barcode}
+                          </span>
                         </div>
-                        <span className="text-[10px] font-mono text-[var(--text-muted)] pl-5 truncate">
-                          {book.barcode}
-                        </span>
-                      </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
                         {isAvailable ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            {book.available_quantity} Available
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-bold shrink-0 whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span>{book.available_quantity} Available</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[10px] font-semibold">
-                            0 Available
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[10px] font-semibold shrink-0 whitespace-nowrap">
+                            <span>0 Available</span>
                           </span>
                         )}
+                      </div>
 
-                        <button
-                          onClick={() => onSelectBook(book)}
-                          className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300/80 dark:border-white/10 transition-colors cursor-pointer"
-                          title="Full book specification & history"
-                        >
-                          Details
-                        </button>
-
-                        <button
-                          onClick={() => onQuickLoan(book)}
-                          disabled={!isAvailable}
-                          className={`h-8 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 ${
-                            isAvailable
-                              ? 'border-[#BC881B] bg-[#BC881B] text-slate-950 hover:bg-[#D4A02A] shadow-xs active:scale-95'
-                              : 'border-transparent bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed pointer-events-none'
-                          }`}
-                          title={isAvailable ? 'Quickly issue a copy of this book' : 'No available copies left on shelf'}
-                        >
-                          <ArrowRightLeft className="w-3 h-3 shrink-0" />
-                          <span>Issue</span>
-                        </button>
-
-                        {/* More Actions Dropdown/Buttons */}
-                        <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/10">
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-white/[0.06] flex-wrap">
+                        <div className="flex items-center gap-2">
                           <button
+                            type="button"
+                            onClick={() => onSelectBook(book)}
+                            className="h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300/80 dark:border-white/10 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                            title="Full book specification & history"
+                          >
+                            Details
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onQuickLoan(book)}
+                            disabled={!isAvailable}
+                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                              isAvailable
+                                ? 'border-[#BC881B] bg-[#BC881B] !text-slate-950 hover:bg-[#D4A02A] shadow-xs active:scale-95'
+                                : 'border-transparent bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed pointer-events-none'
+                            }`}
+                            title={isAvailable ? 'Quickly issue a copy of this book' : 'No available copies left on shelf'}
+                          >
+                            <ArrowRightLeft className="w-3 h-3 shrink-0" />
+                            <span>Issue</span>
+                          </button>
+                        </div>
+
+                        {/* More Actions Buttons */}
+                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-white/10 shrink-0">
+                          <button
+                            type="button"
                             onClick={() => onEditBook(book)}
                             className="p-1.5 rounded-md text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
                             title="Edit book details"
@@ -1134,6 +1158,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => onPrintBarcode(book)}
                             className="p-1.5 rounded-md text-slate-400 hover:text-sky-500 hover:bg-sky-500/10 transition-colors cursor-pointer"
                             title="Print barcode"
@@ -1141,6 +1166,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             <Printer className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => onDeleteBook(book)}
                             className="p-1.5 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Delete book"
@@ -1291,8 +1317,15 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <td className="py-3 px-4 text-center font-mono-code tabular-nums text-slate-500 dark:text-slate-400">
                           {issued}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {book.shelf} · Row {book.row}
+                        <td className="py-3 px-4">
+                          <button
+                            type="button"
+                            onClick={() => onNavigateToAlmaris && onNavigateToAlmaris()}
+                            className="px-2.5 py-1 rounded-lg font-mono text-[11px] font-extrabold bg-amber-500/15 hover:bg-amber-500/25 text-[#8A4B00] dark:text-[#FFD147] border border-[#C8963E]/40 transition-colors cursor-pointer"
+                            title="Inspect in Almaris & Shelves"
+                          >
+                            {placementByBookId.get(book.id)?.shelf_label || `${book.shelf} · Row ${book.row}`}
+                          </button>
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1420,42 +1453,46 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                   </div>
 
                   {/* Actions Row */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.06]">
-                    <span className="text-[11px] font-mono text-slate-400">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-white/[0.06]">
+                    <span className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
                       Added {formatDisplayDate(book.date_added || book.created_at)}
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
+                        type="button"
                         onClick={() => onQuickLoan(book)}
                         disabled={!isAvailable}
-                        className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                           isAvailable
                             ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
                             : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
                         }`}
                       >
-                        <ArrowRightLeft className="w-3 h-3" />
+                        <ArrowRightLeft className="w-3 h-3 shrink-0" />
                         <span>Loan</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => onEditBook(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer shrink-0"
                         title="Edit"
                         aria-label="Edit title record"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => onPrintBarcode(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer shrink-0"
                         title="Print Barcode"
                         aria-label="Print Barcode"
                       >
                         <Printer className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => onDeleteBook(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors cursor-pointer shrink-0"
                         title="Delete Book"
                         aria-label="Delete Book"
                       >
@@ -1471,23 +1508,23 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         )}
 
         {/* Database-side / LRU-Cached Pagination Bar (50/100/200 selector, instant 0ms switching) */}
-        {filteredBooks.length > 0 && viewMode !== 'almari' && viewMode !== 'chart' && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-[12px] bg-[#1A1A1A] border border-white/[0.08] text-xs text-[#B3AABD] mt-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span>
-                Showing <strong className="text-white font-mono">{totalMatchingBooks === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}</strong> to{' '}
-                <strong className="text-white font-mono">{Math.min(safeCurrentPage * pageSize, totalMatchingBooks)}</strong> of{' '}
-                <strong className="text-white font-mono">{totalMatchingBooks.toLocaleString()}</strong> books
+        {filteredBooks.length > 0 && viewMode !== 'chart' && (
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/90 dark:bg-[#140D22]/90 backdrop-blur-xl border border-slate-200/90 dark:border-white/10 text-xs text-slate-600 dark:text-[#B3AABD] mt-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <span className="whitespace-nowrap">
+                Showing <strong className="text-slate-900 dark:text-white font-mono">{totalMatchingBooks === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}</strong> to{' '}
+                <strong className="text-slate-900 dark:text-white font-mono">{Math.min(safeCurrentPage * pageSize, totalMatchingBooks)}</strong> of{' '}
+                <strong className="text-slate-900 dark:text-white font-mono">{totalMatchingBooks.toLocaleString()}</strong> books
               </span>
-              <div className="flex items-center gap-1.5 ml-2">
-                <span>Per page:</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="whitespace-nowrap font-medium">Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-[#221F26] border border-white/[0.12] rounded px-2 py-1 text-white font-mono focus:border-[#BC881B] focus:outline-none cursor-pointer"
+                  className="ulm-inline-select w-auto min-w-[122px] bg-slate-100 dark:bg-[#221F26] border border-slate-300 dark:border-white/[0.12] rounded-lg px-2.5 py-1 text-slate-900 dark:text-white font-mono focus:border-[#BC881B] focus:outline-none cursor-pointer shrink-0"
                 >
                   <option value={50}>50 per page</option>
                   <option value={100}>100 per page</option>
@@ -1496,12 +1533,12 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCurrentPage(1)}
                 disabled={safeCurrentPage <= 1}
-                className="px-2.5 py-1.5 rounded-lg bg-[#221F26] hover:bg-white/[0.08] text-white disabled:opacity-40 disabled:cursor-not-allowed border border-white/[0.08] font-mono cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-mono cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 title="First Page"
               >
                 « First
@@ -1510,18 +1547,18 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 type="button"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={safeCurrentPage <= 1}
-                className="px-3 py-1.5 rounded-lg bg-[#221F26] hover:bg-white/[0.08] text-white disabled:opacity-40 disabled:cursor-not-allowed border border-white/[0.08] font-medium cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
                 ‹ Prev
               </button>
-              <span className="px-3 py-1.5 rounded-lg bg-[#541A72]/40 border border-[#A66BC9]/30 text-[#E0B450] font-mono font-bold">
+              <span className="px-3.5 py-1.5 rounded-lg bg-[#541A72]/15 dark:bg-[#541A72]/40 border border-[#541A72]/30 dark:border-[#A66BC9]/30 text-[#541A72] dark:text-[#E0B450] font-mono font-extrabold whitespace-nowrap shrink-0">
                 Page {safeCurrentPage} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={safeCurrentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg bg-[#221F26] hover:bg-white/[0.08] text-white disabled:opacity-40 disabled:cursor-not-allowed border border-white/[0.08] font-medium cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
                 Next ›
               </button>
@@ -1529,7 +1566,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 type="button"
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={safeCurrentPage >= totalPages}
-                className="px-2.5 py-1.5 rounded-lg bg-[#221F26] hover:bg-white/[0.08] text-white disabled:opacity-40 disabled:cursor-not-allowed border border-white/[0.08] font-mono cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-mono cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 title="Last Page"
               >
                 Last »

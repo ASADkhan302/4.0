@@ -36,7 +36,7 @@ import CustomSelect from './ui/CustomSelect';
 import { CountUp } from '@/components/ui/count-up';
 import { SharedCsvWriter } from '../utils/csvWriter';
 import { matchesUrduSearch } from '../utils/urduUtils';
-import { ULM_CREST_LOGO } from '../constants/branding';
+import { ULM_OFFICIAL_CREST_SRC } from '../constants/ulmOfficialAssets';
 
 export interface BorrowersViewProps {
   borrowers: Borrower[];
@@ -251,60 +251,68 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         </div>
 
         {/* Action Buttons Toolbar */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
           <button
+            type="button"
             onClick={() => {
               setBorrowerToEdit(null);
               setIsAddEditModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:brightness-110 active:scale-[0.98] text-[#1A1A1A] text-xs md:text-sm font-bold shadow-[0_2px_12px_rgba(188,136,27,0.3)] transition-all"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#541A72] via-[#6B21A8] to-[#B4690E] hover:brightness-110 active:scale-[0.98] !text-white text-xs md:text-sm font-bold border border-[#FFD147]/40 shadow-md transition-all cursor-pointer"
           >
-            <UserPlus className="w-4 h-4 text-[#1A1A1A]" />
-            <span>+ Add Member</span>
+            <UserPlus className="w-4 h-4 !text-white shrink-0" />
+            <span className="!text-white">+ Register Borrower</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setIsCsvImportModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-[#221F26] border border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-[#2B2730] text-[#E7E2EC] text-xs md:text-sm font-medium transition-all"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-800 dark:text-[#E7E2EC] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
             title="Import class or departmental list via CSV"
           >
-            <FileSpreadsheet className="w-4 h-4 text-[#34D399]" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-[#34D399] shrink-0" />
             <span>Import CSV</span>
           </button>
 
           <button
+            type="button"
             onClick={handleOpenFilteredPrint}
             disabled={filteredBorrowers.length === 0}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-[#221F26] border border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-[#2B2730] text-[#E0B450] text-xs md:text-sm font-medium transition-all disabled:opacity-40 disabled:pointer-events-none"
-            title="Batch print identity cards"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-white dark:hover:bg-[#2B2730] text-[#8A4B00] dark:text-[#E0B450] text-xs md:text-sm font-semibold shadow-xs transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            title="Batch print CR80 identity cards"
           >
-            <Printer className="w-4 h-4 text-[#E0B450]" />
-            <span>Print Cards ({filteredBorrowers.length})</span>
+            <Printer className="w-4 h-4 text-[#B4690E] dark:text-[#E0B450] shrink-0" />
+            <span>Batch Print ID Cards ({filteredBorrowers.length})</span>
           </button>
 
           <button
+            type="button"
             onClick={handleExportCsv}
-            className="p-2.5 rounded-lg bg-[#221F26] border border-[#2E2A33] hover:border-[#6FA8D2]/50 hover:bg-[#2B2730] text-[#B3AABD] hover:text-[#6FA8D2] transition-all"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#6FA8D2]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-[#29658E] dark:hover:text-[#6FA8D2] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
             title="Export filtered borrowers to CSV"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 shrink-0" />
+            <span>Export</span>
           </button>
 
           <button
+            type="button"
             onClick={handleDownloadTemplate}
-            className="p-2.5 rounded-lg bg-[#221F26] border border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-[#2B2730] text-[#B3AABD] hover:text-[#E0B450] transition-all"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-[#B4690E] dark:hover:text-[#E0B450] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
             title="Download CSV import template"
           >
-            <IdCard className="w-4 h-4" />
+            <IdCard className="w-4 h-4 shrink-0" />
+            <span>Template</span>
           </button>
 
           {onReloadData && (
             <button
+              type="button"
               onClick={onReloadData}
-              className="p-2.5 rounded-lg bg-[#221F26] border border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-[#2B2730] text-[#B3AABD] hover:text-white transition-all"
+              className="inline-flex items-center justify-center whitespace-nowrap shrink-0 p-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-slate-950 dark:hover:text-white shadow-xs transition-all cursor-pointer"
               title="Refresh database records"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4 shrink-0" />
             </button>
           )}
         </div>
@@ -511,10 +519,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               >
                 {/* User Card Background Watermark */}
                 <img
-                  src={ULM_CREST_LOGO}
+                  src={ULM_OFFICIAL_CREST_SRC}
                   alt=""
                   aria-hidden="true"
-                  className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08]"
+                  className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08] z-0"
                 />
 
                 {/* Decorative Top Accent Hairline */}
@@ -691,11 +699,12 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                 </div>
 
                 {/* Card Action Buttons Footer */}
-                <div className="pt-3 mt-3 border-t border-[#2E2A33] flex items-center justify-between gap-2">
+                <div className="pt-3 mt-3 border-t border-[#2E2A33] flex flex-wrap items-center justify-between gap-2">
                   <button
+                    type="button"
                     onClick={() => onIssueBook(borrower)}
                     disabled={borrower.status !== 'active' || loansCount >= maxLimit}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-[rgba(188,136,27,0.15)] hover:bg-[#BC881B]/25 active:scale-[0.98] text-[#E0B450] text-xs font-semibold border border-[#BC881B]/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 py-1.5 px-2.5 rounded-lg bg-[rgba(188,136,27,0.15)] hover:bg-[#BC881B]/25 active:scale-[0.98] text-[#8A4B00] dark:text-[#E0B450] text-xs font-semibold border border-[#BC881B]/30 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                     title={
                       borrower.status !== 'active'
                         ? 'Member suspended/inactive'
@@ -704,20 +713,31 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                         : 'Issue new book to member'
                     }
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
                     <span>Quick Issue Book</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setSelectedBorrowerForDetails(borrower)}
-                    className="py-1.5 px-3 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-[#E7E2EC] text-xs font-medium border border-[#2E2A33] transition-colors"
+                    className="inline-flex items-center justify-center whitespace-nowrap shrink-0 py-1.5 px-3 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-[#E7E2EC] text-xs font-medium border border-[#2E2A33] transition-colors cursor-pointer"
                   >
-                    View History
+                    <span>View History</span>
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => handleOpenSinglePrint(borrower)}
+                    className="inline-flex items-center justify-center shrink-0 p-1.5 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-[#E0B450] border border-[#2E2A33] transition-colors cursor-pointer"
+                    title="Print CR80 ID Card"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => onDeleteBorrower(borrower)}
-                    className="p-1.5 rounded-lg bg-[#221F26] hover:bg-rose-950/40 hover:text-rose-400 text-[#B3AABD] border border-[#2E2A33] transition-colors"
+                    className="inline-flex items-center justify-center shrink-0 p-1.5 rounded-lg bg-[#221F26] hover:bg-rose-950/40 hover:text-rose-400 text-[#B3AABD] border border-[#2E2A33] transition-colors cursor-pointer"
                     title="Delete member"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

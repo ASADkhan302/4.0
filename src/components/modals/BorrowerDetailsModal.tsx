@@ -21,6 +21,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { Borrower, Transaction } from '../../types/library';
+import { ULM_OFFICIAL_CREST_SRC } from '../../constants/ulmOfficialAssets';
 
 interface BorrowerDetailsModalProps {
   borrower: Borrower | null;
@@ -94,10 +95,10 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-[#334155] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-              <User className="w-4 h-4 text-amber-600 dark:text-amber-500" />
+        <div className="px-6 py-4 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-[#334155] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full p-1 bg-white dark:bg-[#0B1220] border border-amber-500/40 ring-1 ring-amber-500/25 flex items-center justify-center shrink-0">
+              <img src={ULM_OFFICIAL_CREST_SRC} alt="ULM 2017 Official Crest" className="w-full h-full object-contain" />
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-[#F1F5F9] font-cinzel leading-tight">
@@ -109,8 +110,9 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-[#F1F5F9] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-[#F1F5F9] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
@@ -118,8 +120,14 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
         </div>
 
         {/* Member Profile Banner */}
-        <div className="p-6 border-b border-slate-200 dark:border-[#1E293B] bg-slate-50/70 dark:bg-[#020617]/50 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+        <div className="relative overflow-hidden p-6 border-b border-slate-200 dark:border-[#1E293B] bg-slate-50/70 dark:bg-[#020617]/50 flex flex-wrap items-center justify-between gap-4">
+          <img
+            src={ULM_OFFICIAL_CREST_SRC}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none select-none absolute right-6 top-1/2 -translate-y-1/2 w-28 h-28 object-contain opacity-[0.07] z-0"
+          />
+          <div className="relative z-10 flex items-center gap-4 min-w-0">
             {borrower.photo_url || borrower.photo_path ? (
               <img
                 src={borrower.photo_url || borrower.photo_path}
@@ -443,28 +451,28 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
           )}
         </div>
 
-        {/* Action Footer with Buttons: Edit, Issue book, Print member card */}
+        {/* Action Footer with Non-Merging Buttons: Edit, Issue book, Print member card */}
         <div className="px-6 py-4 bg-slate-50 dark:bg-[#020617] border-t border-slate-200 dark:border-[#334155] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             {onToggleStatus && (
               <button
                 type="button"
                 onClick={() => onToggleStatus(borrower)}
-                className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#334155] text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#334155] text-xs font-semibold transition-colors cursor-pointer"
               >
-                {borrower.status === 'active' ? 'Suspend Account' : 'Reactivate Account'}
+                <span>{borrower.status === 'active' ? 'Suspend Account' : 'Reactivate Account'}</span>
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
             {onPrintCard && (
               <button
                 type="button"
                 onClick={() => onPrintCard(borrower)}
-                className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-400 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-400 border border-amber-500/40 text-xs font-bold transition-colors cursor-pointer shadow-xs"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5 shrink-0" />
                 <span>Print Member Card</span>
               </button>
             )}
@@ -473,9 +481,9 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
               <button
                 type="button"
                 onClick={() => onIssueBook(borrower)}
-                className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#3B82F6] active:bg-[#1D4ED8] text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-[#3B82F6] active:bg-[#1D4ED8] text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
+                <PlusCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>Issue Book</span>
               </button>
             )}
@@ -484,9 +492,9 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
               <button
                 type="button"
                 onClick={() => onEditBorrower(borrower)}
-                className="px-4 py-2 rounded-lg bg-[#BC881B] hover:bg-[#D4A02A] text-[#1A1A1A] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2 rounded-xl bg-[#BC881B] hover:bg-[#D4A02A] text-[#1A1A1A] font-bold text-xs transition-colors cursor-pointer shadow-md"
               >
-                <Edit3 className="w-3.5 h-3.5" />
+                <Edit3 className="w-3.5 h-3.5 shrink-0" />
                 <span>Edit Profile</span>
               </button>
             )}

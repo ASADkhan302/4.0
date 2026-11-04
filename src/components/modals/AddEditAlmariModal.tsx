@@ -223,7 +223,6 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
       const fullCatalog = LibraryStorage.getBooks().map(b => {
         const up = updatedMap.get(b.id);
         if (up) {
-          // Record location history
           AlmariService.recordMove({
             book_id: b.id,
             from: b.almari_id ? `${b.almari_id}, Shelf ${b.shelf_no || 1}` : 'Unassigned',
@@ -231,7 +230,13 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
             reason: `Assigned in Almari modal (${assignMode})`,
             batch_id: batchId,
           });
-          return { ...b, almari_id: savedAlmari.id, shelf_no: up.shelf_no };
+          return {
+            ...b,
+            almari_id: savedAlmari.id,
+            shelf_no: up.shelf_no,
+            shelf: `${savedAlmari.code} · Shelf ${up.shelf_no || 1}`,
+            row: String(up.shelf_no || 1),
+          };
         }
         return b;
       });
@@ -250,28 +255,28 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#1A1A1A] border border-[#BC881B]/40 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-[#E7E2EC]">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white/95 dark:bg-[#161024]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 dark:text-[#E7E2EC]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08] bg-[#221F26]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-white/[0.08] bg-slate-50/90 dark:bg-[#221F26]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#541A72]/40 border border-[#A66BC9]/30 flex items-center justify-center text-[#E0B450]">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F5E1B0] to-[#EBC97E] dark:from-[#541A72]/40 dark:to-[#3B1054]/40 border border-[#C8963E]/60 dark:border-[#A66BC9]/30 flex items-center justify-center text-[#5E3200] dark:text-[#E0B450]">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                {almariToEdit ? 'Edit Cupboard (الماری)' : 'Add Manual Almari / Cupboard (نیا الماری)'}
-                <span className="text-xs px-2 py-0.5 rounded bg-[#BC881B]/20 text-[#E0B450] font-mono border border-[#BC881B]/30">
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                {almariToEdit ? 'Edit Cupboard (الماری)' : 'Add Manual Almari / Cupboard (نئی الماری)'}
+                <span className="text-xs px-2.5 py-0.5 rounded-lg bg-amber-500/15 dark:bg-[#BC881B]/20 text-[#8A4B00] dark:text-[#E0B450] font-mono border border-[#C8963E]/40 dark:border-[#BC881B]/30">
                   {code || 'A-01'}
                 </span>
               </h2>
-              <p className="text-xs text-[#B3AABD]">Set custom cupboard code, name, and shelf capacities manually without automated auto-suggestions.</p>
+              <p className="text-xs text-slate-600 dark:text-[#B3AABD]">Set custom cupboard code, name, and shelf capacities manually.</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#B3AABD] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -283,7 +288,7 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
           {/* Section 1: Names and Code */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#E0B450] mb-1">
+              <label className="block text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] mb-1">
                 Almari Code (e.g. A-01) *
               </label>
               <input
@@ -291,43 +296,43 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase())}
                 placeholder="e.g. A-01"
-                className={`w-full bg-[#221F26] border rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none transition-colors ${
-                  isDuplicateCode ? 'border-rose-500 focus:border-rose-500' : 'border-white/[0.12] focus:border-[#BC881B]'
+                className={`w-full bg-white dark:bg-[#221F26] border rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 dark:text-white focus:outline-none transition-colors ${
+                  isDuplicateCode ? 'border-rose-500 focus:border-rose-500' : 'border-slate-300 dark:border-white/[0.12] focus:border-[#BC881B]'
                 }`}
               />
               {isDuplicateCode && (
-                <p className="text-[11px] text-rose-400 mt-1">Code "{code.trim().toUpperCase()}" is already in use.</p>
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">Code "{code.trim().toUpperCase()}" is already in use.</p>
               )}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#E0B450] mb-1">English Title *</label>
+              <label className="block text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] mb-1">English Title *</label>
               <input
                 type="text"
                 value={nameEn}
                 onChange={e => setNameEn(e.target.value)}
                 placeholder="e.g. Computer Science Stacks or Reference Cupboard"
-                className="w-full bg-[#221F26] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-white focus:border-[#BC881B] focus:outline-none"
+                className="w-full bg-white dark:bg-[#221F26] border border-slate-300 dark:border-white/[0.12] rounded-lg px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white focus:border-[#BC881B] focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#E0B450] mb-1">Urdu Title (اردو عنوان)</label>
+              <label className="block text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] mb-1">Urdu Title (اردو عنوان)</label>
               <input
                 type="text"
                 dir="auto"
                 value={nameUr}
                 onChange={e => setNameUr(e.target.value)}
                 placeholder="مثلاً کمپیوٹر سائنس یا حوالہ جاتی کتب"
-                className="w-full bg-[#221F26] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-white focus:border-[#BC881B] focus:outline-none font-urdu"
+                className="w-full bg-white dark:bg-[#221F26] border border-slate-300 dark:border-white/[0.12] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-[#BC881B] focus:outline-none font-urdu"
               />
             </div>
           </div>
 
           {/* Section 2: Associated Disciplines / Groups */}
           <div>
-            <label className="block text-xs font-semibold text-[#E0B450] mb-1">
+            <label className="block text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] mb-1">
               Associated Subject Groups (Multi-select)
             </label>
-            <div className="flex flex-wrap gap-2 p-3 bg-[#221F26] rounded-xl border border-white/[0.08] max-h-32 overflow-y-auto">
+            <div className="flex flex-wrap gap-2 p-3 bg-slate-50/90 dark:bg-[#221F26] rounded-xl border border-slate-200 dark:border-white/[0.08] max-h-32 overflow-y-auto">
               {allGroups.map(grp => {
                 const isSelected = selectedGroupIds.includes(grp.id);
                 return (
@@ -341,16 +346,16 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
                         setSelectedGroupIds([...selectedGroupIds, grp.id]);
                       }
                     }}
-                    className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                    className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
                       isSelected
-                        ? 'bg-[#541A72] border-[#A66BC9] text-white shadow-sm'
-                        : 'bg-[#1A1A1A] border-white/[0.1] text-[#B3AABD] hover:border-white/[0.2]'
+                        ? 'bg-[#541A72] border-[#A66BC9] !text-white shadow-sm font-bold'
+                        : 'bg-white dark:bg-[#1A1A1A] border-slate-200 dark:border-white/[0.1] text-slate-700 dark:text-[#B3AABD] hover:border-[#C8963E]'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: grp.color }} />
                     <span>{grp.name_en}</span>
                     <span className="font-urdu text-[11px] opacity-80" dir="auto">{grp.name_ur}</span>
-                    {isSelected && <Check className="w-3 h-3 text-[#E0B450] ml-1" />}
+                    {isSelected && <Check className="w-3 h-3 text-[#FFD147] ml-1" />}
                   </button>
                 );
               })}
@@ -358,85 +363,89 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
           </div>
 
           {/* Section 3: Shelves and Capacity Configuration */}
-          <div className="bg-[#221F26] p-4 rounded-xl border border-white/[0.08] space-y-4">
+          <div className="bg-slate-50/90 dark:bg-[#221F26] p-4 rounded-xl border border-slate-200 dark:border-white/[0.08] space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-[#BC881B]" />
-                  Shelves & Capacity Allocation
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#B4690E] dark:text-[#BC881B]" />
+                  Shelves &amp; Capacity Allocation
                 </h3>
-                <p className="text-xs text-[#B3AABD]">Typing a total capacity automatically divides it equally across all shelves</p>
+                <p className="text-xs text-slate-600 dark:text-[#B3AABD]">Typing a total capacity automatically divides it equally across all shelves</p>
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#B3AABD]">Rows (Shelves):</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-[#B3AABD]">Rows (Shelves):</span>
                   <input
                     type="number"
                     min="1"
                     max="20"
                     value={shelfCount}
                     onChange={e => handleShelfCountChange(parseInt(e.target.value, 10) || 1)}
-                    className="w-16 bg-[#1A1A1A] border border-white/[0.12] rounded px-2 py-1 text-sm text-center text-white"
+                    className="w-16 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/[0.12] rounded px-2 py-1 text-sm font-bold text-center text-slate-900 dark:text-white"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#B3AABD]">Total Capacity:</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-[#B3AABD]">Total Capacity:</span>
                   <input
                     type="number"
                     min={shelfCount}
                     value={totalCapacityInput}
                     onChange={e => handleTotalCapacityChange(parseInt(e.target.value, 10) || shelfCount)}
-                    className="w-20 bg-[#1A1A1A] border border-[#BC881B]/50 rounded px-2 py-1 text-sm font-bold text-center text-[#E0B450]"
+                    className="w-20 bg-white dark:bg-[#1A1A1A] border border-[#C8963E] dark:border-[#BC881B]/50 rounded px-2 py-1 text-sm font-extrabold text-center text-[#8A4B00] dark:text-[#E0B450]"
                   />
                 </div>
               </div>
             </div>
 
             {/* Shelf Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-2 border-t border-white/[0.06]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-2 border-t border-slate-200 dark:border-white/[0.06]">
               {shelfCapacities.map((cap, idx) => (
-                <div key={idx} className="bg-[#1A1A1A] border border-white/[0.08] rounded-lg p-2.5 text-center">
-                  <span className="text-[11px] text-[#B3AABD] font-mono block mb-1">Shelf {idx + 1}</span>
+                <div key={idx} className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/[0.08] rounded-lg p-2.5 text-center">
+                  <span className="text-[11px] text-slate-600 dark:text-[#B3AABD] font-mono font-bold block mb-1">Shelf {idx + 1}</span>
                   <input
                     type="number"
                     min="1"
                     value={cap}
                     onChange={e => handleIndividualShelfCapacityChange(idx, parseInt(e.target.value, 10) || 1)}
-                    className="w-full bg-[#221F26] border border-white/[0.1] rounded px-1.5 py-1 text-center font-bold text-sm text-white focus:border-[#BC881B]"
+                    className="w-full bg-slate-50 dark:bg-[#221F26] border border-slate-300 dark:border-white/[0.1] rounded px-1.5 py-1 text-center font-bold text-sm text-slate-900 dark:text-white focus:border-[#BC881B]"
                   />
-                  <span className="text-[10px] text-[#B3AABD] mt-1 block">books</span>
+                  <span className="text-[10px] text-slate-500 dark:text-[#B3AABD] mt-1 block">books</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Section 4: Assign Books Now */}
-          <div className="bg-[#221F26] p-4 rounded-xl border border-white/[0.08] space-y-4">
-            <div className="flex items-center justify-between">
+          {/* Section 4: Assign Books Now (Optional Manual Assignment on Creation) */}
+          <div className="bg-slate-50/90 dark:bg-[#221F26] p-4 rounded-xl border border-slate-200 dark:border-white/[0.08] space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#34D399]" />
-                  Assign Books Now
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-emerald-600 dark:text-[#34D399]" />
+                  Assign Books Now (Optional Manual Selection)
                 </h3>
-                <p className="text-xs text-[#B3AABD]">Populate shelves immediately by continuous accession range or subject group</p>
+                <p className="text-xs text-slate-600 dark:text-[#B3AABD]">Leave as &ldquo;None&rdquo; for an empty Almari, or manually populate by accession range or subject group</p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setAssignMode('none')}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    assignMode === 'none' ? 'bg-[#541A72] border-[#A66BC9] text-white' : 'bg-[#1A1A1A] text-[#B3AABD] border-white/[0.08]'
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer font-bold ${
+                    assignMode === 'none'
+                      ? 'bg-[#541A72] border-[#A66BC9] !text-white'
+                      : 'bg-white dark:bg-[#1A1A1A] text-slate-700 dark:text-[#B3AABD] border-slate-300 dark:border-white/[0.08]'
                   }`}
                 >
-                  None
+                  None (Empty)
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignMode('by_range')}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    assignMode === 'by_range' ? 'bg-[#BC881B] border-[#E0B450] text-[#1A1A1A] font-bold' : 'bg-[#1A1A1A] text-[#B3AABD] border-white/[0.08]'
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer font-bold ${
+                    assignMode === 'by_range'
+                      ? 'bg-[#BC881B] border-[#E0B450] text-[#1A1A1A]'
+                      : 'bg-white dark:bg-[#1A1A1A] text-slate-700 dark:text-[#B3AABD] border-slate-300 dark:border-white/[0.08]'
                   }`}
                 >
                   By Range
@@ -444,8 +453,10 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setAssignMode('by_group')}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    assignMode === 'by_group' ? 'bg-[#BC881B] border-[#E0B450] text-[#1A1A1A] font-bold' : 'bg-[#1A1A1A] text-[#B3AABD] border-white/[0.08]'
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer font-bold ${
+                    assignMode === 'by_group'
+                      ? 'bg-[#BC881B] border-[#E0B450] text-[#1A1A1A]'
+                      : 'bg-white dark:bg-[#1A1A1A] text-slate-700 dark:text-[#B3AABD] border-slate-300 dark:border-white/[0.08]'
                   }`}
                 >
                   By Group
@@ -455,34 +466,34 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
 
             {/* By Range Options */}
             {assignMode === 'by_range' && (
-              <div className="space-y-3 pt-2 border-t border-white/[0.06]">
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-white/[0.06]">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div>
-                    <label className="block text-[11px] text-[#E0B450] mb-1">From Barcode</label>
+                    <label className="block text-[11px] font-bold text-[#8A4B00] dark:text-[#E0B450] mb-1">From Barcode / Accession</label>
                     <input
                       type="text"
                       value={fromBarcode}
                       onChange={e => setFromBarcode(e.target.value.toUpperCase())}
-                      className="w-full bg-[#1A1A1A] border border-white/[0.12] rounded-lg px-3 py-1.5 text-xs font-mono text-white"
+                      className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/[0.12] rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white"
                       placeholder="ULM-00001"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-[#E0B450] mb-1">To Barcode</label>
+                    <label className="block text-[11px] font-bold text-[#8A4B00] dark:text-[#E0B450] mb-1">To Barcode / Accession</label>
                     <input
                       type="text"
                       value={toBarcode}
                       onChange={e => setToBarcode(e.target.value.toUpperCase())}
-                      className="w-full bg-[#1A1A1A] border border-white/[0.12] rounded-lg px-3 py-1.5 text-xs font-mono text-white"
+                      className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/[0.12] rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 dark:text-white"
                       placeholder="ULM-00060"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-[#B3AABD] mb-1">Order By</label>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-[#B3AABD] mb-1">Order By</label>
                     <select
                       value={orderBy}
                       onChange={e => setOrderBy(e.target.value as any)}
-                      className="w-full bg-[#1A1A1A] border border-white/[0.12] rounded-lg px-3 py-1.5 text-xs text-white"
+                      className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/[0.12] rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
                     >
                       <option value="barcode_series">Barcode Series</option>
                       <option value="call_number">Call Number</option>
@@ -494,22 +505,22 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
 
                 {/* Range stats and warnings */}
                 {rangePreview && (
-                  <div className="bg-[#1A1A1A] p-3 rounded-lg border border-white/[0.06] text-xs space-y-2">
+                  <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-lg border border-slate-200 dark:border-white/[0.06] text-xs space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[#34D399] font-medium">
+                      <span className="text-emerald-700 dark:text-[#34D399] font-bold">
                         Found {rangePreview.foundBooks.length} of {rangePreview.totalExpected} numbers in series
                       </span>
                       {rangePreview.missingNumbers.length > 0 && (
-                        <span className="text-[#FB7185]">
+                        <span className="text-rose-600 dark:text-[#FB7185] font-semibold">
                           ({rangePreview.missingNumbers.length} missing numbers)
                         </span>
                       )}
                     </div>
 
                     {rangePreview.booksAlreadyInOtherAlmari.length > 0 && (
-                      <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 p-2 rounded text-amber-200">
+                      <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 p-2 rounded text-amber-800 dark:text-amber-200">
                         <span>{rangePreview.booksAlreadyInOtherAlmari.length} book(s) currently in another Almari</span>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                        <label className="flex items-center gap-1.5 cursor-pointer font-bold">
                           <input
                             type="checkbox"
                             checked={moveExistingFromOtherAlmari}
@@ -520,12 +531,6 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
                         </label>
                       </div>
                     )}
-
-                    {rangePreview.booksInAnotherGroup.length > 0 && (
-                      <div className="text-[#B3AABD] italic">
-                        Note: {rangePreview.booksInAnotherGroup.length} book(s) belong to other subject groups.
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -533,21 +538,21 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
 
             {/* Distribution preview table */}
             {shelfDistributionPreview && (
-              <div className="pt-2 border-t border-white/[0.06]">
-                <h4 className="text-xs font-bold text-[#E0B450] mb-2 flex items-center justify-between">
+              <div className="pt-2 border-t border-slate-200 dark:border-white/[0.06]">
+                <h4 className="text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] mb-2 flex items-center justify-between">
                   <span>Shelf Filling Plan ({shelfDistributionPreview.updatedBooks.length} books)</span>
                   {shelfDistributionPreview.overCapacityCount > 0 && (
-                    <span className="text-[#FB7185] font-normal">
+                    <span className="text-rose-600 dark:text-[#FB7185] font-semibold">
                       Warning: {shelfDistributionPreview.overCapacityCount} books over total capacity!
                     </span>
                   )}
                 </h4>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {shelfDistributionPreview.shelfDistribution.map(sd => (
-                    <div key={sd.shelf_no} className="flex items-center justify-between bg-[#1A1A1A] px-3 py-1.5 rounded text-xs border border-white/[0.04]">
-                      <span className="font-semibold text-white">Shelf {sd.shelf_no}</span>
-                      <span className="font-mono text-[#E0B450]">{sd.rangeStr || 'Empty'}</span>
-                      <span className="text-[#B3AABD]">{sd.books.length} / {sd.capacity} books</span>
+                    <div key={sd.shelf_no} className="flex items-center justify-between bg-white dark:bg-[#1A1A1A] px-3 py-1.5 rounded text-xs border border-slate-200 dark:border-white/[0.04]">
+                      <span className="font-bold text-slate-900 dark:text-white">Shelf {sd.shelf_no}</span>
+                      <span className="font-mono font-bold text-[#8A4B00] dark:text-[#E0B450]">{sd.rangeStr || 'Empty'}</span>
+                      <span className="text-slate-600 dark:text-[#B3AABD] font-mono">{sd.books.length} / {sd.capacity} books</span>
                     </div>
                   ))}
                 </div>
@@ -559,11 +564,11 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-white/[0.08] bg-[#221F26]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-white/[0.08] bg-slate-50/90 dark:bg-[#221F26]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-[#B3AABD] hover:text-white hover:bg-white/[0.08] transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-[#B3AABD] bg-slate-200/70 hover:bg-slate-300/70 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -572,10 +577,10 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
             type="button"
             onClick={handleApply}
             disabled={!code.trim() || !nameEn.trim() || isDuplicateCode}
-            className="px-6 py-2.5 rounded-lg text-xs font-bold bg-[#BC881B] hover:bg-[#D4A02A] text-[#1A1A1A] transition-all shadow-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="px-6 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] hover:from-[#7A4207] hover:to-[#B57214] !text-white transition-all shadow-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
-            <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>{almariToEdit ? 'Save Changes' : 'Create Cupboard (الماری)'}</span>
+            <Check className="w-4 h-4 stroke-[2.5] !text-white" />
+            <span className="!text-white">{almariToEdit ? 'Save Changes' : 'Create Cupboard (الماری)'}</span>
           </button>
         </div>
 
