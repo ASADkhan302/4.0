@@ -31,6 +31,7 @@ import { Book, Transaction, Borrower } from '../types/library';
 import { playSuccessBarcodeBeep, playErrorBeep } from '../services/audio';
 import { LibraryStorage } from '../services/storage';
 import { ULM_CREST_LOGO } from '../constants/branding';
+import { MemberCard } from './cards/MemberCard';
 
 interface BarcodeScannerViewProps {
   books: Book[];
@@ -516,48 +517,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                 </div>
 
                 {activeBorrowersList.length > 0 ? (
-                  <div className="mt-4 p-4 rounded-xl ulm-preserve-dark border border-[#BC881B]/40 relative overflow-hidden shadow-lg">
-                    {/* Background Crest Watermark */}
-                    <img 
-                      src={ULM_CREST_LOGO} 
-                      alt="" 
-                      className="absolute -right-4 -bottom-4 w-32 h-32 object-contain opacity-10 pointer-events-none" 
-                    />
-                    
-                    <div className="flex items-start justify-between gap-3 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-[#131B2E] border border-[#BC881B]/40 p-1 flex items-center justify-center shrink-0">
-                          <img src={ULM_CREST_LOGO} alt="ULM" className="w-10 h-10 object-contain" />
-                        </div>
-                        <div>
-                          <p className="font-serif font-bold text-base text-amber-200 leading-tight">
-                            {activeBorrowersList[0].name}
-                          </p>
-                          <p className="text-[11px] text-slate-300 font-mono mt-0.5">
-                            {activeBorrowersList[0].department} · {(activeBorrowersList[0].role || 'STUDENT').toUpperCase()}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                        {activeBorrowersList[0].status}
-                      </span>
-                    </div>
-
-                    {/* Member Barcode in Locked Safe-Pad */}
-                    <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-3 relative z-10">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-mono block">CARD ACCESSION / ID</span>
-                        <span className="font-mono text-xs font-bold text-amber-300">
-                          {activeBorrowersList[0].university_id || activeBorrowersList[0].barcode || 'ULM-STD-001'}
-                        </span>
-                      </div>
-                      <div className="ulm-barcode-safepad px-3 py-1 flex items-center gap-1 select-none">
-                        <BarcodeIcon className="w-4 h-4 text-black shrink-0" />
-                        <span className="font-mono text-xs font-bold tracking-widest text-black">
-                          {activeBorrowersList[0].barcode || 'ULM-STD-001'}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="mt-4 flex flex-col items-center justify-center overflow-x-auto py-1">
+                    <MemberCard member={activeBorrowersList[0]} side="front" scale={0.92} />
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--text-muted)] py-6 text-center">No borrower records in database.</p>
@@ -616,9 +577,9 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                       <div className="text-[11px] text-[var(--text-muted)] font-mono">
                         Shelf: <span className="font-semibold text-[var(--text-strong)]">{books[0].shelf || 'ALM-01'}</span> · Row {books[0].row || '1'}
                       </div>
-                      <div className="ulm-barcode-safepad px-3 py-1 flex items-center gap-1.5 select-none">
-                        <BarcodeIcon className="w-4 h-4 text-black shrink-0" />
-                        <span className="font-mono text-xs font-bold tracking-widest text-black">
+                      <div className="ulm-barcode-safepad bg-white !text-black px-3 py-1.5 rounded-lg border border-slate-300 shadow-xs flex items-center gap-1.5 select-none shrink-0">
+                        <BarcodeIcon className="w-4 h-4 !text-black stroke-black shrink-0" />
+                        <span className="font-mono text-xs font-bold tracking-widest !text-black">
                           {books[0].barcode}
                         </span>
                       </div>
@@ -685,49 +646,9 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                   </div>
                 </div>
 
-                {/* CR80 Live Printable Card Preview with .ulm-preserve-dark */}
-                <div className="p-4 rounded-xl ulm-preserve-dark border border-[#BC881B]/40 relative overflow-hidden shadow-lg">
-                  <img 
-                    src={ULM_CREST_LOGO} 
-                    alt="" 
-                    aria-hidden="true" 
-                    className="ulm-membercard-watermark absolute -right-2 -bottom-2 w-32 h-32 object-contain opacity-[0.10] pointer-events-none select-none"
-                    style={{ clipPath: 'none' }}
-                  />
-                  <div className="flex items-start justify-between gap-3 relative z-10">
-                    <div>
-                      <span className="text-[10px] text-amber-400 font-mono block uppercase tracking-wider">
-                        UNIVERSITY OF LAKKI MARWAT · CR80 CARD
-                      </span>
-                      <p className="font-serif font-bold text-lg text-amber-200 mt-0.5 leading-tight">
-                        {foundBorrower.name}
-                      </p>
-                      <p className="text-xs text-slate-300 font-mono mt-0.5">
-                        Roll: {foundBorrower.roll_number || foundBorrower.university_id || 'N/A'}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        {foundBorrower.program || foundBorrower.department}
-                      </p>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                      {foundBorrower.status || 'ACTIVE'}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between gap-3 relative z-10">
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-mono block">CARD ACCESSION / BARCODE</span>
-                      <span className="font-mono text-xs font-bold text-amber-300">
-                        {foundBorrower.barcode || foundBorrower.university_id || 'ULM-STD-001'}
-                      </span>
-                    </div>
-                    <div className="ulm-barcode-safepad px-2.5 py-1 flex items-center gap-1 select-none">
-                      <BarcodeIcon className="w-3.5 h-3.5 text-black shrink-0" />
-                      <span className="font-mono text-[11px] font-bold tracking-wider text-black">
-                        {foundBorrower.barcode || foundBorrower.university_id || 'ULM-STD-001'}
-                      </span>
-                    </div>
-                  </div>
+                {/* CR80 Live Printable Card Preview */}
+                <div className="flex flex-col items-center justify-center overflow-x-auto py-1">
+                  <MemberCard member={foundBorrower} side="front" scale={0.95} />
                 </div>
 
                 {/* Quota & Fine Metric Strip */}

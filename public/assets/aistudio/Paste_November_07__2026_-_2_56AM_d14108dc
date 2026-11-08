@@ -1,0 +1,814 @@
+📱 ULM BOOKS CATALOG — IPHONE LIQUID-GLASS UI & GRID-FIRST REVAMP MASTER PROMPT
+
+How to use this prompt:
+Copy and paste the entire directive below into Google AI Studio, Cursor, Antigravity, or your AI assistant. It commands the AI to overhaul the Books Catalog UI into an Apple iOS 18 / visionOS frosted liquid-glass design, reorders the view switcher so Grid View is first and default, and provides the 100% complete, unabridged React source code for src/components/BooksCatalogView.tsx.
+
+# 🏛️ SYSTEM DIRECTIVE: OVERHAUL BOOKS CATALOG TO IPHONE LIQUID-GLASS UI & GRID-FIRST DEFAULT
+
+You are an elite Apple Design Award-winning Frontend Architect specializing in React 18, TypeScript, and high-end iOS/visionOS glassmorphism with Tailwind CSS.
+
+Your objective is to completely redesign and upgrade the **Books Catalog View** (`src/components/BooksCatalogView.tsx`) for the **University of Lakki Marwat (ULM) Central Campus Library** (`Labrary-app-3.0`) based on the latest design review:
+
+---
+
+## 🎨 1. CORE DESIGN SPECIFICATIONS (IPHONE LIQUID-GLASS AESTHETIC)
+
+### A. The 4 Top Metric Cards (Transform from Flat Boxes to iOS Glass Widgets)
+- **Previous Problem**: The 4 stat cards ("CATALOGED TITLES", "PHYSICAL VOLUMES", "SHELF AVAILABILITY", "ACTIVE LOANS") looked like flat, rigid rectangular wireframes.
+- **iOS Glass Upgrade**:
+  - Translucent frosted glass: `bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200`.
+  - Specular top rim highlight: `shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]`.
+  - Dual-border depth: `border border-[#C8963E]/30 dark:border-white/10 rounded-[20px]`.
+  - Glowing circular icon pedestals with institutional colors:
+    - Cataloged Titles: Royal Purple (`bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147]`).
+    - Physical Volumes: Academic Gold (`bg-[#C8963E]/15 text-[#8A4B00] dark:text-[#FFD147]`).
+    - Shelf Availability: Emerald Glow (`bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`).
+    - Active Loans: Amber Glow (`bg-amber-500/15 text-amber-700 dark:text-amber-400`).
+  - Typography: Stat numbers styled in bold, high-contrast typography (`text-3xl font-extrabold tracking-tight tabular-nums`) with live sub-labels.
+
+### B. View Switcher: Bring "Grid View" First & Make It Default
+- **Previous Layout**: `[ List View | Grid View | Almari View | Analytics ]` (Defaulted to List View).
+- **New Layout**: `[ Grid View | List View | Almari View | Analytics ]`.
+- Default state: `const [catalogView, setCatalogView] = useState<'grid' | 'list' | 'almaris' | 'analytics'>('grid');`.
+- Styled as an iOS segmented capsule bar (`p-1 rounded-2xl bg-black/5 dark:bg-black/30 backdrop-blur-xl border border-white/20 dark:border-white/10`).
+- Active capsule button: `bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-md`.
+
+### C. Search & Filter Bar (iOS 18 Glass Pill Bar)
+- Magnifying glass search input styled as an iPhone spotlight search pill:
+  - Left padding `pl-11`, magnifying icon positioned `left-4 top-1/2 -translate-y-1/2 pointer-events-none`.
+  - Frosted surface: `bg-white/70 dark:bg-[#120C1F]/70 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-xs`.
+- Filter dropdowns (`Disciplines`, `Languages`, `Almaris`, `Sort`) unified with matching glass surfaces and subtle chevron icons.
+
+### D. Grid View Book Cards (Apple-Grade Translucent 3D Glass Cards)
+- **Card Surface**:
+  - Light mode: `bg-white/65 hover:bg-white/85 backdrop-blur-xl border border-white/80 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_16px_40px_rgba(200,150,62,0.18)] hover:-translate-y-1 transition-all duration-200 rounded-[22px] p-4`.
+  - Dark mode: `dark:bg-[#150D24]/65 dark:hover:bg-[#1A102D]/85 dark:border-white/[0.08] dark:hover:border-[#FFD147]/40`.
+  - Specular top highlight: `shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]`.
+- **Book Cover Spine Mockup (Left 72px Column)**:
+  - Styled as an authentic university volume with 3D spine depth, leather texture, embossed gold crest emblem, and vertical `ULM PRESS` gold lettering.
+- **Card Metadata (Right Column)**:
+  - Top category & edition badges with frosted borders.
+  - Book Title: High-contrast font, 2-line clamp, native support for Urdu Nastaliq text.
+  - Author and Accession/Barcode pills (`000 ULM` gold tag + `#009200000...` mono barcode badge).
+  - Almari location pill (`📍 Unassigned (No Almari)`).
+  - Status capsule (`🟢 1 Available`).
+  - Action footer: Frosted `Details` pill, gradient `Issue` CTA button, and quick-action icons (Edit, Copy, Delete).
+
+---
+
+## 💻 2. UNABRIDGED SOURCE CODE REPLACEMENT
+
+Replace `src/components/BooksCatalogView.tsx` with the complete, production-ready code below:
+
+```tsx
+import React, { useState, useMemo } from 'react';
+import {
+  Search,
+  BookOpen,
+  Layers,
+  CheckCircle2,
+  Clock,
+  LayoutGrid,
+  List,
+  Library,
+  BarChart3,
+  SlidersHorizontal,
+  Upload,
+  Printer,
+  FileSpreadsheet,
+  Trash2,
+  Plus,
+  Edit3,
+  Copy,
+  ChevronDown,
+  ArrowUpDown,
+  BookMarked,
+  MapPin,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Sparkles,
+} from 'lucide-react';
+import { Book, NavigationTab } from '../types/library';
+import { CatalogVisualAnalytics } from './library/CatalogVisualAnalytics';
+import { AlmariView } from './AlmariView';
+
+export interface BooksCatalogViewProps {
+  books: Book[];
+  onOpenAddBook: () => void;
+  onOpenIssueModal?: (book: Book) => void;
+  onSelectBook?: (book: Book) => void;
+  onEditBook?: (book: Book) => void;
+  onDeleteBook?: (book: Book) => void;
+  onImportExcel?: () => void;
+  onExportCatalog?: () => void;
+  onTabChange?: (tab: NavigationTab) => void;
+}
+
+export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
+  books,
+  onOpenAddBook,
+  onOpenIssueModal,
+  onSelectBook,
+  onEditBook,
+  onDeleteBook,
+  onImportExcel,
+  onExportCatalog,
+  onTabChange,
+}) => {
+  // 1. Grid View is FIRST and DEFAULT
+  const [catalogView, setCatalogView] = useState<'grid' | 'list' | 'almaris' | 'analytics'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDiscipline, setSelectedDiscipline] = useState('all');
+  const [selectedLanguage, setSelectedLanguage] = useState('all');
+  const [selectedAlmari, setSelectedAlmari] = useState('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'title' | 'author' | 'accession'>('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
+
+  // Metrics computation for Top 4 iOS Glass Stat Cards
+  const totalCataloged = books.length;
+  const totalPhysicalVolumes = useMemo(() => {
+    return books.reduce((sum, b) => sum + (Number(b.total_quantity) || 1), 0);
+  }, [books]);
+  const totalAvailable = useMemo(() => {
+    return books.reduce((sum, b) => sum + (Number(b.available_quantity) || 1), 0);
+  }, [books]);
+  const activeLoans = Math.max(0, totalPhysicalVolumes - totalAvailable);
+
+  // Extract unique filters
+  const disciplines = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (b.category) set.add(b.category);
+    });
+    return Array.from(set).sort();
+  }, [books]);
+
+  const languages = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (b.language) set.add(b.language);
+    });
+    return Array.from(set).sort();
+  }, [books]);
+
+  // Filter and sort books
+  const filteredBooks = useMemo(() => {
+    return books.filter((b) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        (b.book_name || '').toLowerCase().includes(q) ||
+        (b.author || '').toLowerCase().includes(q) ||
+        (b.barcode || '').toLowerCase().includes(q) ||
+        (b.isbn || '').toLowerCase().includes(q) ||
+        (b.accession_no || '').toLowerCase().includes(q);
+
+      const matchDiscipline = selectedDiscipline === 'all' || b.category === selectedDiscipline;
+      const matchLanguage = selectedLanguage === 'all' || b.language === selectedLanguage;
+      const matchAlmari =
+        selectedAlmari === 'all' ||
+        (selectedAlmari === 'unassigned' && (!b.almari_code || b.almari_code === '')) ||
+        b.almari_code === selectedAlmari;
+
+      return matchQuery && matchDiscipline && matchLanguage && matchAlmari;
+    }).sort((a, b) => {
+      if (sortBy === 'title') return (a.book_name || '').localeCompare(b.book_name || '');
+      if (sortBy === 'author') return (a.author || '').localeCompare(b.author || '');
+      if (sortBy === 'accession') return (a.barcode || '').localeCompare(b.barcode || '');
+      return 0; // default newest order
+    });
+  }, [books, searchQuery, selectedDiscipline, selectedLanguage, selectedAlmari, sortBy]);
+
+  // Pagination slice
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredBooks.slice(start, start + pageSize);
+  }, [filteredBooks, currentPage, pageSize]);
+
+  const handleToggleSelectAll = () => {
+    if (selectedBookIds.size === paginatedBooks.length) {
+      setSelectedBookIds(new Set());
+    } else {
+      setSelectedBookIds(new Set(paginatedBooks.map((b) => b.id || b.barcode)));
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    const next = new Set(selectedBookIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedBookIds(next);
+  };
+
+  return (
+    <div className="space-y-6 pb-16 select-none">
+      {/* =========================================================================
+          SECTION 1: IPHONE LIQUID-GLASS TOP 4 METRIC STAT CARDS
+          ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Cataloged Titles */}
+        <div className="group relative rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold tracking-[0.14em] uppercase text-slate-500 dark:text-slate-400">
+              Cataloged Titles
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-[#541A72]/15 dark:bg-[#541A72]/35 border border-[#541A72]/30 flex items-center justify-center text-[#541A72] dark:text-[#FFD147] shadow-xs">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-display tabular-nums">
+              {totalCataloged.toLocaleString()}
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Distinct records
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#541A72] dark:bg-[#FFD147]" />
+            <span>Across campus catalog collections</span>
+          </div>
+        </div>
+
+        {/* Card 2: Physical Volumes */}
+        <div className="group relative rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold tracking-[0.14em] uppercase text-slate-500 dark:text-slate-400">
+              Physical Volumes
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-[#C8963E]/15 dark:bg-[#C8963E]/30 border border-[#C8963E]/40 flex items-center justify-center text-[#8A4B00] dark:text-[#FFD147] shadow-xs">
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-display tabular-nums">
+              {totalPhysicalVolumes.toLocaleString()}
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Physical items
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#C8963E]" />
+            <span>Total holdings in campus collection</span>
+          </div>
+        </div>
+
+        {/* Card 3: Shelf Availability */}
+        <div className="group relative rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold tracking-[0.14em] uppercase text-slate-500 dark:text-slate-400">
+              Shelf Availability
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shadow-xs">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold tracking-tight text-emerald-700 dark:text-emerald-400 font-display tabular-nums">
+              {totalAvailable.toLocaleString()}
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Available now
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{totalAvailable} / {totalPhysicalVolumes} volumes on shelf</span>
+          </div>
+        </div>
+
+        {/* Card 4: Active Loans */}
+        <div className="group relative rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold tracking-[0.14em] uppercase text-slate-500 dark:text-slate-400">
+              Active Loans
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-display tabular-nums">
+              {activeLoans}
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              On loan
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <span>Currently checked out to members</span>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 2: SPOTLIGHT SEARCH & REFINED GLASS DROPDOWN CONTROLS
+          ========================================================================= */}
+      <div className="rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 p-4 shadow-sm space-y-3.5">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+          {/* Spotlight Search Pill */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#C8963E] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search title, author, barcode, accession, ISBN..."
+              className="w-full h-11 pl-11 pr-4 rounded-xl text-xs md:text-sm font-medium bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C8963E] transition-all"
+            />
+          </div>
+
+          {/* Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              value={selectedDiscipline}
+              onChange={(e) => {
+                setSelectedDiscipline(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 px-3.5 rounded-xl text-xs font-medium bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+            >
+              <option value="all">All Disciplines</option>
+              {disciplines.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedLanguage}
+              onChange={(e) => {
+                setSelectedLanguage(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 px-3.5 rounded-xl text-xs font-medium bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+            >
+              <option value="all">All Languages</option>
+              {languages.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedAlmari}
+              onChange={(e) => {
+                setSelectedAlmari(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 px-3.5 rounded-xl text-xs font-medium bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+            >
+              <option value="all">All Almaris</option>
+              <option value="unassigned">Unassigned (No Almari)</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="h-11 px-3.5 rounded-xl text-xs font-medium bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+            >
+              <option value="newest">Sort: Newest Added</option>
+              <option value="title">Sort: Title (A-Z)</option>
+              <option value="author">Sort: Author (A-Z)</option>
+              <option value="accession">Sort: Accession No</option>
+            </select>
+
+            <button
+              type="button"
+              className="h-11 px-3.5 rounded-xl text-xs font-semibold bg-white/75 dark:bg-black/35 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[#C8963E]" />
+              <span>Filters</span>
+            </button>
+          </div>
+        </div>
+
+        {/* View Switcher Bar (GRID VIEW FIRST) & Action Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60 dark:border-white/10">
+          {/* iOS Segmented Capsule View Switcher */}
+          <div className="inline-flex rounded-2xl bg-black/5 dark:bg-black/35 backdrop-blur-xl p-1 border border-slate-200/80 dark:border-white/10 gap-1">
+            {/* 1. GRID VIEW FIRST */}
+            <button
+              type="button"
+              onClick={() => setCatalogView('grid')}
+              className={`h-9 px-4 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                catalogView === 'grid'
+                  ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-md'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Grid View</span>
+            </button>
+
+            {/* 2. LIST VIEW SECOND */}
+            <button
+              type="button"
+              onClick={() => setCatalogView('list')}
+              className={`h-9 px-4 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                catalogView === 'list'
+                  ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-md'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List View</span>
+            </button>
+
+            {/* 3. ALMARI VIEW */}
+            <button
+              type="button"
+              onClick={() => setCatalogView('almaris')}
+              className={`h-9 px-4 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                catalogView === 'almaris'
+                  ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-md'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              <Library className="w-3.5 h-3.5" />
+              <span>Almari View</span>
+            </button>
+
+            {/* 4. ANALYTICS */}
+            <button
+              type="button"
+              onClick={() => setCatalogView('analytics')}
+              className={`h-9 px-4 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                catalogView === 'analytics'
+                  ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-md'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Analytics</span>
+            </button>
+          </div>
+
+          {/* Action Tools */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onImportExcel}
+              className="h-9 px-3.5 rounded-xl text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white cursor-pointer flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Import Excel/CSV</span>
+            </button>
+
+            <button
+              type="button"
+              className="h-9 px-3.5 rounded-xl text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white cursor-pointer flex items-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+              <span>Print Barcodes</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onExportCatalog}
+              className="h-9 px-3.5 rounded-xl text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white cursor-pointer flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#C8963E]" />
+              <span>CSV Template</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenAddBook}
+              className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] text-white border border-[#FFD147]/50 shadow-md hover:brightness-110 cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Book</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 3: CONDITIONAL VIEW RENDERER (GRID / LIST / ALMARI / ANALYTICS)
+          ========================================================================= */}
+
+      {/* VIEW A: IPHONE LIQUID-GLASS GRID VIEW (DEFAULT) */}
+      {catalogView === 'grid' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {paginatedBooks.map((book) => {
+            const isSelected = selectedBookIds.has(book.id || book.barcode);
+            const isUrdu = /[\u0600-\u06FF]/.test(book.book_name || '');
+
+            return (
+              <div
+                key={book.id || book.barcode}
+                className={`group relative rounded-[22px] bg-white/65 hover:bg-white/85 dark:bg-[#150D24]/65 dark:hover:bg-[#1A102D]/85 backdrop-blur-2xl backdrop-saturate-200 border transition-all duration-200 p-4 flex flex-col justify-between shadow-[0_8px_28px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[0_8px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(200,150,62,0.18)] ${
+                  isSelected
+                    ? 'border-[#FFD147] ring-2 ring-[#FFD147]/40'
+                    : 'border-[#C8963E]/30 dark:border-white/10'
+                }`}
+              >
+                <div>
+                  {/* Top Header: Spine + Tags + Selection Checkbox */}
+                  <div className="flex items-start gap-3">
+                    {/* 3D Leather/Cloth Volume Spine Mockup */}
+                    <div className="w-[58px] h-[78px] rounded-lg bg-gradient-to-br from-[#240836] via-[#3B1054] to-[#1E0730] border border-[#FFD147]/40 shadow-md flex flex-col items-center justify-between p-1.5 shrink-0 relative overflow-hidden">
+                      <div className="absolute left-1 top-0 bottom-0 w-[2px] bg-black/40" />
+                      <span className="text-[7px] font-mono font-bold text-[#FFD147] tracking-widest uppercase">
+                        ULM
+                      </span>
+                      <BookMarked className="w-4 h-4 text-[#FFD147]" />
+                      <span className="text-[6px] font-extrabold uppercase text-white/80 tracking-widest">
+                        PRESS
+                      </span>
+                    </div>
+
+                    {/* Metadata & Tag Badges */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/30">
+                            {book.category || 'General'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                            {book.language || 'English'}
+                          </span>
+                          {book.edition && (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                              {book.edition}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Selection Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectOne(book.id || book.barcode)}
+                          className="w-4 h-4 rounded text-[#541A72] border-slate-300 dark:border-white/20 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Title */}
+                      <h3
+                        onClick={() => onSelectBook && onSelectBook(book)}
+                        className={`font-extrabold text-sm text-slate-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors leading-snug ${
+                          isUrdu ? 'font-serif text-base' : ''
+                        }`}
+                        title={book.book_name}
+                      >
+                        {book.book_name}
+                      </h3>
+
+                      {/* Author */}
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                        by {book.author || 'Unknown Author'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Accession & Barcode Badge Strip */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2 text-[10px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold">
+                        {book.accession_no || '000 ULM'}
+                      </span>
+                      <span className="font-mono text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[110px]">
+                        #{book.barcode}
+                      </span>
+                    </div>
+
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                      🟢 {book.available_quantity ?? 1} Available
+                    </span>
+                  </div>
+
+                  {/* Physical Shelf / Almari Placement */}
+                  <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300">
+                    <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
+                    <span className="truncate font-medium">
+                      {book.almari_code ? `${book.almari_code} • ${book.shelf || 'Shelf 1'}` : 'Unassigned (No Almari)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Action Footer */}
+                <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onSelectBook && onSelectBook(book)}
+                      className="h-7 px-2.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenIssueModal && onOpenIssueModal(book)}
+                      className="h-7 px-3 rounded-lg text-[11px] font-extrabold bg-[#C8963E] text-slate-950 hover:brightness-110 cursor-pointer shadow-xs"
+                    >
+                      Issue
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => onEditBook && onEditBook(book)}
+                      className="p-1.5 rounded-md hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 cursor-pointer"
+                      title="Edit Book Details"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteBook && onDeleteBook(book)}
+                      className="p-1.5 rounded-md hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                      title="Delete Record"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VIEW B: LIST VIEW (TABLE) */}
+      {catalogView === 'list' && (
+        <div className="rounded-[22px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl backdrop-saturate-200 border border-[#C8963E]/35 dark:border-white/10 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 dark:bg-black/35 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="py-3 px-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedBookIds.size === paginatedBooks.length && paginatedBooks.length > 0}
+                      onChange={handleToggleSelectAll}
+                      className="rounded"
+                    />
+                  </th>
+                  <th className="py-3 px-4">Book Title & Author</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Language</th>
+                  <th className="py-3 px-4">Barcode / Call No</th>
+                  <th className="py-3 px-4">Total</th>
+                  <th className="py-3 px-4">Avail</th>
+                  <th className="py-3 px-4">Shelf / Row</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200/60 dark:divide-white/10 text-slate-800 dark:text-slate-200">
+                {paginatedBooks.map((book) => (
+                  <tr key={book.id || book.barcode} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedBookIds.has(book.id || book.barcode)}
+                        onChange={() => handleToggleSelectOne(book.id || book.barcode)}
+                        className="rounded"
+                      />
+                    </td>
+                    <td className="py-3 px-4 max-w-[280px]">
+                      <p className="font-bold text-slate-900 dark:text-white truncate">{book.book_name}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{book.author}</p>
+                    </td>
+                    <td className="py-3 px-4">{book.category || 'General'}</td>
+                    <td className="py-3 px-4">{book.language || 'English'}</td>
+                    <td className="py-3 px-4 font-mono">{book.barcode}</td>
+                    <td className="py-3 px-4 font-mono font-bold">{book.total_quantity ?? 1}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      {book.available_quantity ?? 1}
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
+                      {book.almari_code ? `${book.almari_code} • ${book.shelf || 'S1'}` : 'Unassigned'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpenIssueModal && onOpenIssueModal(book)}
+                          className="px-2.5 py-1 rounded bg-[#C8963E] text-slate-950 font-bold hover:brightness-110"
+                        >
+                          Loan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEditBook && onEditBook(book)}
+                          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-white/10"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW C: PHYSICAL ALMARI & SHELF VIEW */}
+      {catalogView === 'almaris' && (
+        <AlmariView books={books} onSelectBook={onSelectBook} />
+      )}
+
+      {/* VIEW D: CATALOG VISUAL ANALYTICS (RECHARTS SUITE) */}
+      {catalogView === 'analytics' && (
+        <CatalogVisualAnalytics />
+      )}
+
+      {/* =========================================================================
+          SECTION 4: IPHONE STYLE TRANSLUCENT PAGINATION BAR
+          ========================================================================= */}
+      {catalogView !== 'analytics' && catalogView !== 'almaris' && (
+        <div className="rounded-[20px] bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl border border-[#C8963E]/35 dark:border-white/10 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to{' '}
+              <strong>{Math.min(currentPage * pageSize, filteredBooks.length)}</strong> of{' '}
+              <strong>{filteredBooks.length.toLocaleString()}</strong> books
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span>Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-8 px-2 rounded-lg bg-white/80 dark:bg-black/35 border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white"
+              >
+                <option value={24}>24</option>
+                <option value={48}>48</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(1)}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 disabled:opacity-40 hover:bg-black/5"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 disabled:opacity-40 hover:bg-black/5"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-3 py-1 font-mono font-bold text-slate-900 dark:text-white">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 disabled:opacity-40 hover:bg-black/5"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 disabled:opacity-40 hover:bg-black/5"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BooksCatalogView;
+
+
+✅ 3. VERIFICATION CHECKLIST (CONFIRMING ALL FIXES)
+
+Header Cards: Verify that the 4 stat cards look like frosted iOS widgets with specular highlights, gold borders, and glowing rounded icon pedestals.
+
+Grid View Default: Refresh the app; verify the page immediately opens in Grid View with the view switcher ordered [ Grid View | List View | Almari View | Analytics ].
+
+iPhone Glass Transparency: Inspect the book cards; verify they have the frosted glass effect (backdrop-blur-2xl bg-white/65 dark:bg-[#150D24]/65) and 3D leather-spine styling.
+
+Spotlight Search: Type into the search input; verify left padding pl-11 keeps text clear of the magnifying glass icon.
+

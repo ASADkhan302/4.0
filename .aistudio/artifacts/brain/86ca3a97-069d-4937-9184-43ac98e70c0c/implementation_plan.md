@@ -1,81 +1,73 @@
-# ULM Library v3.0 — Exact Byte-for-Byte ULM 2017 Crest Preservation & Asset Synchronization
+# ULM Almari Cupboard — Forensic Audit & Dual-Key Zero-Reset Architecture Plan
 
-This plan locks in your exact uploaded **University of Lakki Marwat (ULM 2017) Crest PNG** (`863417491_2133473440593759_7550028921333764276_n.png` — featuring the four-quadrant gold and purple shield with the open book, crescent and star, camel, and circuit-plant, purple sun rays over mountains, gold wheat wreath, `"UNIVERSITY OF LAKKI MARWAT"`, and `"2017"`) across all asset directories, desktop icons, and code modules **without altering a single byte, pixel, color, or proportion of the image**.
+This plan details the definitive forensic repair of the **Physical Almari Cupboard & Bookshelf Registry** for the **University of Lakki Marwat (ULM) Central Campus Library System**, resolving the `b.id` vs `b.barcode` key-mismatch overwrite bug, adding the live Database Sync HUD indicator, and delivering the complete forensic audit report and full unabridged source code in the response.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Zero Pixel Modification Guarantee ("Don't Change Any Atom of the Picture")**:
-> The uploaded PNG file will be copied as an exact 1:1 raw binary duplicate (`cp`) and encoded directly into Base64 from its raw bytes without any image processing, resizing, cropping, color filtering, or re-compression.
+> Both preferences confirmed during Phase 1 are incorporated into this plan:
 
-- **Confirmed Decision 1 — 1:1 Unmodified Binary Copy Across All Asset Folders**: Every crest file in the public directory, internal source image directories, and Windows desktop packaging folder will be replaced with an exact byte-for-byte copy of your uploaded `863417491_2133473440593759_7550028921333764276_n.png`, and any AI-generated shield files will be permanently deleted.
-- **Confirmed Decision 2 — Uncropped, Unaltered Rendering in UI & ID Cards**: Every logo container in the header, modals, splash screen, full-app background watermark, and CR80 Student/Staff ID cards (both screen and PDF) will render the complete, uncropped image (`object-contain`) with zero CSS color filters (`filter: none`) so every detail—from the top sun rays to the bottom `"2017"` wreath—remains 100% intact.
+- **Confirmed Decision 1 (Dual-Key Master Registry + Live DB Sync HUD)**: `AlmariView` will index manual shelf placements under **both** `book.id` and `book.barcode` in `ulm_almari_placements_master_v3` and display the live **`DB SYNCED • X VOLS LOCKED IN [ALMARI]`** indicator in the top toolbar.
+- **Confirmed Decision 2 (Live App Repair + Full Forensic Report & Source Code in Chat)**: Upon approval, we will apply the dual-key repair to the live application, verify compilation and linting, and output the complete **Forensic Audit Report**, **Health Scorecard**, and **100% Unabridged Source Code** directly in the response description.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Replaces every remaining outdated shield graphic in the repository's image folders and code constants with an exact, untouched binary copy of your uploaded ULM 2017 Crest PNG.
-- **Target Audience / Persona**: University of Lakki Marwat librarians, staff, and students using the web interface, printed reports, CR80 Library ID cards, and Windows desktop application.
-- **Key Value**: Ensures that your exact uploaded official ULM 2017 Crest appears everywhere—untouched and unmodified down to the last pixel—in both online and offline modes.
+- **What It Does**: Eliminates the subtle `b.id` vs `b.barcode` key mismatch where dragging a book saved its placement under one identifier while re-render lookups checked the other, causing books to appear unassigned after re-renders.
+- **Target Audience / Persona**: University librarians and catalog administrators at ULM organizing physical cupboards (`IH` and custom departmental cupboards).
+- **Key Value**: 100% deterministic drag-and-drop shelf persistence across re-renders, tab switches, and hard browser refreshes, backed by live visual confirmation of locked volume counts.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 - **Key User Flows**:
-  1. **App Header, Splash Screen & Modals**: Displays your exact uploaded ULM 2017 Crest inside an unclipped `object-contain` frame with zero cropping of the sun rays or wheat wreath and zero color/contrast filters.
-  2. **CR80 Student & Staff Library ID Cards (Screen & PDF)**: Renders your exact uploaded crest in the top-left header and as the centered security watermark on both Front and Back cards.
-  3. **Asset Directory & Code Synchronization**: Directly exports the exact uploaded crest and bundled image assets from the internal image asset directory so every module imports the same unmodified image.
+  1. **Live DB Sync HUD**: The top header bar displays a real-time badge (`DB SYNCED • {activeAlmariBooksCount} VOLS LOCKED IN {selectedAlmari.code}`) that immediately increments or decrements when volumes are moved onto or off a shelf.
+  2. **Dual-Key Drag & Drop Reassignment**: Dragging a standing 3D spine or an unassigned queue item onto any physical shelf writes the placement under both `targetBook.id` and `targetBook.barcode` in `ulm_almari_placements_master_v3`, syncs with `StorageEngine.upsertBook`, and updates parent catalog state.
+  3. **Custom Cupboard Persistence**: Creating a cupboard via **+ Add Almari** saves to `ulm_almaris_registry_v2`, initializes per-shelf capacities (`1–50`), and locks `ulm_active_almari_id_v3` to the newly created cupboard.
 - **Visual Identity & Theme**:
-  - *Aesthetic Direction*: Royal Purple & Gold Liquid-Glass workspace that frames the original ULM 2017 Crest without modifying the image itself.
-  - *Color Palette & Mood*: Preserves the exact original gold, royal purple, and white pixels of your uploaded PNG at 100% fidelity.
-  - *Component Styling & Layout*: Uses `object-contain` without `rounded-full` clipping on the image element itself so the top sun rays and bottom crossed wheat stems are never cut off.
+  - *Aesthetic Direction*: ULM Royal Institutional Glassmorphism (`#541A72` royal purple, `#140D22` obsidian glass, and `#FFD147` / `#C8963E` gold accents).
+  - *Typography & Hierarchy*: Tabular monospace (`font-mono`) for shelf capacities, barcode tags, and live database sync counters; bold display headers for cupboard plaques.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Raw Byte-for-Byte Copying (`cp`) Only**
-  - *Chosen Approach*: Copy the raw bytes of the uploaded PNG directly into every target asset slot and generate the Base64 Data URI directly from those exact bytes.
-  - *Why*: Guarantees that file size (51,384 bytes), SHA checksum, dimensions, transparency, and every single pixel remain 100% identical to the uploaded picture.
-  - *Alternatives Considered*: Any canvas re-encoding, SVG tracing, or thumbnail resizing was rejected because it alters the original image bytes.
-- **Decision 2: Non-Destructive Watermark Transparency**
-  - *Chosen Approach*: Keep the watermark PNG file itself 100% identical to your uploaded picture (zero pixel alteration to the file), and let the container layer apply gentle visual opacity when used behind text.
-  - *Why*: Preserves the exact original image file everywhere on disk while keeping foreground text readable on ID cards and workspace views.
+- **Decision 1: Dual-Key Indexing (`b.id` AND `b.barcode`) in `ulm_almari_placements_master_v3`**
+  - *Chosen Approach*: When a book is placed on a shelf, record the placement entry under both `targetBook.id` and `targetBook.barcode` in `ulm_almari_placements_master_v3`, and resolve via `(b.id && masterPlacements[b.id]) || (b.barcode && masterPlacements[b.barcode])`.
+  - *Why*: Guarantees zero key-mismatch misses regardless of whether a book was imported with a generated UUID, an accession number, or a barcode string.
+- **Decision 2: Full Compatibility in `AlmariService` & `BooksCatalogView`**
+  - *Chosen Approach*: Ensure `AlmariService` persists to `ulm_almaris_registry_v2` with the default `IH` cupboard while preserving all helper methods required by catalog modals and settings tabs, and keep `onUpdateBooks` wired in both `BooksCatalogView` and `App`.
+  - *Why*: Prevents any regression across other views while guaranteeing full persistence in `AlmariView`.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-### Architecture & Component Diagram
-
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│        Exact Uploaded ULM 2017 Crest PNG (51,384 Bytes — Untouched)        │
-│    (4-Quadrant Shield: Book, Crescent-Star, Camel, Circuit-Plant, 2017)    │
-└─────────────────────────────────────┬──────────────────────────────────────┘
-                                      │ 1:1 Raw Binary Copy (Zero Alteration)
-                                      ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│             Synchronized Binary Asset Folders & Code Constants             │
-│  • Public Static Icons & Desktop Packager Icons (Exact Binary Copy)        │
-│  • Internal Source Image Asset Folders (Exact Binary Copy + Typed Index)   │
-│  • Offline Base64 Data URI (Encoded Directly from Raw Unmodified Bytes)    │
-└───────┬─────────────────────┬──────────────────────┬───────────────────────┘
-        │                     │                      │
-        ▼                     ▼                      ▼
-┌───────────────────┐ ┌────────────────────┐ ┌───────────────────────────────┐
-│  App Shell & UI   │ │  CR80 ID Cards &   │ │   Modals, Reports & Settings  │
-│  • Uncropped Logo │ │  PDF Print Engine  │ │   • Welcome & Storage Modals  │
-│  • App Watermark  │ │  • Front/Back Crest│ │   • Clearance Certificates    │
-│  • Window Favicon │ │  • Exact PNG Bytes │ │   • Bundled Asset Exports     │
-└───────────────────┘ └────────────────────┘ └───────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        AppState (books, setBooks)                        │
+│              onUpdateBooks={(updated) => setBooks(updated)}              │
+└───────────────────┬──────────────────────────────────┬───────────────────┘
+                    │                                  │
+                    ▼                                  ▼
+┌───────────────────────────────────────┐  ┌───────────────────────────────┐
+│           BooksCatalogView            │  │          AlmariView           │
+│  Passes onUpdateBooks to AlmariView   │  │ • Dual-Key Master Registry    │
+│  Resolves shelf badges via v3 master  │  │   (b.id + b.barcode)          │
+└───────────────────────────────────────┘  │ • Live DB Sync HUD Counter    │
+                                           │ • useRef Drag & Drop Engine   │
+                                           └───────────────┬───────────────┘
+                                                           │
+                         ┌─────────────────────────────────┼─────────────────────────────────┐
+                         ▼                                 ▼                                 ▼
+        ┌────────────────────────────────┐ ┌───────────────────────────────┐ ┌───────────────────────────────┐
+        │ localStorage Master Registry   │ │   StorageEngine.upsertBook    │ │   LibraryStorage & IndexedDB  │
+        │ ulm_almari_placements_master_v3│ │ (SQLite IPC + LocalStorage)   │ │      Catalog Persistence      │
+        └────────────────────────────────┘ └───────────────────────────────┘ └───────────────────────────────┘
 ```
 
-### Data Model & State
-- **Unmodified Binary Assets**: All crest files across the public folder, internal source image directories, and Windows desktop folder hold the exact 51,384-byte uploaded PNG.
-- **Typed Image Asset Module**: Exports the unmodified crest and bundled catalog cover images for direct TypeScript consumption across the codebase.
-
-### Interactive Component & State Mapping
-- **Uncropped Rendering**: All `<img>` tags rendering the ULM 2017 Crest use `object-contain` with no circular clipping or CSS filters on the image so every ray and leaf of the original picture is displayed faithfully.
+- **Interactive Component & State Mapping**:
+  - `executeReassignBook(bookId, targetAlmari, targetShelf)`: Writes both `targetBook.id` and `targetBook.barcode` keys into `masterPlacements` (`ulm_almari_placements_master_v3`), updates `StorageEngine.upsertBook` and `LibraryStorage.updateBook`, updates `activeAlmariBooksCount` in the Live DB Sync HUD, and invokes `onUpdateBooks(updatedList)`.
+  - `handleUnassignBook(book)`: Deletes both `book.id` and `book.barcode` keys from `masterPlacements`, resets shelf fields in `StorageEngine` and `LibraryStorage`, and updates parent state.

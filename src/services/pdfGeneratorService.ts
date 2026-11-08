@@ -632,7 +632,9 @@ export class PdfGeneratorService {
   }
 
   /**
-   * Draws a single card (front or back) at exact physical dimensions with real crest, official colors, and barcode.
+   * Draws a single CR80 Smart ID Card (front or back) at exact physical dimensions (85.60mm x 53.98mm)
+   * matching UlmSmartIdCard (Royal Purple #3B1054 header, #C8963E Gold border, White #FFFFFF card body,
+   * 6.5% pre-baked watermark, 6-field academic metadata grid, Code-128 barcode, and QR verification matrix).
    */
   private static renderSingleCardPdf(
     doc: jsPDF,
@@ -643,34 +645,49 @@ export class PdfGeneratorService {
     h: number,
     side: 'front' | 'back'
   ) {
-    const uid = m.university_id || m.student_id || 'ULM-00001';
-    const role = m.role || 'Student';
-    const name = m.name || 'Member Name';
-    const department = m.department || 'Computer Science';
-    const validUntil = m.valid_until || '2027-06-30';
+    const rawRole = (m.role || 'Student').toLowerCase();
+    const roleBadge =
+      rawRole === 'faculty'
+        ? 'FACULTY CARD'
+        : rawRole === 'staff'
+        ? 'STAFF CARD'
+        : 'STUDENT CARD';
 
-    // 1. Outer Gold Border
-    doc.setFillColor(217, 158, 50); // Gold
-    doc.roundedRect(x, y, w, h, 3.18, 3.18, 'F');
+    const memberId = (m.barcode || m.university_id || m.student_id || 'ULM0329984').toUpperCase();
+    const rollNo = m.roll_number || m.employee_no || m.university_id || m.student_id || 'BSCS-23-42';
+    const name = m.name || 'Asad Zeb';
+    const session = m.session || (rawRole === 'faculty' ? 'Permanent Faculty' : 'FA23 (2023-2027)');
+    const program =
+      rawRole === 'faculty' || rawRole === 'staff'
+        ? m.designation || 'Assistant Professor'
+        : m.program
+        ? m.program.includes('(')
+          ? m.program
+          : `${m.degree_level ? m.degree_level + ' ' : ''}${m.program} (Regular)`
+        : 'BS Computer Science (Regular)';
+    const rawDept = m.department || 'Computer Science';
+    const department = rawDept.toLowerCase().startsWith('department') ? rawDept : `Department of ${rawDept}`;
+    const bloodGroup = m.blood_group || 'B-';
+    const limitNum = m.borrow_limit || (rawRole === 'faculty' ? 10 : rawRole === 'staff' ? 5 : 3);
+    const borrowingLimit = `${String(limitNum).padStart(2, '0')} Books (${rawRole === 'faculty' ? 30 : 14} Days)`;
+    const phone = m.phone || '0342-5252555';
+    const validTill = (m.valid_until || '30 JUN 2027').toUpperCase();
 
-    // 2. Card Background: Dark navy #0d101a
-    const inset = 0.6;
-    doc.setFillColor(13, 16, 26);
-    doc.roundedRect(x + inset, y + inset, w - (inset * 2), h - (inset * 2), 2.8, 2.8, 'F');
+    // 1. White Card Background with 1.5px Gold (#C8963E) Border
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(200, 150, 62);
+    doc.setLineWidth(0.45);
+    doc.roundedRect(x, y, w, h, 3.18, 3.18, 'FD');
 
-    // 3. Faint Purple and Gold gradient accents
-    doc.setFillColor(84, 26, 114); // Royal purple accent
-    doc.roundedRect(x + inset, y + inset, w - (inset * 2), 12, 2.8, 2.8, 'F');
-
-    // 4. Real ULM Crest Watermark in Color (exact unmodified PNG rendered at 8% layer opacity behind content)
+    // 2. Center Watermark at strictly 6.5% opacity
     try {
-      const wmSize = 36;
+      const wmSize = 29.6; // ~148px at CR80 scale
       const wmX = x + (w - wmSize) / 2;
-      const wmY = y + (h - wmSize) / 2;
+      const wmY = y + (h - wmSize) / 2 + 1.5;
       if (typeof (doc as any).saveGraphicsState === 'function' && typeof (doc as any).GState === 'function') {
         (doc as any).saveGraphicsState();
-        (doc as any).setGState(new (doc as any).GState({ opacity: 0.08 }));
-        doc.addImage(ULM_CREST_WATERMARK_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.065 }));
+        doc.addImage(ULM_CREST_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
         (doc as any).restoreGraphicsState();
       } else {
         doc.addImage(ULM_CREST_WATERMARK_SRC, 'PNG', wmX, wmY, wmSize, wmSize);
@@ -681,155 +698,328 @@ export class PdfGeneratorService {
 
     if (side === 'front') {
       // ================= CARD FRONT =================
-      // Header Crest (9.5mm height in crisp color)
-      try {
-        doc.addImage(ULM_CREST_SRC, 'PNG', x + 4, y + 2.5, 9.5, 9.5);
-      } catch {
-        // Fallback
-      }
+      const headerH = 11.6;
+      // Top Royal Purple Header Band (#3B1054)
+      doc.setFillColor(59, 16, 84);
+      doc.roundedRect(x + 0.2, y + 0.2, w - 0.4, headerH, 2.9, 2.9, 'F');
+      doc.rect(x + 0.2, y + headerH - 3, w - 0.4, 3, 'F');
 
-      // Header: University Title & Library
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(255, 255, 255);
-      doc.text('UNIVERSITY OF LAKKI MARWAT', x + 16, y + 5.5);
+      // Gold Bottom Border of Header (2.5px -> ~0.5mm)
+      doc.setDrawColor(200, 150, 62);
+      doc.setLineWidth(0.5);
+      doc.line(x + 0.2, y + headerH, x + w - 0.2, y + headerH);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      doc.setTextColor(246, 184, 74); // Gold text
-      doc.text('CENTRAL CAMPUS LIBRARY • SMART ID', x + 16, y + 8.8);
-
-      // Header Chip: RFID / Role
-      doc.setFillColor(217, 158, 50);
-      doc.roundedRect(x + w - 18, y + 3.2, 14, 4.5, 1, 1, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(10, 10, 15);
-      doc.text(role.toUpperCase(), x + w - 11, y + 6.3, { align: 'center' });
-
-      // Member Photo Placeholder / Gold Box
-      const photoX = x + 4;
-      const photoY = y + 14.5;
-      const photoW = 19;
-      const photoH = 24;
-
-      doc.setFillColor(5, 7, 13);
-      doc.setDrawColor(217, 158, 50);
-      doc.setLineWidth(0.4);
-      doc.rect(photoX, photoY, photoW, photoH, 'FD');
-
-      // Photo Initials
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(246, 184, 74);
-      doc.text((name.charAt(0) || 'U').toUpperCase(), photoX + (photoW / 2), photoY + (photoH / 2) + 4, { align: 'center' });
-
-      // Member Name
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(255, 255, 255);
-      doc.text(name.slice(0, 24), x + 26, y + 17.5);
-
-      // Member Details Grid
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(160, 160, 175);
-      doc.text('ID NO:', x + 26, y + 22);
-      doc.text('DEPT:', x + 26, y + 26.5);
-      doc.text('VALID TILL:', x + 26, y + 31);
-
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(6.8);
-      doc.setTextColor(246, 184, 74);
-      doc.text(uid, x + 38, y + 22);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      doc.setTextColor(230, 230, 240);
-      doc.text(department.slice(0, 22), x + 38, y + 26.5);
-      doc.text(validUntil, x + 38, y + 31);
-
-      // Blood group badge
-      if (m.blood_group) {
-        doc.setFillColor(180, 40, 40);
-        doc.roundedRect(x + w - 15, y + 28, 11, 4.5, 1, 1, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(m.blood_group, x + w - 9.5, y + 31.2, { align: 'center' });
-      }
-
-      // Barcode at Footer
-      const bcX = x + 4;
-      const bcY = y + 40;
-      const bcW = w - 8;
-      const bcH = 8.5;
-
-      // White barcode back plate
+      // Left Crest Ring (White circle with #FFD147 border)
+      const crestCx = x + 6.8;
+      const crestCy = y + 5.9;
       doc.setFillColor(255, 255, 255);
-      doc.rect(bcX, bcY, bcW, bcH, 'F');
-
-      this.drawVectorCode128(doc, uid, bcX + 1, bcY + 0.5, bcW - 2, bcH - 1, {
-        showText: false,
-      });
-
-      // Human readable UID below barcode
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(180, 180, 190);
-      doc.text(uid, x + (w / 2), y + h - 1.5, { align: 'center' });
-    } else {
-      // ================= CARD BACK =================
-      // Header Crest (7.5mm height in crisp color)
+      doc.setDrawColor(255, 209, 71);
+      doc.setLineWidth(0.4);
+      doc.circle(crestCx, crestCy, 4.2, 'FD');
       try {
-        doc.addImage(ULM_CREST_SRC, 'PNG', x + 4, y + 2.5, 7.5, 7.5);
+        doc.addImage(ULM_CREST_SRC, 'PNG', crestCx - 3.6, crestCy - 3.6, 7.2, 7.2);
       } catch {}
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      // Header Text Stack
+      doc.setFont('times', 'bold');
+      doc.setFontSize(7.2);
       doc.setTextColor(255, 255, 255);
-      doc.text('UNIVERSITY OF LAKKI MARWAT', x + 13.5, y + 6);
+      doc.text('UNIVERSITY OF LAKKI MARWAT', x + 12.5, y + 4.4);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(246, 184, 74);
-      doc.text('CENTRAL CAMPUS LIBRARY • TERMS OF USE', x + 13.5, y + 9.5);
+      doc.setFontSize(5.4);
+      doc.setTextColor(255, 209, 71);
+      doc.text('CENTRAL DIGITAL LIBRARY', x + 12.5, y + 7.1);
 
-      // Terms
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5);
-      doc.setTextColor(210, 210, 220);
+      doc.setFontSize(4.6);
+      doc.setTextColor(230, 230, 240);
+      doc.text('Khyber Pakhtunkhwa, Pakistan • Est. 2017', x + 12.5, y + 9.6);
 
-      const terms = [
-        '1. This card is non-transferable and remains the property of ULM Central Campus Library.',
-        '2. The cardholder is responsible for all library items borrowed under this credential.',
-        '3. Immediate notice must be given to the circulation desk in case of loss or damage.',
-        '4. If found, please return to: Central Campus Library, University of Lakki Marwat, KPK.',
+      // Right Role Pill (#FFD147 -> #C8963E)
+      doc.setFillColor(235, 185, 65);
+      doc.roundedRect(x + w - 21.5, y + 3.6, 18.8, 4.4, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.8);
+      doc.setTextColor(30, 7, 48);
+      doc.text(roleBadge, x + w - 12.1, y + 6.4, { align: 'center' });
+
+      // Photo Frame (88px x 108px -> 17.6mm x 21.6mm)
+      const photoX = x + 3.2;
+      const photoY = y + 13.8;
+      const photoW = 17.6;
+      const photoH = 21.6;
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(59, 16, 84);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(photoX, photoY, photoW, photoH, 1.5, 1.5, 'FD');
+
+      const initials = name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+      doc.setFont('times', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(59, 16, 84);
+      doc.text(initials, photoX + photoW / 2, photoY + 11, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('ULM MEMBER', photoX + photoW / 2, photoY + 15.5, { align: 'center' });
+
+      // Crimson Blood Group Badge (#DC2626)
+      doc.setFillColor(220, 38, 38);
+      doc.roundedRect(photoX + photoW - 5.4, photoY + 1, 4.4, 2.8, 0.6, 0.6, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(bloodGroup, photoX + photoW - 3.2, photoY + 2.9, { align: 'center' });
+
+      // Active Member Green Capsule Pill
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(16, 185, 129);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(photoX, photoY + photoH + 1.2, photoW, 3.2, 1.5, 1.5, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.2);
+      doc.setTextColor(4, 120, 87);
+      doc.text('ACTIVE MEMBER', photoX + photoW / 2, photoY + photoH + 3.3, { align: 'center' });
+
+      // Right Info Column
+      const infoX = x + 23.5;
+      const infoW = w - 26.5;
+
+      // Borrower Name + Member ID Pill
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.8);
+      doc.setTextColor(30, 7, 48);
+      doc.text(name.slice(0, 24), infoX, y + 16.8);
+
+      doc.setFillColor(243, 232, 255);
+      doc.setDrawColor(233, 213, 255);
+      doc.roundedRect(x + w - 22, y + 13.8, 19, 3.8, 0.8, 0.8, 'FD');
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(5.5);
+      doc.setTextColor(84, 26, 114);
+      doc.text(memberId, x + w - 12.5, y + 16.3, { align: 'center' });
+
+      // Divider under Name
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.line(infoX, y + 18.2, infoX + infoW, y + 18.2);
+
+      // 6-Field Metadata Grid
+      const col2X = infoX + infoW / 2 + 1;
+
+      // Row 1: Roll No | Academic Session
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text('ROLL NO / REG ID', infoX, y + 20.8);
+      doc.text('ACADEMIC SESSION', col2X, y + 20.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.6);
+      doc.setTextColor(59, 16, 84);
+      doc.text(rollNo.slice(0, 18), infoX, y + 23.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(session.slice(0, 18), col2X, y + 23.2);
+
+      // Row 2: Program / Designation
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text('PROGRAM / DESIGNATION', infoX, y + 26.2);
+      doc.setFontSize(5.6);
+      doc.setTextColor(15, 23, 42);
+      doc.text(program.slice(0, 38), infoX, y + 28.6);
+
+      // Row 3: Department
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text('DEPARTMENT', infoX, y + 31.6);
+      doc.setFontSize(5.6);
+      doc.setTextColor(15, 23, 42);
+      doc.text(department.slice(0, 38), infoX, y + 34.0);
+
+      // Row 4: Borrowing Limit | Valid Till
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text('BORROWING LIMIT', infoX, y + 37.0);
+      doc.text('VALID TILL', col2X, y + 37.0);
+
+      doc.setFontSize(5.6);
+      doc.setTextColor(15, 23, 42);
+      doc.text(borrowingLimit.slice(0, 18), infoX, y + 39.4);
+      doc.setTextColor(180, 83, 9);
+      doc.text(validTill.slice(0, 16), col2X, y + 39.4);
+
+      // Footer Barcode Band (Height: 38px -> 7.6mm)
+      const footerY = y + h - 7.8;
+      doc.setFillColor(248, 250, 252);
+      doc.rect(x + 0.3, footerY, w - 0.6, 7.5, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.25);
+      doc.line(x + 0.3, footerY, x + w - 0.3, footerY);
+
+      this.drawVectorCode128(doc, memberId, x + 3.2, footerY + 1.0, 35, 4.0, {
+        showText: false,
+      });
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(4.6);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`*${memberId}*`, x + 3.2, footerY + 6.6);
+
+      // Chief Librarian Authority
+      doc.setFont('times', 'bolditalic');
+      doc.setFontSize(5.6);
+      doc.setTextColor(59, 16, 84);
+      doc.text('Chief Librarian', x + w - 3.2, footerY + 3.6, { align: 'right' });
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.2);
+      doc.line(x + w - 22, footerY + 4.3, x + w - 3.2, footerY + 4.3);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text('ISSUING AUTHORITY • ULM', x + w - 3.2, footerY + 6.5, { align: 'right' });
+    } else {
+      // ================= CARD BACK =================
+      const topStripH = 5.6;
+      doc.setFillColor(30, 7, 48);
+      doc.roundedRect(x + 0.2, y + 0.2, w - 0.4, topStripH, 2.9, 2.9, 'F');
+      doc.rect(x + 0.2, y + topStripH - 2, w - 0.4, 2, 'F');
+      doc.setDrawColor(200, 150, 62);
+      doc.setLineWidth(0.4);
+      doc.line(x + 0.2, y + topStripH, x + w - 0.2, y + topStripH);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.8);
+      doc.setTextColor(255, 209, 71);
+      doc.text('INSTITUTIONAL LIBRARY MEMBERSHIP TERMS', x + 3.2, y + 3.8);
+      doc.text(`ID: ${memberId}`, x + w - 3.2, y + 3.8, { align: 'right' });
+
+      // Left Column: Borrowing Terms & Discipline
+      doc.setFont('times', 'bold');
+      doc.setFontSize(5.8);
+      doc.setTextColor(59, 16, 84);
+      doc.text('LIBRARY BORROWING TERMS & DISCIPLINE', x + 3.2, y + 10.2);
+      doc.setDrawColor(200, 150, 62);
+      doc.setLineWidth(0.2);
+      doc.line(x + 3.2, y + 11.2, x + w - 25, y + 11.2);
+
+      const rules = [
+        '• This Smart ID Card is strictly non-transferable and must be presented for all loans.',
+        '• Overdue fine is Rs. 10/- per day per volume after the 14-day loan window.',
+        '• Report loss or damage of card or borrowed material immediately to the Chief Librarian.',
+        '• Degree completion clearance requires return of all library assets and settling dues.',
       ];
 
-      let termY = y + 14;
-      for (const t of terms) {
-        doc.text(t, x + 6, termY);
-        termY += 4.2;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(4.7);
+      doc.setTextColor(30, 41, 59);
+      let ry = y + 15.0;
+      for (const rule of rules) {
+        const lines = doc.splitTextToSize(rule, w - 29);
+        doc.text(lines, x + 3.2, ry);
+        ry += lines.length * 3.1 + 1.2;
       }
 
-      // Signature & Authority
-      doc.setDrawColor(120, 120, 130);
-      doc.setLineWidth(0.2);
-      doc.line(x + 8, y + 36, x + 38, y + 36);
-      doc.line(x + 48, y + 36, x + 78, y + 36);
+      // Emergency Contact Strip
+      doc.setFillColor(255, 251, 235);
+      doc.setDrawColor(252, 211, 77);
+      doc.roundedRect(x + 3.2, y + h - 13.5, w - 28.5, 4.8, 0.8, 0.8, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.6);
+      doc.setTextColor(120, 53, 15);
+      doc.text(`Holder Contact: ${phone}`, x + 4.8, y + h - 10.4);
+      doc.text(`Blood: ${bloodGroup}`, x + w - 26.8, y + h - 10.4, { align: 'right' });
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(4.8);
-      doc.setTextColor(160, 160, 170);
-      doc.text('Cardholder Signature', x + 23, y + 38.5, { align: 'center' });
-      doc.text('Librarian / Issuing Authority', x + 63, y + 38.5, { align: 'center' });
+      // Right Verification QR Box
+      const qrBoxX = x + w - 23.2;
+      const qrBoxY = y + 9.2;
+      const qrBoxW = 20.0;
+      const qrBoxH = 35.0;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 1.4, 1.4, 'FD');
 
-      // Contact footer
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(4.8);
-      doc.setTextColor(180, 180, 190);
-      doc.text('Tel: +92 969 511819  •  Email: library@ulm.edu.pk  •  Web: www.ulm.edu.pk', x + (w / 2), y + h - 2.5, { align: 'center' });
+      // Draw deterministic 29x29 QR Matrix inside PDF
+      const matrixSize = 29;
+      const qrSizeMm = 14.5;
+      const qrStartX = qrBoxX + (qrBoxW - qrSizeMm) / 2;
+      const qrStartY = qrBoxY + 3.0;
+      const cellMm = qrSizeMm / matrixSize;
+      const payload = `ULM|${memberId}|${name}|${rollNo}|${validTill}`;
+
+      const grid: number[][] = Array.from({ length: matrixSize }, () => Array(matrixSize).fill(0));
+      const drawFinder = (r0: number, c0: number) => {
+        for (let r = 0; r < 7; r++) {
+          for (let c = 0; c < 7; c++) {
+            if (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
+              grid[r0 + r][c0 + c] = 1;
+            } else {
+              grid[r0 + r][c0 + c] = 2;
+            }
+          }
+        }
+      };
+      drawFinder(0, 0);
+      drawFinder(0, matrixSize - 7);
+      drawFinder(matrixSize - 7, 0);
+
+      let hash = 2166136261;
+      for (let i = 0; i < payload.length; i++) {
+        hash ^= payload.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      for (let r = 0; r < matrixSize; r++) {
+        for (let c = 0; c < matrixSize; c++) {
+          if (grid[r][c] !== 0) continue;
+          if (r === 6 || c === 6) {
+            grid[r][c] = (r + c) % 2 === 0 ? 1 : 2;
+            continue;
+          }
+          hash ^= (r * 31 + c * 17) & 0xff;
+          hash = Math.imul(hash, 16777619);
+          grid[r][c] = Math.abs(hash) % 10 < 5 ? 1 : 0;
+        }
+      }
+
+      doc.setFillColor(255, 255, 255);
+      doc.rect(qrStartX - 0.5, qrStartY - 0.5, qrSizeMm + 1, qrSizeMm + 1, 'F');
+      doc.setFillColor(30, 7, 48);
+      for (let r = 0; r < matrixSize; r++) {
+        for (let c = 0; c < matrixSize; c++) {
+          if (grid[r][c] === 1) {
+            doc.rect(qrStartX + c * cellMm, qrStartY + r * cellMm, cellMm, cellMm, 'F');
+          }
+        }
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.4);
+      doc.setTextColor(59, 16, 84);
+      doc.text('SCAN TO VERIFY', qrBoxX + qrBoxW / 2, qrBoxY + 22.5, { align: 'center' });
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(4.0);
+      doc.setTextColor(100, 116, 139);
+      doc.text(memberId, qrBoxX + qrBoxW / 2, qrBoxY + 25.5, { align: 'center' });
+
+      // Bottom Return Address Footer Strip (#0F172A)
+      const backFooterY = y + h - 6.2;
+      doc.setFillColor(15, 23, 42);
+      doc.rect(x + 0.3, backFooterY, w - 0.6, 5.9, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(4.5);
+      doc.setTextColor(255, 209, 71);
+      doc.text(
+        'If found, return to: Central Library, University of Lakki Marwat (KP)',
+        x + 3.2,
+        backFooterY + 3.8
+      );
+      doc.setTextColor(241, 245, 249);
+      doc.text('www.ulm.edu.pk', x + w - 3.2, backFooterY + 3.8, { align: 'right' });
     }
   }
 

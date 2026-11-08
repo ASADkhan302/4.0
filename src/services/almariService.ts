@@ -103,7 +103,8 @@ export class AlmariService {
     this.saveAlmariGroups(links);
   }
 
-  // --- ALMARIS (100% Manual Only — No Pre-Seeded Dummy Almaris) ---
+  // --- ALMARIS (Persistent Cupboard Registry with Default IH Cupboard) ---
+  private static readonly ALMARI_STORAGE_KEY_V2 = 'ulm_almaris_registry_v2';
   private static readonly LEGACY_SEEDED_ALMARI_IDS = new Set([
     'alm-01',
     'alm-02',
@@ -114,26 +115,47 @@ export class AlmariService {
     'alm-07',
   ]);
 
+  private static readonly DEFAULT_IH_ALMARI: Almari = {
+    id: 'alm-ih-01',
+    code: 'IH',
+    name_en: 'Institutional Holdings & Main Stack',
+    name_ur: 'ادارہ جاتی ذخیرہ کتب',
+    shelf_count: 5,
+    books_per_shelf: 25,
+    approx_capacity: 125,
+    location: 'Main Hall • Ground Floor',
+    location_note: 'Main Hall • Ground Floor',
+    is_active: true,
+    created_at: new Date().toISOString(),
+  };
+
   static getAlmaris(): Almari[] {
     if (this.almarisCache) return this.almarisCache;
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.ALMARIS);
-      if (raw) {
+      const rawV2 = localStorage.getItem(this.ALMARI_STORAGE_KEY_V2);
+      const rawV1 = localStorage.getItem(STORAGE_KEYS.ALMARIS);
+      const raw = rawV2 ?? rawV1;
+      if (raw !== null) {
         const parsed: Almari[] = JSON.parse(raw);
-        // Filter out legacy pre-seeded dummy Almaris (alm-01..alm-07) and auto-created Almaris
-        const manualOnly = parsed.filter(
-          a => !this.LEGACY_SEEDED_ALMARI_IDS.has(a.id) && !a.auto_created
-        );
-        this.almarisCache = manualOnly.map(a => this.ensureAlmariShelves(a));
-        if (manualOnly.length !== parsed.length) {
-          localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(this.almarisCache));
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (a) => !this.LEGACY_SEEDED_ALMARI_IDS.has(a.id) && a.is_active !== false
+          );
+          // Only seed default IH if storage was never initialized or only had legacy IDs
+          const list = rawV2 !== null ? valid : (valid.length > 0 ? valid : [this.DEFAULT_IH_ALMARI]);
+          this.almarisCache = list.map((a) => this.ensureAlmariShelves(a));
+          try {
+            localStorage.setItem(this.ALMARI_STORAGE_KEY_V2, JSON.stringify(this.almarisCache));
+            localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(this.almarisCache));
+          } catch {}
+          return this.almarisCache;
         }
-        return this.almarisCache;
       }
     } catch {}
-    this.almarisCache = INITIAL_ALMARIS.map(a => this.ensureAlmariShelves(a));
-    this.saveAlmaris(this.almarisCache);
-    return this.almarisCache;
+
+    const initialList = [this.DEFAULT_IH_ALMARI].map((a) => this.ensureAlmariShelves(a));
+    this.saveAlmaris(initialList);
+    return initialList;
   }
 
   static resetCaches(): void {
@@ -144,16 +166,46 @@ export class AlmariService {
   }
 
   static saveAlmaris(almaris: Almari[]): void {
-    this.almarisCache = almaris;
-    localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(almaris));
+    const normalized = almaris.map(a =>
+      this.ensureAlmariShelves({
+        ...a,
+        approx_capacity: a.approx_capacity || ((a.shelf_count || 5) * (a.books_per_shelf || 25)),
+        location_note: a.location_note || a.location || 'Main Hall • Ground Floor',
+        location: a.location || a.location_note || 'Main Hall • Ground Floor',
+      })
+    );
+    this.almarisCache = normalized;
+    try {
+      localStorage.setItem(this.ALMARI_STORAGE_KEY_V2, JSON.stringify(normalized));
+      localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(normalized));
+    } catch {}
+  }
+
+  static saveAlmari(almariData: Omit<Almari, 'id'> & { id?: string }): Almari {
+    const current = [...this.getAlmaris()];
+    const newAlmari: Almari = this.ensureAlmariShelves({
+      ...almariData,
+      id: almariData.id || `alm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      location: almariData.location || almariData.location_note || 'Main Hall • Ground Floor',
+      location_note: almariData.location_note || almariData.location || 'Main Hall • Ground Floor',
+      approx_capacity: almariData.approx_capacity || ((almariData.shelf_count || 5) * (almariData.books_per_shelf || 25)),
+      created_at: almariData.created_at || new Date().toISOString(),
+    });
+    const existsIdx = current.findIndex(a => a.id === newAlmari.id || a.code.toUpperCase() === newAlmari.code.toUpperCase());
+    if (existsIdx >= 0) {
+      current[existsIdx] = { ...current[existsIdx], ...newAlmari, id: current[existsIdx].id };
+      this.saveAlmaris(current);
+      return current[existsIdx];
+    } else {
+      current.push(newAlmari);
+      this.saveAlmaris(current);
+      return newAlmari;
+    }
   }
 
   static addAlmari(almari: Omit<Almari, 'id'>, groupIds: string[] = []): Almari {
-    const almaris = this.getAlmaris();
-    const id = `alm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const newAlmari: Almari = this.ensureAlmariShelves({ ...almari, id });
-    almaris.push(newAlmari);
-    this.saveAlmaris(almaris);
+    const newAlmari = this.saveAlmari(almari);
+    const id = newAlmari.id;
 
     if (groupIds.length > 0) {
       const links = this.getAlmariGroups();
@@ -191,7 +243,7 @@ export class AlmariService {
   }
 
   static deleteAlmari(id: string): void {
-    const almaris = this.getAlmaris().map(a => a.id === id ? { ...a, is_active: false, updated_at: new Date().toISOString() } : a);
+    const almaris = this.getAlmaris().filter(a => a.id !== id);
     this.saveAlmaris(almaris);
     const links = this.getAlmariGroups().filter(l => l.almari_id !== id);
     this.saveAlmariGroups(links);

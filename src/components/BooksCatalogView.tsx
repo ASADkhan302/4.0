@@ -1,179 +1,130 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { 
-  BookOpen, 
-  Layers, 
-  CheckCircle2, 
-  Clock, 
-  Search, 
-  LayoutGrid, 
-  List, 
-  Plus, 
-  ArrowRightLeft, 
-  Edit3, 
-  Printer, 
-  Barcode as BarcodeIcon,
-  MapPin,
-  ExternalLink,
-  BookMarked,
-  Trash2,
-  BarChart3,
-  X,
-  Calendar,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Download,
-  FileSpreadsheet,
-  Building2,
-  Sparkles,
-  CheckSquare,
-  Check,
+import {
+  Search,
+  BookOpen,
+  Layers,
+  CheckCircle2,
+  Clock,
+  LayoutGrid,
+  List,
   Library,
-  Filter,
-  SlidersHorizontal
+  BarChart3,
+  SlidersHorizontal,
+  Upload,
+  Printer,
+  FileSpreadsheet,
+  Trash2,
+  Plus,
+  Edit3,
+  Copy,
+  Check,
+  BookMarked,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Building2,
+  Calendar,
+  X,
 } from 'lucide-react';
-import { ULM_CREST_LOGO } from '../constants/branding';
-import { Book, Transaction } from '../types/library';
-import { LibraryStorage } from '../services/storage';
-import { CatalogChartsView } from './catalog/CatalogChartsView';
+import { Book, Transaction, NavigationTab } from '../types/library';
+import { CatalogVisualAnalytics } from './library/CatalogVisualAnalytics';
+import { AlmariView } from './AlmariView';
 import { BulkAssignModal } from './modals/BulkAssignModal';
-import { KpiCard } from './shared/SharedCards';
 import { AlmariService } from '../services/almariService';
 import { parseSerialNumber, resolveBookAlmariAndShelf } from '../services/libraryStorageAndMigration';
 import { sortBooksCatalog } from '../utils/almariSortUtils';
-import { CountUp } from '@/components/ui/count-up';
-import { CardSkeleton, TableSkeleton } from '@/components/ui/skeleton';
-import CustomSelect from './ui/CustomSelect';
-import { EmptyStateBooksDeco } from './decorative/EmptyStateBooksDeco';
-import { formatDisplayDate } from '../utils/dateUtils';
 import { isArabicOrUrduScript, matchesUrduSearch } from '../utils/urduUtils';
 
-interface BooksCatalogViewProps {
+export interface BooksCatalogViewProps {
   books: Book[];
-  transactions: Transaction[];
-  initialViewMode?: 'grid' | 'list' | 'chart';
+  transactions?: Transaction[];
+  initialViewMode?: 'grid' | 'list' | 'almaris' | 'analytics' | 'chart';
   onOpenAddBook: () => void;
-  onSelectBook: (book: Book) => void;
-  onEditBook: (book: Book) => void;
-  onDeleteBook: (book: Book) => void;
-  onQuickLoan: (book: Book) => void;
-  onPrintBarcode: (book: Book) => void;
+  onOpenIssueModal?: (book: Book) => void;
+  onQuickLoan?: (book: Book) => void;
+  onSelectBook?: (book: Book) => void;
+  onEditBook?: (book: Book) => void;
+  onDeleteBook?: (book: Book) => void;
+  onPrintBarcode?: (book: Book) => void;
+  onImportExcel?: () => void;
   onOpenImportBookEntrySheet?: () => void;
+  onExportCatalog?: () => void;
   onOpenBatchLabelPrint?: () => void;
+  onUpdateBooks?: (updatedBooks: Book[]) => void;
   onBooksUpdated?: (updatedBooks: Book[], message: string, batchId?: string) => void;
   onNavigateToAlmaris?: () => void;
+  onTabChange?: (tab: NavigationTab) => void;
   totalDbBooksCount?: number;
 }
 
 export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   books,
-  transactions,
+  transactions = [],
   initialViewMode,
   onOpenAddBook,
+  onOpenIssueModal,
+  onQuickLoan,
   onSelectBook,
   onEditBook,
   onDeleteBook,
-  onQuickLoan,
   onPrintBarcode,
+  onImportExcel,
   onOpenImportBookEntrySheet,
+  onExportCatalog,
   onOpenBatchLabelPrint,
+  onUpdateBooks,
   onBooksUpdated,
-  onNavigateToAlmaris,
+  onTabChange,
   totalDbBooksCount,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [selectedLanguage, setSelectedLanguage] = useState('ALL');
-  const [sortBy, setSortBy] = useState<string>(() => {
-    return localStorage.getItem('ulm_lms_catalog_sort') || 'newest_added';
+  // Grid View is FIRST and DEFAULT
+  const [catalogView, setCatalogView] = useState<'grid' | 'list' | 'almaris' | 'analytics'>(() => {
+    if (initialViewMode === 'chart' || initialViewMode === 'analytics') return 'analytics';
+    if (initialViewMode === 'list') return 'list';
+    if (initialViewMode === 'almaris') return 'almaris';
+    return 'grid';
   });
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
-  const [selectedAlmariFilter, setSelectedAlmariFilter] = useState('ALL');
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'chart'>(initialViewMode || 'list');
-  const [isSecondaryFiltersOpen, setIsSecondaryFiltersOpen] = useState(false);
-
-  const activeAlmarisList = useMemo(() => AlmariService.getAlmaris().filter(a => a.is_active), [books.length]);
-  const activeGroupsList = useMemo(() => AlmariService.getGroups().filter(g => g.is_active), [books.length]);
-  const placementByBookId = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof resolveBookAlmariAndShelf>>();
-    for (const b of books) {
-      map.set(b.id, resolveBookAlmariAndShelf(b, activeAlmarisList, activeGroupsList));
-    }
-    return map;
-  }, [books, activeAlmarisList, activeGroupsList]);
 
   useEffect(() => {
-    if (initialViewMode) {
-      setViewMode(initialViewMode);
+    if (initialViewMode === 'chart' || initialViewMode === 'analytics') {
+      setCatalogView('analytics');
+    } else if (initialViewMode === 'list') {
+      setCatalogView('list');
+    } else if (initialViewMode === 'almaris') {
+      setCatalogView('almaris');
+    } else if (initialViewMode === 'grid') {
+      setCatalogView('grid');
     }
   }, [initialViewMode]);
 
-  // Bulk selection state
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [selectedDiscipline, setSelectedDiscipline] = useState('all');
+  const [selectedLanguage, setSelectedLanguage] = useState('all');
+  const [selectedAlmari, setSelectedAlmari] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [isSecondaryFiltersOpen, setIsSecondaryFiltersOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'title' | 'author' | 'accession' | 'almari_order' | 'dewey_decimal'>('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(48);
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
   const [bulkModalMode, setBulkModalMode] = useState<'assign_group' | 'assign_almari' | null>(null);
+  const [copiedBarcodeId, setCopiedBarcodeId] = useState<string | null>(null);
 
-  const toggleSelectBook = (bookId: string) => {
-    setSelectedBookIds(prev => {
-      const next = new Set(prev);
-      if (next.has(bookId)) next.delete(bookId);
-      else next.add(bookId);
-      return next;
-    });
-  };
-
-  const handleSelectAllFiltered = () => {
-    const next = new Set<string>();
-    filteredBooks.forEach(b => next.add(b.id));
-    setSelectedBookIds(next);
-  };
-
-  const handleClearSelection = () => {
-    setSelectedBookIds(new Set());
-  };
-
-  const selectedBooksList = useMemo(() => {
-    if (selectedBookIds.size === 0) return [];
-    return books.filter(b => selectedBookIds.has(b.id));
-  }, [books, selectedBookIds]);
-
-  // Clean corrupted or test stub rows (e.g. cz" stubs, empty titles, test volumes)
-  const handleCleanInvalidRows = () => {
-    const invalidList = books.filter(b => {
-      const name = (b.book_name || '').trim();
-      const lower = name.toLowerCase();
-      const isStub = name === 'cz"' || lower.startsWith('cz"') || lower === 'cz' || lower === 'test' || lower === 'sample';
-      const isTooShort = name.length < 2;
-      const isPlaceholder = lower.includes('test volume') || lower.includes('sample title');
-      return isStub || isTooShort || isPlaceholder;
-    });
-
-    if (invalidList.length === 0) {
-      alert('Catalog Audit: No invalid, corrupted, or test stub rows detected in collection.');
-      return;
-    }
-
-    const confirmMsg = `Found ${invalidList.length} invalid/test stub row(s) (e.g. "${invalidList[0].book_name}").\n\nWould you like to permanently clean and remove them from the library database?`;
-    if (window.confirm(confirmMsg)) {
-      invalidList.forEach(b => {
-        LibraryStorage.deleteBook(b.id);
-      });
-      const remaining = books.filter(b => !invalidList.some(inv => inv.id === b.id));
-      if (onBooksUpdated) {
-        onBooksUpdated(remaining, `Cleaned ${invalidList.length} invalid or test stub records.`);
-      }
-    }
-  };
-
-  // Quick keyboard shortcut: Pressing "/" or Ctrl+F focuses the catalog search input
+  // Quick keyboard shortcut: Pressing "/" or Ctrl+F focuses the spotlight search input
   useEffect(() => {
     const handleGlobalSearchKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      const isInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable;
       if (!isInput && (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f'))) {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -184,22 +135,239 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalSearchKey);
   }, []);
 
-  const handleSortChange = (newSort: string) => {
-    setSortBy(newSort);
-    try {
-      localStorage.setItem('ulm_lms_catalog_sort', newSort);
-    } catch {
-      // Ignore storage errors
+  // Active books and Almari placement resolver
+  const activeBooks = useMemo(() => {
+    return books.filter(
+      (b) =>
+        b.is_active === undefined ||
+        b.is_active === true ||
+        (b.is_active as unknown) === 1 ||
+        (b.is_active as unknown) === '1' ||
+        b.is_active !== false
+    );
+  }, [books]);
+
+  const activeAlmarisList = useMemo(
+    () => AlmariService.getAlmaris().filter((a) => a.is_active),
+    [books.length]
+  );
+  const activeGroupsList = useMemo(
+    () => AlmariService.getGroups().filter((g) => g.is_active),
+    [books.length]
+  );
+
+  const placementByBookId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolveBookAlmariAndShelf>>();
+    for (const b of activeBooks) {
+      map.set(b.id, resolveBookAlmariAndShelf(b, activeAlmarisList, activeGroupsList));
+    }
+    return map;
+  }, [activeBooks, activeAlmarisList, activeGroupsList]);
+
+  // Metrics computation
+  const totalCataloged =
+    totalDbBooksCount && totalDbBooksCount > activeBooks.length
+      ? totalDbBooksCount
+      : activeBooks.length;
+
+  const totalPhysicalVolumes = useMemo(() => {
+    if (totalDbBooksCount && totalDbBooksCount > activeBooks.length) {
+      return totalDbBooksCount;
+    }
+    return activeBooks.reduce((sum, b) => sum + (Number(b.total_quantity ?? b.copies) || 1), 0);
+  }, [activeBooks, totalDbBooksCount]);
+
+  const activeLoans = useMemo(() => {
+    const fromTxs = transactions.filter(
+      (t) =>
+        (t.status as string) === 'ISSUED' ||
+        t.status === 'ACTIVE' ||
+        t.status === 'OVERDUE' ||
+        (!t.return_date && t.status !== 'RETURNED')
+    ).length;
+    if (fromTxs > 0) return fromTxs;
+
+    const fromAvailableDiff = activeBooks.reduce((sum, b) => {
+      const total = Number(b.total_quantity ?? b.copies) || 1;
+      const avail = Number(b.available_quantity ?? b.available_copies ?? total);
+      return sum + Math.max(0, total - avail);
+    }, 0);
+    return Math.max(0, fromAvailableDiff);
+  }, [transactions, activeBooks]);
+
+  const totalAvailable = Math.max(0, totalPhysicalVolumes - activeLoans);
+
+  // Extract unique filters
+  const disciplines = useMemo(() => {
+    const set = new Set<string>();
+    activeBooks.forEach((b) => {
+      if (b.category) set.add(b.category);
+    });
+    return Array.from(set).sort();
+  }, [activeBooks]);
+
+  const languages = useMemo(() => {
+    const set = new Set<string>(['English', 'Urdu', 'Pashto']);
+    activeBooks.forEach((b) => {
+      if (b.language) set.add(b.language);
+    });
+    return Array.from(set).sort();
+  }, [activeBooks]);
+
+  // Filter and sort books
+  const filteredBooks = useMemo(() => {
+    const filtered = activeBooks.filter((b) => {
+      const q = searchQuery.trim();
+      const qLower = q.toLowerCase();
+      const matchQuery =
+        !q ||
+        matchesUrduSearch(
+          q,
+          b.search_text ||
+            `${b.book_name || ''} ${b.author || ''} ${b.barcode || ''} ${b.accession_no || ''} ${b.isbn || ''} ${b.dewey_call_number || ''}`
+        ) ||
+        (b.book_name || '').toLowerCase().includes(qLower) ||
+        (b.author || '').toLowerCase().includes(qLower) ||
+        (b.barcode || '').toLowerCase().includes(qLower) ||
+        (b.isbn || '').toLowerCase().includes(qLower) ||
+        (b.accession_no || '').toLowerCase().includes(qLower);
+
+      const matchDiscipline = selectedDiscipline === 'all' || b.category === selectedDiscipline;
+      const matchLanguage =
+        selectedLanguage === 'all' ||
+        (selectedLanguage === 'Urdu' &&
+          ((b.language || '').toLowerCase() === 'urdu' ||
+            isArabicOrUrduScript(b.book_name || ''))) ||
+        b.language === selectedLanguage;
+
+      const placement = placementByBookId.get(b.id);
+      const almariCode =
+        (b as Book & { almari_code?: string }).almari_code || placement?.almariCode || '';
+      const resolvedAlmId = placement?.almari_id || b.almari_id || '';
+
+      const matchAlmari =
+        selectedAlmari === 'all' ||
+        (selectedAlmari === 'unassigned' && !almariCode && !resolvedAlmId) ||
+        almariCode === selectedAlmari ||
+        resolvedAlmId === selectedAlmari;
+
+      const isBookIssued = String(b.status || '').trim().toUpperCase() === 'ISSUED';
+      const isBookAvailable = !isBookIssued && (b.available_quantity ?? 1) > 0;
+      const matchStatus =
+        selectedStatus === 'all' ||
+        (selectedStatus === 'AVAILABLE' && isBookAvailable) ||
+        (selectedStatus === 'LOANED' && !isBookAvailable);
+
+      const resolvedGrpId = placement?.group_id || b.group_id || '';
+      const matchGroup =
+        selectedGroupFilter === 'all' ||
+        (selectedGroupFilter === 'NO_GROUP' && !resolvedGrpId) ||
+        resolvedGrpId === selectedGroupFilter;
+
+      const bookDate =
+        b.date_added || (b.created_at ? b.created_at.split(' ')[0] : '') || '';
+      const matchDateFrom = !dateFrom || (bookDate && bookDate >= dateFrom);
+      const matchDateTo = !dateTo || (bookDate && bookDate <= dateTo);
+
+      return (
+        matchQuery &&
+        matchDiscipline &&
+        matchLanguage &&
+        matchAlmari &&
+        matchStatus &&
+        matchGroup &&
+        matchDateFrom &&
+        matchDateTo
+      );
+    });
+
+    if (['almari_order', 'dewey_decimal'].includes(sortBy)) {
+      const groupsMap = new Map(AlmariService.getGroups().map((g) => [g.id, g]));
+      const almarisMap = new Map(AlmariService.getAlmaris().map((a) => [a.id, a]));
+      return sortBooksCatalog(filtered, sortBy, groupsMap, almarisMap);
+    }
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'title') return (a.book_name || '').localeCompare(b.book_name || '');
+      if (sortBy === 'author') return (a.author || '').localeCompare(b.author || '');
+      if (sortBy === 'accession') {
+        const numA = parseSerialNumber(a.accession_no || a.barcode);
+        const numB = parseSerialNumber(b.accession_no || b.barcode);
+        if (numA !== numB) return numA - numB;
+        return (a.barcode || '').localeCompare(b.barcode || '');
+      }
+      return 0; // default newest
+    });
+  }, [
+    activeBooks,
+    searchQuery,
+    selectedDiscipline,
+    selectedLanguage,
+    selectedAlmari,
+    selectedStatus,
+    selectedGroupFilter,
+    dateFrom,
+    dateTo,
+    sortBy,
+    placementByBookId,
+  ]);
+
+  // Pagination slice
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedBooks = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredBooks.slice(start, start + pageSize);
+  }, [filteredBooks, safeCurrentPage, pageSize]);
+
+  const handleToggleSelectAll = () => {
+    if (selectedBookIds.size === paginatedBooks.length && paginatedBooks.length > 0) {
+      setSelectedBookIds(new Set());
+    } else {
+      setSelectedBookIds(new Set(paginatedBooks.map((b) => b.id || b.barcode)));
     }
   };
 
-  const handleToggleDateSort = () => {
-    const next = sortBy === 'newest_added' ? 'oldest_added' : 'newest_added';
-    handleSortChange(next);
+  const handleSelectAllFiltered = () => {
+    setSelectedBookIds(new Set(filteredBooks.map((b) => b.id || b.barcode)));
   };
 
-  const handleDownloadBookCsvTemplate = () => {
-    const templateCsv = 'AccessionNo,Barcode,ISBN,BookTitle,Author,Category,TotalCopies,Shelf,DeweyCallNumber,Publisher,Edition,Year,Language,DateAdded\r\nULM-00001,0092000000001,978-0131103627,The C Programming Language,Brian W. Kernighan,Computer Science,1,ALM-01 - Shelf 1,005.133 ULM,Prentice Hall,2nd Edition,1988,English,2024-01-15\r\n';
+  const handleToggleSelectOne = (id: string) => {
+    const next = new Set(selectedBookIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedBookIds(next);
+  };
+
+  const selectedBooksList = useMemo(() => {
+    if (selectedBookIds.size === 0) return [];
+    return activeBooks.filter((b) => selectedBookIds.has(b.id || b.barcode));
+  }, [activeBooks, selectedBookIds]);
+
+  const handleIssueBookAction = (book: Book) => {
+    if (onOpenIssueModal) {
+      onOpenIssueModal(book);
+    } else if (onQuickLoan) {
+      onQuickLoan(book);
+    }
+  };
+
+  const handleImportExcelAction = () => {
+    if (onImportExcel) {
+      onImportExcel();
+    } else if (onOpenImportBookEntrySheet) {
+      onOpenImportBookEntrySheet();
+    }
+  };
+
+  const handleDownloadCsvTemplate = () => {
+    if (onExportCatalog) {
+      onExportCatalog();
+      return;
+    }
+    const templateCsv =
+      'AccessionNo,Barcode,ISBN,BookTitle,Author,Category,TotalCopies,Shelf,DeweyCallNumber,Publisher,Edition,Year,Language,DateAdded\r\nULM-00001,0092000000001,978-0131103627,The C Programming Language,Brian W. Kernighan,Computer Science,1,ALM-01 - Shelf 1,005.133 ULM,Prentice Hall,2nd Edition,1988,English,2024-01-15\r\n';
     const blob = new Blob([templateCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -210,320 +378,142 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     document.body.removeChild(link);
   };
 
-  // Compute metrics from actual database (honoring full database scale past localStorage limit)
-  const activeBooks = useMemo(() => {
-    return books.filter(b => b.is_active === undefined || b.is_active === true || (b.is_active as any) === 1 || (b.is_active as any) === '1' || b.is_active !== false);
-  }, [books]);
-
-  const totalTitles = totalDbBooksCount && totalDbBooksCount > activeBooks.length ? totalDbBooksCount : activeBooks.length;
-  const totalCopies = totalDbBooksCount && totalDbBooksCount > activeBooks.length 
-    ? totalDbBooksCount 
-    : activeBooks.reduce((sum, b) => sum + (Number(b.total_quantity) || 1), 0);
-
-  // Active loans calculated ONLY from actual active loan transactions or books explicitly marked 'ISSUED'
-  const activeBorrowed = useMemo(() => {
-    const fromTxs = transactions.filter(t => (t.status as string) === 'ISSUED' || t.status === 'ACTIVE' || (!t.return_date && t.status !== 'RETURNED')).length;
-    if (fromTxs > 0) return fromTxs;
-    return activeBooks.filter(b => String(b.status || '').trim().toUpperCase() === 'ISSUED').length;
-  }, [transactions, activeBooks]);
-
-  // Total available calculated as total copies minus actual active loans
-  const totalAvailable = Math.max(0, totalCopies - activeBorrowed);
-  const availPercent = totalCopies > 0 ? Math.round((totalAvailable / totalCopies) * 100) : 100;
-
-  const overdueCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return transactions.filter(t => t.status === 'OVERDUE' || (t.status === 'ACTIVE' && t.due_date < today)).length;
-  }, [transactions]);
-
-  // Categories list across academic disciplines
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const b of activeBooks) {
-      const cat = String(b.category || (b as any).discipline || (b as any).subject || (b as any).department || 'General').trim();
-      if (cat) set.add(cat);
-    }
-    const arr = Array.from(set).filter(Boolean);
-    return arr.length > 0 ? arr : (activeBooks.length > 0 ? ['General'] : []);
-  }, [activeBooks]);
-
-  // Filtered & sorted books
-  const filteredBooks = useMemo(() => {
-    const filtered = activeBooks
-      .filter(book => {
-        const query = searchQuery.trim();
-        const matchesQuery = !query || 
-          matchesUrduSearch(query, book.search_text || `${book.book_name || ''} ${book.author || ''} ${book.barcode || ''} ${book.accession_no || ''} ${book.isbn || ''} ${book.dewey_call_number || ''}`) ||
-          (book.accession_no && book.accession_no.toLowerCase().includes(query.toLowerCase())) ||
-          (book.shelf && book.shelf.toLowerCase().includes(query.toLowerCase())) ||
-          (book.publisher && book.publisher.toLowerCase().includes(query.toLowerCase())) ||
-          (book.title_roman && book.title_roman.toLowerCase().includes(query.toLowerCase())) ||
-          (book.author_roman && book.author_roman.toLowerCase().includes(query.toLowerCase())) ||
-          (book.barcode && book.barcode.toLowerCase().includes(query.toLowerCase())) ||
-          (book.isbn && book.isbn.toLowerCase().includes(query.toLowerCase())) ||
-          (book.dewey_call_number && book.dewey_call_number.toLowerCase().includes(query.toLowerCase()));
-
-        const isDefaultCategory = !selectedCategory || selectedCategory === 'ALL' || selectedCategory === 'All Disciplines' || selectedCategory === 'All Categories' || selectedCategory === '';
-        const bookCat = String(book.category || (book as any).discipline || (book as any).subject || (book as any).department || 'General').trim();
-        const matchesCategory = isDefaultCategory || bookCat.toLowerCase() === selectedCategory.trim().toLowerCase() || (book.category || '').toLowerCase() === selectedCategory.trim().toLowerCase();
-
-        const isDefaultStatus = !selectedStatus || selectedStatus === 'ALL' || selectedStatus === 'All Copies' || selectedStatus === '';
-        const isBookIssued = String(book.status || '').trim().toUpperCase() === 'ISSUED';
-        const isBookAvailable = !isBookIssued && ((book.available_quantity ?? 1) > 0 || ((book as any).available_copies ?? 1) > 0);
-        const matchesStatus = 
-          isDefaultStatus ||
-          (selectedStatus === 'AVAILABLE' && isBookAvailable) ||
-          (selectedStatus === 'LOANED' && !isBookAvailable);
-
-        const isDefaultLanguage = !selectedLanguage || selectedLanguage === 'ALL' || selectedLanguage === 'All Languages' || selectedLanguage === '';
-        const matchesLanguage = isDefaultLanguage ||
-          (selectedLanguage === 'Urdu' && ((book.language || '').toLowerCase() === 'urdu' || isArabicOrUrduScript(book.book_name || ''))) ||
-          (selectedLanguage === 'English' && (!book.language || (book.language || '').toLowerCase() === 'english') && !isArabicOrUrduScript(book.book_name || '')) ||
-          ((book.language || '').toLowerCase() === selectedLanguage.toLowerCase());
-
-        const bookDate = book.date_added || (book.created_at ? book.created_at.split(' ')[0] : '') || (book as any).date_of_entry || '';
-        const matchesDateFrom = !dateFrom || dateFrom === '' || (bookDate && bookDate >= dateFrom);
-        const matchesDateTo = !dateTo || dateTo === '' || (bookDate && bookDate <= dateTo);
-
-        const placement = placementByBookId.get(book.id);
-
-        // Group filter
-        const isDefaultGroup = !selectedGroupFilter || selectedGroupFilter === 'ALL' || selectedGroupFilter === 'All Groups' || selectedGroupFilter === '';
-        const resolvedGrpId = placement?.group_id || book.group_id;
-        const matchesGroup = 
-          isDefaultGroup ||
-          (selectedGroupFilter === 'NO_GROUP' && !resolvedGrpId) ||
-          resolvedGrpId === selectedGroupFilter;
-
-        // Almari filter
-        const isDefaultAlmari = !selectedAlmariFilter || selectedAlmariFilter === 'ALL' || selectedAlmariFilter === 'All Almaris' || selectedAlmariFilter === '';
-        const resolvedAlmId = placement?.almari_id || book.almari_id;
-        const matchesAlmari = 
-          isDefaultAlmari ||
-          (selectedAlmariFilter === 'NO_ALMARI' && !resolvedAlmId) ||
-          resolvedAlmId === selectedAlmariFilter;
-
-        return matchesQuery && matchesCategory && matchesStatus && matchesLanguage && matchesDateFrom && matchesDateTo && matchesGroup && matchesAlmari;
-      });
-
-    // Check if using the high-performance Almari/Dewey sort modes
-    if (['almari_order', 'group_then_almari', 'dewey_decimal', 'shelf_location'].includes(sortBy)) {
-      const groupsMap = new Map(AlmariService.getGroups().map(g => [g.id, g]));
-      const almarisMap = new Map(AlmariService.getAlmaris().map(a => [a.id, a]));
-      return sortBooksCatalog(filtered, sortBy, groupsMap, almarisMap);
-    }
-
-    return [...filtered].sort((a: Book, b: Book) => {
-        if (sortBy === 'newest_added') {
-          const dateA = a.date_added || (a.created_at ? a.created_at.split(' ')[0] : '1970-01-01');
-          const dateB = b.date_added || (b.created_at ? b.created_at.split(' ')[0] : '1970-01-01');
-          if (dateA !== dateB) return dateB.localeCompare(dateA);
-
-          // Tie 1: created_at
-          const timeA = a.created_at || '';
-          const timeB = b.created_at || '';
-          if (timeA !== timeB) return timeB.localeCompare(timeA);
-
-          // Tie 2: accession no. (strict numeric series)
-          const numA = parseSerialNumber(a.accession_no || a.barcode);
-          const numB = parseSerialNumber(b.accession_no || b.barcode);
-          if (numA !== numB) return numB - numA;
-          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
-        }
-
-        if (sortBy === 'oldest_added') {
-          const dateA = a.date_added || (a.created_at ? a.created_at.split(' ')[0] : '1970-01-01');
-          const dateB = b.date_added || (b.created_at ? b.created_at.split(' ')[0] : '1970-01-01');
-          if (dateA !== dateB) return dateA.localeCompare(dateB);
-
-          // Tie 1: created_at
-          const timeA = a.created_at || '';
-          const timeB = b.created_at || '';
-          if (timeA !== timeB) return timeA.localeCompare(timeB);
-
-          // Tie 2: accession no. (strict numeric series)
-          const numA = parseSerialNumber(a.accession_no || a.barcode);
-          const numB = parseSerialNumber(b.accession_no || b.barcode);
-          if (numA !== numB) return numA - numB;
-          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
-        }
-
-        if (sortBy === 'accession') {
-          const numA = parseSerialNumber(a.accession_no || a.barcode);
-          const numB = parseSerialNumber(b.accession_no || b.barcode);
-          if (numA !== numB) return numA - numB;
-          return (a.accession_no || a.barcode || '').localeCompare(b.accession_no || b.barcode || '', undefined, { numeric: true });
-        }
-
-        if (sortBy === 'accession_desc') {
-          const numA = parseSerialNumber(a.accession_no || a.barcode);
-          const numB = parseSerialNumber(b.accession_no || b.barcode);
-          if (numA !== numB) return numB - numA;
-          return (b.accession_no || b.barcode || '').localeCompare(a.accession_no || a.barcode || '', undefined, { numeric: true });
-        }
-
-        if (sortBy === 'title') {
-          const keyA = a.title_sort || a.book_name;
-          const keyB = b.title_sort || b.book_name;
-          return keyA.localeCompare(keyB);
-        }
-
-        if (sortBy === 'title_desc') {
-          const keyA = a.title_sort || a.book_name;
-          const keyB = b.title_sort || b.book_name;
-          return keyB.localeCompare(keyA);
-        }
-
-        if (sortBy === 'author') {
-          const keyA = a.author_sort || a.author;
-          const keyB = b.author_sort || b.author;
-          return keyA.localeCompare(keyB);
-        }
-
-        if (sortBy === 'author_desc') {
-          const keyA = a.author_sort || a.author;
-          const keyB = b.author_sort || b.author;
-          return keyB.localeCompare(keyA);
-        }
-
-        if (sortBy === 'copies') return b.total_quantity - a.total_quantity;
-        if (sortBy === 'year') return b.publication_year - a.publication_year;
-        return 0;
-      });
-  }, [activeBooks, searchQuery, selectedCategory, selectedStatus, selectedLanguage, selectedGroupFilter, selectedAlmariFilter, sortBy, dateFrom, dateTo]);
-
-  // Controlled pagination & GPU optimization (default 50 rows per page to prevent UI freezing on 4,000+ books)
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(50);
-
-  // Automatically reset active Catalog search/category/almari filters right after import finishes
-  const prevBooksCountRef = useRef(books.length);
-  useEffect(() => {
-    if (books.length > prevBooksCountRef.current) {
-      setSearchQuery('');
-      setSelectedCategory('ALL');
-      setSelectedStatus('ALL');
-      setSelectedLanguage('ALL');
-      setSelectedGroupFilter('ALL');
-      setSelectedAlmariFilter('ALL');
-      setDateFrom('');
-      setDateTo('');
-      setCurrentPage(1);
-    }
-    prevBooksCountRef.current = books.length;
-  }, [books.length]);
-
-  // Reset to page 1 on search or filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedStatus, selectedLanguage, selectedGroupFilter, selectedAlmariFilter, dateFrom, dateTo, sortBy]);
-
-  const totalMatchingBooks = filteredBooks.length;
-  const totalPages = Math.max(1, Math.ceil(totalMatchingBooks / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-
-  const paginatedBooks = useMemo(() => {
-    const startIndex = (safeCurrentPage - 1) * pageSize;
-    return filteredBooks.slice(startIndex, startIndex + pageSize);
-  }, [filteredBooks, safeCurrentPage, pageSize]);
-
-  // Generate SVG-like barcode bars based on barcode string (always high contrast in light & dark)
-  const renderBarcodeStrip = (code: string) => {
-    return (
-      <div 
-        className="barcode-container flex items-center gap-[1.5px] h-6 px-1.5 py-0.5 bg-white rounded-[4px] border border-white/20 select-none shadow-xs" 
-        title={`Barcode: ${code}`}
-        data-barcode-container="true"
-      >
-        {code.split('').map((char, idx) => {
-          const num = parseInt(char, 10) || 3;
-          const w = (num % 3) + 1;
-          return (
-            <div
-              key={idx}
-              className="barcode-bar h-full"
-              style={{ width: `${w}px`, backgroundColor: '#000000', minWidth: '1px' }}
-            />
-          );
-        })}
-      </div>
-    );
+  const handleCopyBarcode = (barcode: string, bookKey: string) => {
+    if (!barcode) return;
+    navigator.clipboard?.writeText(barcode).catch(() => {});
+    setCopiedBarcodeId(bookKey);
+    setTimeout(() => {
+      setCopiedBarcodeId((prev) => (prev === bookKey ? null : prev));
+    }, 1500);
   };
 
-  const activeSecondaryFilterCount = (selectedStatus !== 'ALL' && selectedStatus !== '' ? 1 : 0) +
-    (selectedGroupFilter !== 'ALL' && selectedGroupFilter !== '' ? 1 : 0) +
+  const activeSecondaryFilterCount =
+    (selectedStatus !== 'all' ? 1 : 0) +
+    (selectedGroupFilter !== 'all' ? 1 : 0) +
     (dateFrom || dateTo ? 1 : 0);
 
   return (
-    <div className="w-full h-auto min-h-0 flex flex-col gap-5 bg-transparent px-6 pt-5 pb-12 overflow-visible">
-      <div className="max-w-[1920px] w-full mx-auto space-y-5">
-        
-        {/* Operational Collection Metrics (Unified Institutional Surfaces - Rule 4) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            label="Cataloged Titles"
-            value={totalTitles}
-            note="Distinct records"
-            icon={BookOpen}
-            subLabel={`Across ${categories.length} academic disciplines`}
-          />
-          <KpiCard
-            label="Physical Volumes"
-            value={totalCopies}
-            note="Physical items"
-            icon={Layers}
-            subLabel="Total holdings in campus collection"
-          />
-          <KpiCard
-            label="Shelf Availability"
-            value={totalAvailable}
-            note="Available now"
-            icon={CheckCircle2}
-            subLabel={`${totalAvailable.toLocaleString()} / ${totalCopies.toLocaleString()} volumes on shelf`}
-          />
-          <KpiCard
-            label="Active Loans"
-            value={activeBorrowed}
-            note={overdueCount > 0 ? `${overdueCount} overdue` : 'On loan'}
-            icon={Clock}
-            isGoldNumber={activeBorrowed > 0}
-            isDanger={overdueCount > 0}
-            subLabel={overdueCount > 0 ? `${overdueCount} books require overdue follow-up` : 'Currently checked out to members'}
-          />
+    <div className="w-full px-4 lg:px-6 pt-3 pb-16 select-none">
+      <div className="max-w-[1920px] w-full mx-auto space-y-3.5">
+        {/* =========================================================================
+            EXACT REPLICA METRIC STAT CARDS (MATCHING SCREENSHOTS 3720aea1 & 0a0dd112)
+            ========================================================================= */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Card 1: Cataloged Titles */}
+          <div className="rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 p-4 shadow-sm hover:border-[#C8963E]/45 transition-all flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.10em] text-slate-500 dark:text-slate-400">
+                CATALOGED TITLES
+              </span>
+              <BookOpen className="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-60 shrink-0" />
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl xl:text-[28px] font-extrabold font-display tabular-nums tracking-tight text-slate-900 dark:text-white leading-none">
+                {totalCataloged.toLocaleString()}
+              </span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                Distinct records
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
+              Across 1 academic disciplines
+            </div>
+          </div>
+
+          {/* Card 2: Physical Volumes */}
+          <div className="rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 p-4 shadow-sm hover:border-[#C8963E]/45 transition-all flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.10em] text-slate-500 dark:text-slate-400">
+                PHYSICAL VOLUMES
+              </span>
+              <Layers className="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-60 shrink-0" />
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl xl:text-[28px] font-extrabold font-display tabular-nums tracking-tight text-slate-900 dark:text-white leading-none">
+                {totalPhysicalVolumes.toLocaleString()}
+              </span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                Physical items
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
+              Total holdings in campus collection
+            </div>
+          </div>
+
+          {/* Card 3: Shelf Availability */}
+          <div className="rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 p-4 shadow-sm hover:border-[#C8963E]/45 transition-all flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.10em] text-slate-500 dark:text-slate-400">
+                SHELF AVAILABILITY
+              </span>
+              <CheckCircle2 className="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-60 shrink-0" />
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl xl:text-[28px] font-extrabold font-display tabular-nums tracking-tight text-slate-900 dark:text-white leading-none">
+                {totalAvailable.toLocaleString()}
+              </span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                Available now
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
+              {totalAvailable.toLocaleString()} / {totalPhysicalVolumes.toLocaleString()} volumes on shelf
+            </div>
+          </div>
+
+          {/* Card 4: Active Loans */}
+          <div className="rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 p-4 shadow-sm hover:border-[#C8963E]/45 transition-all flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-[0.10em] text-slate-500 dark:text-slate-400">
+                ACTIVE LOANS
+              </span>
+              <Clock className="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-60 shrink-0" />
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl xl:text-[28px] font-extrabold font-display tabular-nums tracking-tight text-slate-900 dark:text-white leading-none">
+                {activeLoans.toLocaleString()}
+              </span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                On loan
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
+              Currently checked out to members
+            </div>
+          </div>
         </div>
 
-        {/* Decluttered 2-Row Filter & Search Action Bar (Rule 5) */}
-        <div className="ulm-liquid-glass rounded-xl p-4 space-y-3 shadow-xs">
-          {/* Row 1: Search & Primary Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[260px]">
-              <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+        {/* =========================================================================
+            2. COMPRESSED SINGLE-LINE SEARCH & FILTER TOOLBAR (44px HEIGHT)
+            ========================================================================= */}
+        <div className="rounded-2xl bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl border border-[#C8963E]/30 dark:border-white/10 p-2.5 shadow-xs space-y-2">
+          {/* ROW 1: Spotlight Search & ALL 4 Dropdowns on ONE Single Line */}
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-2">
+            {/* Search Input (Expands to fill space) */}
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
               <input
                 ref={searchInputRef}
-                id="catalog-search-input"
-                name="catalogSearch"
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape' && searchQuery) {
                     e.stopPropagation();
                     setSearchQuery('');
                   }
                 }}
+                style={{
+                  paddingLeft: '2.5rem',
+                  paddingRight: searchQuery ? '2rem' : '0.875rem',
+                  height: '38px',
+                }}
                 placeholder="Search title, author, barcode, accession, ISBN..."
-                aria-label="Search catalog books"
-                autoComplete="off"
-                spellCheck={false}
-                style={{ paddingLeft: '2.5rem', paddingRight: searchQuery ? '2.25rem' : '0.875rem' }}
-                className={`w-full h-10 bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] focus:bg-white dark:focus:bg-[#141214] border rounded-[10px] pl-10 pr-9 text-[13px] font-medium text-slate-900 dark:text-white placeholder:text-slate-400 transition-colors ${
-                  isSearchFocused
-                    ? 'border-[#BC881B] ring-2 ring-[#BC881B]/25 outline-none'
-                    : 'border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60'
-                }`}
+                className="ulm-compact-control w-full h-[38px] pl-10 pr-3.5 rounded-xl text-xs font-medium bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C8963E] transition-all"
               />
               {searchQuery && (
                 <button
@@ -532,357 +522,326 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     setSearchQuery('');
                     searchInputRef.current?.focus();
                   }}
-                  style={{
-                    position: 'absolute',
-                    right: '0.5rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    minWidth: '24px',
-                    minHeight: '24px',
-                    width: '24px',
-                    height: '24px',
-                    padding: 0,
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer z-10"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer z-10"
                   title="Clear search"
-                  aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* 4 Clean Select Dropdowns */}
-            {/* 1. Discipline */}
-            <div className="w-48 min-w-[175px] shrink-0">
-              <CustomSelect
-                value={selectedCategory}
-                onChange={(val) => setSelectedCategory(val)}
-                options={[
-                  { value: 'ALL', label: 'All Disciplines' },
-                  ...categories.map(c => ({ value: c, label: c }))
-                ]}
-                searchable
-                variant="dark"
-              />
-            </div>
+            {/* Compact Dropdown 1: Disciplines */}
+            <select
+              value={selectedDiscipline}
+              onChange={(e) => {
+                setSelectedDiscipline(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ width: 'auto', height: '38px' }}
+              className="ulm-compact-control w-auto h-[38px] px-3 rounded-xl text-xs font-medium bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0 max-w-[148px]"
+            >
+              <option value="all">All Disciplines</option>
+              {disciplines.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
 
-            {/* 2. Language (Rule 5: Clean labels, never Nastaliq overflowing) */}
-            <div className="w-44 min-w-[160px] shrink-0">
-              <CustomSelect
-                value={selectedLanguage}
-                onChange={(val) => setSelectedLanguage(val)}
-                options={[
-                  { value: 'ALL', label: 'All Languages' },
-                  { value: 'English', label: 'English' },
-                  { value: 'Urdu', label: 'Urdu (اردو)' },
-                  { value: 'Pashto', label: 'Pashto (پښتو)' },
-                ]}
-                variant="dark"
-              />
-            </div>
+            {/* Compact Dropdown 2: Languages */}
+            <select
+              value={selectedLanguage}
+              onChange={(e) => {
+                setSelectedLanguage(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ width: 'auto', height: '38px' }}
+              className="ulm-compact-control w-auto h-[38px] px-3 rounded-xl text-xs font-medium bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0 max-w-[132px]"
+            >
+              <option value="all">All Languages</option>
+              {languages.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
 
-            {/* 3. Almari */}
-            <div className="w-44 min-w-[160px] shrink-0">
-              <CustomSelect
-                value={selectedAlmariFilter}
-                onChange={(val) => setSelectedAlmariFilter(val)}
-                options={[
-                  { value: 'ALL', label: 'All Almaris' },
-                  { value: 'NO_ALMARI', label: 'No Almari' },
-                  ...AlmariService.getAlmaris().filter(a => a.is_active).map(a => ({ value: a.id, label: `${a.code} - ${a.name_en}` }))
-                ]}
-                searchable
-                variant="dark"
-              />
-            </div>
+            {/* Compact Dropdown 3: Almaris */}
+            <select
+              value={selectedAlmari}
+              onChange={(e) => {
+                setSelectedAlmari(e.target.value);
+                setCurrentPage(1);
+              }}
+              style={{ width: 'auto', height: '38px' }}
+              className="ulm-compact-control w-auto h-[38px] px-3 rounded-xl text-xs font-medium bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0 max-w-[142px]"
+            >
+              <option value="all">All Almaris</option>
+              <option value="unassigned">Unassigned</option>
+              {activeAlmarisList.map((alm) => (
+                <option key={alm.id} value={alm.id}>
+                  {alm.code} — {alm.name_en}
+                </option>
+              ))}
+            </select>
 
-            {/* 4. Sort */}
-            <div className="w-52 min-w-[190px] shrink-0">
-              <CustomSelect
-                value={sortBy}
-                onChange={(val) => handleSortChange(val)}
-                options={[
-                  { value: 'newest_added', label: 'Sort: Newest Added' },
-                  { value: 'oldest_added', label: 'Sort: Oldest Added' },
-                  { value: 'almari_order', label: 'Sort: Almari Order' },
-                  { value: 'group_then_almari', label: 'Sort: Group & Almari' },
-                  { value: 'dewey_decimal', label: 'Sort: Call # (Dewey)' },
-                  { value: 'accession', label: 'Sort: Accession (Asc)' },
-                  { value: 'accession_desc', label: 'Sort: Accession (Desc)' },
-                  { value: 'title', label: 'Sort: Title (A-Z)' },
-                  { value: 'author', label: 'Sort: Author (A-Z)' },
-                ]}
-                variant="dark"
-              />
-            </div>
+            {/* Compact Dropdown 4: Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              style={{ width: 'auto', height: '38px' }}
+              className="ulm-compact-control w-auto h-[38px] px-3 rounded-xl text-xs font-medium bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer shrink-0 max-w-[148px]"
+            >
+              <option value="newest">Sort: Newest</option>
+              <option value="title">Sort: Title</option>
+              <option value="author">Sort: Author</option>
+              <option value="accession">Sort: Accession</option>
+              <option value="almari_order">Sort: Almari</option>
+              <option value="dewey_decimal">Sort: Dewey Call #</option>
+            </select>
 
-            {/* Secondary Filters Popover Button */}
+            {/* Filter Toggle Button */}
             <button
               type="button"
               onClick={() => setIsSecondaryFiltersOpen(!isSecondaryFiltersOpen)}
-              className={`h-10 px-4 rounded-[10px] border text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer shrink-0 ${
+              className={`h-[38px] px-3 rounded-xl text-xs font-semibold backdrop-blur-xl border flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors ${
                 isSecondaryFiltersOpen || activeSecondaryFilterCount > 0
-                  ? 'bg-amber-50 dark:bg-[#141214] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-[#8F4F00] dark:text-[#E0B450]'
-                  : 'bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60 text-slate-900 dark:text-[#F1F5F9]'
+                  ? 'bg-amber-500/15 border-[#C8963E] text-[#8A4B00] dark:text-[#FFD147]'
+                  : 'bg-white/80 dark:bg-black/40 border-slate-200/90 dark:border-white/15 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
-              title="Toggle more filters (copies, groups, date added)"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
-              <span>Filters</span>
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[#C8963E]" />
+              <span className="hidden sm:inline">Filters</span>
               {activeSecondaryFilterCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-[#BC881B] text-slate-950 font-bold text-[11px] flex items-center justify-center shrink-0">
+                <span className="w-4 h-4 rounded-full bg-[#C8963E] text-slate-950 font-bold text-[10px] flex items-center justify-center">
                   {activeSecondaryFilterCount}
                 </span>
               )}
             </button>
           </div>
 
-              {/* Secondary Filters Popover Panel */}
-              {isSecondaryFiltersOpen && (
-                <div className="p-3 bg-[#0B1220] border border-white/10 rounded-xl flex flex-wrap items-center gap-3 animate-in fade-in">
-                  {/* Copies / Availability */}
-                  <div className="w-40 min-w-[140px]">
-                    <CustomSelect
-                      value={selectedStatus}
-                      onChange={(val) => setSelectedStatus(val)}
-                      options={[
-                        { value: 'ALL', label: 'All Copies' },
-                        { value: 'AVAILABLE', label: 'Available Now' },
-                        { value: 'LOANED', label: 'Fully Loaned' }
-                      ]}
-                      variant="dark"
-                    />
-                  </div>
+          {/* Secondary Filters Panel (Collapsible) */}
+          {isSecondaryFiltersOpen && (
+            <div className="p-2.5 rounded-xl bg-black/5 dark:bg-black/30 border border-slate-200/70 dark:border-white/10 flex flex-wrap items-center gap-2.5">
+              <select
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{ width: 'auto', height: '32px' }}
+                className="ulm-compact-control w-auto h-8 px-2.5 rounded-lg text-xs font-medium bg-white/80 dark:bg-black/40 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="all">All Copies</option>
+                <option value="AVAILABLE">Available Now</option>
+                <option value="LOANED">Fully Loaned</option>
+              </select>
 
-                  {/* Group Filter */}
-                  <div className="w-44 min-w-[150px]">
-                    <CustomSelect
-                      value={selectedGroupFilter}
-                      onChange={(val) => setSelectedGroupFilter(val)}
-                      options={[
-                        { value: 'ALL', label: 'All Groups' },
-                        { value: 'NO_GROUP', label: 'Unassigned Group' },
-                        ...AlmariService.getGroups().map(g => ({ value: g.id, label: g.name_en }))
-                      ]}
-                      searchable
-                      variant="dark"
-                    />
-                  </div>
+              <select
+                value={selectedGroupFilter}
+                onChange={(e) => {
+                  setSelectedGroupFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{ width: 'auto', height: '32px' }}
+                className="ulm-compact-control w-auto h-8 px-2.5 rounded-lg text-xs font-medium bg-white/80 dark:bg-black/40 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="all">All Groups</option>
+                <option value="NO_GROUP">Unassigned Group</option>
+                {activeGroupsList.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name_en}
+                  </option>
+                ))}
+              </select>
 
-                  {/* Date Added Range */}
-                  <div className="h-10 flex items-center gap-2 bg-[#0E1525] border border-white/10 rounded-lg px-3 text-[12px]">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="text-slate-400 font-mono text-[11px]">From:</span>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
-                    />
-                    <span className="text-slate-400 font-mono text-[11px] px-0.5">To:</span>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="[color-scheme:dark] bg-transparent text-[12px] font-mono text-white focus:outline-none cursor-pointer"
-                    />
-                    {(dateFrom || dateTo) && (
-                      <button
-                        type="button"
-                        onClick={() => { setDateFrom(''); setDateTo(''); }}
-                        className="p-1 text-slate-400 hover:text-white cursor-pointer rounded"
-                        title="Clear date range"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
+              <div className="h-8 flex items-center gap-1.5 bg-white/80 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-lg px-2.5 text-xs">
+                <Calendar className="w-3 h-3 text-[#C8963E]" />
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">From:</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ width: 'auto', height: '26px' }}
+                  className="ulm-compact-control bg-transparent text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                />
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">To:</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ width: 'auto', height: '26px' }}
+                  className="ulm-compact-control bg-transparent text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                />
+              </div>
 
-                  {activeSecondaryFilterCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedStatus('ALL');
-                        setSelectedGroupFilter('ALL');
-                        setDateFrom('');
-                        setDateTo('');
-                      }}
-                      className="text-xs text-[#BC881B] hover:underline font-medium cursor-pointer ml-auto"
-                    >
-                      Reset Secondary Filters
-                    </button>
-                  )}
-                </div>
+              {activeSecondaryFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatus('all');
+                    setSelectedGroupFilter('all');
+                    setDateFrom('');
+                    setDateTo('');
+                  }}
+                  className="text-xs text-[#C8963E] hover:underline font-semibold cursor-pointer ml-auto"
+                >
+                  Reset Filters
+                </button>
               )}
+            </div>
+          )}
 
-              {/* Row 2: View Switcher & Secondary Actions (Rule 5) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200/70 dark:border-white/[0.06]">
-                {/* Left: Segmented View Switcher */}
-                <div className="bg-slate-100/90 dark:bg-[#0B1220] p-1 rounded-xl border border-slate-200/90 dark:border-white/10 inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('list')}
-                    aria-pressed={viewMode === 'list'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                      viewMode === 'list' 
-                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
-                    }`}
-                    title="Switch to Table List View"
-                  >
-                    <List className="w-3.5 h-3.5" />
-                    <span>List View</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('grid')}
-                    aria-pressed={viewMode === 'grid'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                      viewMode === 'grid' 
-                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
-                    }`}
-                    title="Switch to Card Grid View"
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                    <span>Grid View</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onNavigateToAlmaris) {
-                        onNavigateToAlmaris();
-                      }
-                    }}
-                    className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
-                    title="Open Almaris & Shelves Visual Inspector (⌘A)"
-                  >
-                    <Library className="w-3.5 h-3.5 text-[#B4690E] dark:text-[#FFD147]" />
-                    <span>Almari View</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('chart')}
-                    aria-pressed={viewMode === 'chart'}
-                    className={`flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                      viewMode === 'chart' 
-                        ? 'bg-[#BC881B] text-slate-950 font-extrabold shadow-xs' 
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.05]'
-                    }`}
-                    title="Switch to Analytics View"
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Analytics</span>
-                  </button>
-                </div>
+          {/* ROW 2: View Switcher (GRID FIRST) & Compact Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/50 dark:border-white/10">
+            {/* iOS Segmented Capsule: Grid View FIRST */}
+            <div className="inline-flex rounded-xl bg-black/5 dark:bg-black/35 backdrop-blur-xl p-0.5 border border-slate-200/80 dark:border-white/10 gap-0.5">
+              <button
+                type="button"
+                onClick={() => setCatalogView('grid')}
+                aria-pressed={catalogView === 'grid'}
+                className={`h-8 px-3 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  catalogView === 'grid'
+                    ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid View</span>
+              </button>
 
-                {/* Right: Non-Merging Secondary & Primary Actions */}
-                <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
-                  {onOpenImportBookEntrySheet && (
-                    <button
-                      type="button"
-                      onClick={onOpenImportBookEntrySheet}
-                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-                      title="Upload a .xlsx or .csv file to validate and add books"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Import Excel/CSV</span>
-                    </button>
-                  )}
+              <button
+                type="button"
+                onClick={() => setCatalogView('list')}
+                aria-pressed={catalogView === 'list'}
+                className={`h-8 px-3 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  catalogView === 'list'
+                    ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
 
-                  {onOpenBatchLabelPrint && (
-                    <button
-                      type="button"
-                      onClick={onOpenBatchLabelPrint}
-                      className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-                      title="Batch Barcode Labels Generator"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                      <span>Print Barcodes</span>
-                    </button>
-                  )}
+              <button
+                type="button"
+                onClick={() => setCatalogView('almaris')}
+                aria-pressed={catalogView === 'almaris'}
+                className={`h-8 px-3 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  catalogView === 'almaris'
+                    ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                <Library className="w-3.5 h-3.5" />
+                <span>Almari View</span>
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={handleDownloadBookCsvTemplate}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white dark:bg-[#151C2C] dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-                    title="Download official catalog CSV template"
-                  >
-                    <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                    <span>CSV Template</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCleanInvalidRows}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-                    title="Scan and purge corrupt stubs (e.g. cz&quot; or dummy test records)"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
-                    <span>Clean Invalid Rows</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onOpenAddBook}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-[#541A72] via-[#6B21A8] to-[#B4690E] hover:brightness-110 !text-white border border-[#FFD147]/40 text-xs font-extrabold transition-all cursor-pointer shadow-md"
-                    title="Catalog a New Book Volume"
-                  >
-                    <Plus className="w-3.5 h-3.5 stroke-[2.5] !text-white shrink-0" />
-                    <span className="!text-white">+ Add Book</span>
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogView('analytics')}
+                aria-pressed={catalogView === 'analytics'}
+                className={`h-8 px-3 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  catalogView === 'analytics'
+                    ? 'bg-gradient-to-r from-[#541A72] to-[#3B1054] text-white border border-[#FFD147]/50 shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Analytics</span>
+              </button>
             </div>
 
-        {/* Floating/Sticky Selection Bar for Catalog Placement */}
+            {/* Action Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleImportExcelAction}
+                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <Upload className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Import</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenBatchLabelPrint) {
+                    onOpenBatchLabelPrint();
+                  } else if (onPrintBarcode && paginatedBooks[0]) {
+                    onPrintBarcode(paginatedBooks[0]);
+                  }
+                }}
+                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <Printer className="w-3 h-3 text-slate-500" />
+                <span>Print Barcodes</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadCsvTemplate}
+                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <FileSpreadsheet className="w-3 h-3 text-[#C8963E]" />
+                <span>CSV Template</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenAddBook}
+                className="h-8 px-3.5 rounded-lg text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 !text-white" />
+                <span className="!text-white">+ Add Book</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bulk Selection Action Strip */}
         {selectedBookIds.size > 0 && (
-          <div className="bg-white/95 dark:bg-[#221F26] border-2 border-[#BC881B] rounded-[14px] p-3 sm:p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#BC881B] text-[#1A1A1A] font-extrabold flex items-center justify-center font-mono text-sm">
+          <div className="h-11 rounded-xl bg-white/85 dark:bg-[#1A102D]/90 backdrop-blur-xl border border-[#C8963E] px-3.5 shadow-sm flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-xs">
+              <span className="px-2 py-0.5 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono">
                 {selectedBookIds.size}
-              </div>
-              <div>
-                <span className="text-slate-900 dark:text-white font-bold text-sm">
-                  {selectedBookIds.size} book{selectedBookIds.size !== 1 ? 's' : ''} selected
-                </span>
-                <span className="text-xs text-slate-500 dark:text-[#B3AABD] ml-2">
-                  ({filteredBooks.length} match current filters)
-                </span>
-              </div>
+              </span>
+              <span className="text-slate-900 dark:text-white font-bold">
+                selected ({filteredBooks.length} match)
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
               {selectedBookIds.size < filteredBooks.length && (
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-800 dark:text-[#E0D8E6] rounded-lg text-xs font-semibold border border-slate-300 dark:border-white/10 transition-colors cursor-pointer"
+                  className="h-7 px-2.5 bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-semibold cursor-pointer"
                 >
-                  Select all {filteredBooks.length} matching filter
+                  Select all {filteredBooks.length}
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setBulkModalMode('assign_almari')}
-                className="px-3.5 py-1.5 bg-[#BC881B] hover:bg-[#D4A02A] text-[#1A1A1A] font-bold text-xs rounded-lg flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                className="h-7 px-2.5 bg-[#C8963E] text-slate-950 font-bold text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
               >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Place in Almari...</span>
+                <Building2 className="w-3 h-3" />
+                <span>Place in Almari</span>
               </button>
               <button
                 type="button"
                 onClick={() => setBulkModalMode('assign_group')}
-                className="px-3 py-1.5 bg-[#541A72] hover:bg-[#6D2394] text-white font-bold text-xs rounded-lg flex items-center gap-1.5 border border-[#A66BC9]/40 shadow transition-colors cursor-pointer"
+                className="h-7 px-2.5 bg-[#541A72] text-white font-bold text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Assign Group...</span>
+                <Layers className="w-3 h-3" />
+                <span>Assign Group</span>
               </button>
               <button
                 type="button"
-                onClick={handleClearSelection}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                onClick={() => setSelectedBookIds(new Set())}
+                className="h-7 px-2 text-slate-500 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium cursor-pointer"
               >
                 Clear
               </button>
@@ -890,480 +849,282 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </div>
         )}
 
-        {/* Catalog Display: Chart View, Grid View or List View */}
-        {viewMode === 'chart' ? (
-          <CatalogChartsView
-            books={books}
-            transactions={transactions}
-            onSelectCategory={(cat) => {
-              setSelectedCategory(cat);
-              setViewMode('grid');
-            }}
-            onSwitchView={(mode) => setViewMode(mode)}
-          />
-        ) : activeBooks.length === 0 ? (
-          <div className="bg-[#141214] border border-[#BC881B]/30 rounded-xl p-12 text-center text-[var(--text-muted)] space-y-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-            <div className="w-16 h-16 mx-auto rounded-full bg-[#541A72]/30 border border-[#BC881B]/40 flex items-center justify-center text-[#E0B450]">
-              <Library className="w-8 h-8" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="text-lg font-cinzel font-bold text-white tracking-wide">Library Catalog is Empty</h4>
-              <p className="text-sm text-[#B3AABD] max-w-md mx-auto">
-                The library database is clean and ready (0 books registered). You can register a book manually or import books from your Excel spreadsheet.
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
-              <button
-                type="button"
-                onClick={onOpenAddBook}
-                className="h-10 px-5 rounded-[10px] bg-gradient-to-r from-[#BC881B] to-[#E0B450] text-[#141214] font-bold text-xs uppercase tracking-wider shadow-md hover:brightness-110 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Register First Book</span>
-              </button>
-              {onOpenImportBookEntrySheet && (
-                <button
-                  type="button"
-                  onClick={onOpenImportBookEntrySheet}
-                  className="h-10 px-5 rounded-[10px] bg-[#541A72] hover:bg-[#6A2290] text-white font-semibold text-xs uppercase tracking-wider border border-[#A66BC9]/30 transition-all cursor-pointer inline-flex items-center gap-2"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-[#E0B450]" />
-                  <span>Import Excel / CSV</span>
-                </button>
-              )}
-            </div>
-          </div>
-        ) : filteredBooks.length === 0 ? (
-          <div className="bg-[#141214] border border-white/[0.08] rounded-xl p-12 text-center text-slate-400 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-center gap-3">
-              <BookMarked className="w-12 h-12 text-[#BC881B]/60" />
-              <EmptyStateBooksDeco />
-            </div>
-            <h4 className="text-base font-semibold text-white">No matching books found</h4>
-            <p className="text-xs text-[#B3AABD] max-w-md mx-auto">
-              No titles match your active filter criteria. Try clearing your search keyword or resetting category and status filters.
-            </p>
-            <button
-              onClick={() => { setSearchQuery(''); setSelectedCategory('ALL'); setSelectedStatus('ALL'); setSelectedLanguage('ALL'); setDateFrom(''); setDateTo(''); }}
-              className="px-4 py-2 bg-[#221F26] hover:bg-[#2E2A33] text-white text-xs font-semibold rounded-lg border border-white/10 transition-colors cursor-pointer"
-            >
-              Reset Search Filters
-            </button>
-          </div>
-        ) : viewMode === 'grid' ? (
-          /* 4-column responsive grid of high-fidelity book cards */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {paginatedBooks.map((book, idx) => {
-              const isAvailable = book.available_quantity > 0;
-              const isLowStock = isAvailable && book.available_quantity <= 2;
-              const issuedCount = book.total_quantity - book.available_quantity;
-              const capacityPercent = book.total_quantity > 0 
-                ? Math.min(100, Math.round((issuedCount / book.total_quantity) * 100)) 
-                : 0;
+        {/* =========================================================================
+            3. CONDITIONAL VIEWS (GRID VIEW FIRST)
+            ========================================================================= */}
+
+        {/* VIEW A: IPHONE LIQUID-GLASS GRID VIEW (DEFAULT) */}
+        {catalogView === 'grid' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            {paginatedBooks.map((book) => {
+              const bookKey = book.id || book.barcode;
+              const isSelected = selectedBookIds.has(bookKey);
+              const isUrdu = /[\u0600-\u06FF]/.test(book.book_name || '');
+              const placement = placementByBookId.get(book.id);
+              const almariCode =
+                (book as Book & { almari_code?: string }).almari_code ||
+                placement?.almariCode ||
+                '';
+              const shelfLabel =
+                placement?.shelfNo
+                  ? `Shelf ${placement.shelfNo}`
+                  : book.shelf_no
+                  ? `Shelf ${book.shelf_no}`
+                  : book.shelf || 'Shelf 1';
+              const availCount = book.available_quantity ?? book.available_copies ?? 1;
 
               return (
                 <div
-                  key={book.id}
-                  style={{ animationDelay: `${Math.min((idx % 12) * 35, 300)}ms`, contentVisibility: 'auto', containIntrinsicSize: '0 320px' }}
-                  className="book-card-enter rounded-[14px] ulm-liquid-glass overflow-hidden flex flex-col justify-between group transition-all duration-200 relative hover:-translate-y-[3px] hover:border-[#BC881B] h-full"
+                  key={bookKey}
+                  className={`group relative rounded-2xl bg-white/65 hover:bg-white/85 dark:bg-[#150D24]/65 dark:hover:bg-[#1A102D]/85 backdrop-blur-2xl border transition-all duration-150 p-3.5 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(200,150,62,0.16)] ${
+                    isSelected
+                      ? 'border-[#FFD147] ring-1.5 ring-[#FFD147]/40'
+                      : 'border-[#C8963E]/30 dark:border-white/10'
+                  }`}
                 >
-                  {/* Selection Checkbox */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelectBook(book.id);
-                    }}
-                    className={`absolute top-2.5 right-2.5 z-20 w-6 h-6 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
-                      selectedBookIds.has(book.id)
-                        ? 'bg-[#BC881B] border-[#BC881B] text-[#1A1A1A] shadow-sm'
-                        : 'bg-white/40 dark:bg-[#141214]/80 border-[var(--border-subtle)] text-transparent hover:border-[#BC881B] hover:text-royal-gold'
-                    }`}
-                    title={selectedBookIds.has(book.id) ? 'Deselect book' : 'Select book for Almari placement'}
-                  >
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </button>
-
-                  {/* Card Body */}
-                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
-                    {/* Top Section: Thumbnail + Flexible Meta Info Header */}
-                    <div className="flex gap-3.5 items-start">
-                      {/* Book Cover Thumbnail with realistic spine (gold stripe) & ULM PRESS mark only */}
-                      <div 
-                        onClick={() => onSelectBook(book)}
-                        className="w-[88px] min-h-[124px] shrink-0 rounded-[10px] overflow-hidden bg-[#141214] border border-white/[0.1] shadow-md relative group/cover cursor-pointer flex flex-col justify-between transition-transform duration-200 group-hover:scale-[1.02]"
-                        title={book.book_name}
+                  <div>
+                    <div className="flex items-start gap-3">
+                      {/* Compact 3D Leather Volume Spine */}
+                      <div
+                        onClick={() => onSelectBook && onSelectBook(book)}
+                        className="w-[52px] h-[70px] rounded-lg bg-gradient-to-br from-[#240836] via-[#3B1054] to-[#1E0730] border border-[#FFD147]/40 shadow-xs flex flex-col items-center justify-between p-1 shrink-0 relative overflow-hidden cursor-pointer"
                       >
-                        {/* Elegant Spine with Gold Stripe & ULM PRESS mark only on the spine */}
-                        <div className="absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-[#8C600D] via-[#E0B450] to-[#BC881B] z-10 shadow-sm flex items-center justify-center">
-                          <span className="font-mono text-[7px] text-[#1A1A1A] font-extrabold uppercase tracking-widest -rotate-90 select-none whitespace-nowrap">
-                            ULM PRESS
-                          </span>
-                        </div>
-
-                        {book.book_image_path ? (
-                          <img
-                            src={book.book_image_path}
-                            alt={book.book_name}
-                            referrerPolicy="no-referrer"
-                            className="absolute inset-0 w-full h-full object-cover pl-3"
-                            onError={(e) => {
-                              // Zero-broken-image fallback to styled cover
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-
-                        {/* Geometric styling fallback behind image - clean book pattern, NO title or call number printed over it */}
-                        <div className="relative z-0 h-full w-full pl-3 min-h-[124px] flex items-center justify-center bg-gradient-to-br from-[#2B2730] to-[#1A1A1A]">
-                          <BookOpen className="w-6 h-6 text-[#BC881B]/40 stroke-[1.5]" />
-                        </div>
+                        <div className="absolute left-1 top-0 bottom-0 w-[1.5px] bg-black/40" />
+                        <span className="text-[6.5px] font-mono font-bold text-[#FFD147] tracking-widest uppercase">
+                          ULM
+                        </span>
+                        <BookMarked className="w-3.5 h-3.5 text-[#FFD147]" />
+                        <span className="text-[5.5px] font-extrabold uppercase text-white/80 tracking-widest">
+                          PRESS
+                        </span>
                       </div>
 
-                      {/* Header Meta Info (flexible layout without fixed height clipping) */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-between space-y-1.5">
-                        <div className="space-y-1">
-                          {/* Badges row with wrap support */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center text-[11px] font-semibold text-blue-500 dark:text-[#6FA8D2] bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded-[6px] shrink-0">
-                              {book.category}
+                      {/* Book Metadata */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/30">
+                              {book.category || 'General'}
                             </span>
-                            {(book.language === 'Urdu' || isArabicOrUrduScript(book.book_name)) ? (
-                              <span className="inline-flex items-center text-[11px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-[6px] shrink-0">
-                                اردو · Nastaliq
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center text-[11px] font-mono text-[var(--text-muted)] shrink-0">
-                                {book.language || 'English'}
+                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                              {book.language || 'English'}
+                            </span>
+                            {book.edition && (
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                                {book.edition}
                               </span>
                             )}
-                            <span className="inline-flex items-center text-[11px] font-mono font-semibold text-royal-gold bg-[#BC881B]/15 border border-[#BC881B]/30 px-2 py-0.5 rounded-[6px] shrink-0">
-                              {book.edition}
-                            </span>
                           </div>
 
-                          {/* Clamped 2-line title with tooltip and unclipped Urdu script support */}
-                          <h4 
-                            onClick={() => onSelectBook(book)}
-                            dir="auto"
-                            style={{ unicodeBidi: 'plaintext' }}
-                            className={`font-bold text-[var(--text-strong)] hover:text-royal-gold transition-colors mt-1 line-clamp-2 cursor-pointer min-h-[38px] ${
-                              isArabicOrUrduScript(book.book_name) ? 'font-urdu text-[15px] leading-[2.1]' : 'text-[14px] leading-snug'
-                            }`}
-                            title={book.book_name}
-                          >
-                            {book.book_name}
-                          </h4>
-                          {book.title_roman && (
-                            <p className="text-[11px] text-royal-gold/80 font-mono truncate" title={book.title_roman}>
-                              ({book.title_roman})
-                            </p>
-                          )}
-
-                          {/* Single-line author with ellipsis and tooltip */}
-                          <p 
-                            dir="auto"
-                            style={{ unicodeBidi: 'plaintext' }}
-                            className={`text-[12px] text-[var(--text-muted)] truncate ${
-                              isArabicOrUrduScript(book.author) ? 'font-urdu leading-[2]' : ''
-                            }`}
-                            title={book.author}
-                          >
-                            by <span className="text-[var(--text-strong)] font-medium">{book.author}</span>
-                            {book.author_roman && (
-                              <span className="text-[11px] text-[var(--text-muted)] font-mono ml-1">· {book.author_roman}</span>
-                            )}
-                          </p>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectOne(bookKey)}
+                            className="w-3.5 h-3.5 rounded text-[#541A72] border-slate-300 dark:border-white/20 cursor-pointer shrink-0"
+                          />
                         </div>
 
-                        {/* Call number & Shelf location with pin icon */}
-                        {/* Dewey Call Number & Barcode */}
-                        <div className="flex items-center justify-between text-[11px] font-mono pt-1 text-[var(--text-muted)]">
-                          <span className="text-royal-gold font-semibold bg-[#BC881B]/15 px-2 py-0.5 rounded-[6px] border border-[#BC881B]/25">
-                            {book.dewey_call_number}
-                          </span>
-                          <span className="font-bold tracking-wider text-[var(--text-strong)]">
-                            #{book.barcode}
-                          </span>
-                        </div>
+                        <h3
+                          onClick={() => onSelectBook && onSelectBook(book)}
+                          dir="auto"
+                          className={`font-extrabold text-[13px] text-slate-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors leading-snug ${
+                            isUrdu ? 'font-urdu text-sm leading-relaxed' : ''
+                          }`}
+                          title={book.book_name}
+                        >
+                          {book.book_name}
+                        </h3>
+
+                        <p
+                          dir="auto"
+                          className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate"
+                        >
+                          by {book.author || 'Unknown'}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Clean unified card footer: Location + Availability on top row, Action buttons on bottom row so nothing merges */}
-                    <div className="mt-auto px-3.5 py-3 bg-white/5 dark:bg-black/25 border-t border-[var(--border-subtle)] flex flex-col gap-2.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div
-                          onClick={() => onNavigateToAlmaris && onNavigateToAlmaris()}
-                          className="flex flex-col min-w-0 cursor-pointer group/loc"
-                          title="Click to inspect physical Almari & Shelf"
-                        >
-                          <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-[var(--text-strong)] group-hover/loc:text-[#B4690E] dark:group-hover/loc:text-[#FFD147] truncate">
-                            <MapPin className="w-3.5 h-3.5 text-[#29658E] shrink-0" />
-                            <span className="truncate">
-                              {placementByBookId.get(book.id)?.shelf_label || `${book.shelf} · Row ${book.row}`}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-mono text-[var(--text-muted)] pl-5 truncate">
-                            {book.barcode}
-                          </span>
-                        </div>
+                    {/* Accession & Barcode Strip */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2 text-[10px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold text-[9px] shrink-0">
+                          {book.accession_no || book.dewey_call_number || '000 ULM'}
+                        </span>
+                        <span className="font-mono text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[110px] text-[9.5px]">
+                          #{book.barcode}
+                        </span>
+                      </div>
 
-                        {isAvailable ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-bold shrink-0 whitespace-nowrap">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            <span>{book.available_quantity} Available</span>
-                          </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold border shrink-0 ${
+                          availCount > 0
+                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                            : 'bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30'
+                        }`}
+                      >
+                        {availCount > 0 ? `🟢 ${availCount} Available` : '🔴 On Loan'}
+                      </span>
+                    </div>
+
+                    {/* Shelf Location */}
+                    <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-slate-600 dark:text-slate-300">
+                      <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
+                      <span className="truncate font-medium">
+                        {almariCode ? `${almariCode} • ${shelfLabel}` : 'Unassigned (No Almari)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectBook && onSelectBook(book)}
+                        className="h-6 px-2.5 rounded-lg text-[10.5px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                      >
+                        Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleIssueBookAction(book)}
+                        className="h-6 px-3 rounded-lg text-[10.5px] font-extrabold bg-[#C8963E] text-slate-950 hover:brightness-110 cursor-pointer shadow-xs"
+                      >
+                        Issue
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-slate-400">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyBarcode(book.barcode, bookKey)}
+                        className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                        title="Copy Barcode"
+                      >
+                        {copiedBarcodeId === bookKey ? (
+                          <Check className="w-3 h-3 text-emerald-500" />
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-[10px] font-semibold shrink-0 whitespace-nowrap">
-                            <span>0 Available</span>
-                          </span>
+                          <Copy className="w-3 h-3" />
                         )}
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-white/[0.06] flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onSelectBook(book)}
-                            className="h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300/80 dark:border-white/10 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                            title="Full book specification & history"
-                          >
-                            Details
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => onQuickLoan(book)}
-                            disabled={!isAvailable}
-                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                              isAvailable
-                                ? 'border-[#BC881B] bg-[#BC881B] !text-slate-950 hover:bg-[#D4A02A] shadow-xs active:scale-95'
-                                : 'border-transparent bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed pointer-events-none'
-                            }`}
-                            title={isAvailable ? 'Quickly issue a copy of this book' : 'No available copies left on shelf'}
-                          >
-                            <ArrowRightLeft className="w-3 h-3 shrink-0" />
-                            <span>Issue</span>
-                          </button>
-                        </div>
-
-                        {/* More Actions Buttons */}
-                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-white/10 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onEditBook(book)}
-                            className="p-1.5 rounded-md text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                            title="Edit book details"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onPrintBarcode(book)}
-                            className="p-1.5 rounded-md text-slate-400 hover:text-sky-500 hover:bg-sky-500/10 transition-colors cursor-pointer"
-                            title="Print barcode"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteBook(book)}
-                            className="p-1.5 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Delete book"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onEditBook && onEditBook(book)}
+                        className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                        title="Edit"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteBook && onDeleteBook(book)}
+                        className="p-1 rounded hover:text-rose-600 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-        ) : (
-          /* List View: Wide table on desktop, automatically switches to compact cards on narrow / restored screens (< 1024px) */
-          <>
-            <div className="hidden lg:block ulm-liquid-glass rounded-xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-[var(--text-body)]">
-                  <thead className="bg-black/10 dark:bg-black/30 text-[var(--text-strong)] uppercase font-mono-code text-[11px] border-b border-[var(--border-subtle)]">
-                    <tr>
-                      <th className="py-3 px-3 text-center w-10">
+        )}
+
+        {/* VIEW B: LIST VIEW (TABLE) */}
+        {catalogView === 'list' && (
+          <div className="rounded-2xl bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl border border-[#C8963E]/30 dark:border-white/10 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 dark:bg-black/35 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                  <tr>
+                    <th className="py-2.5 px-3.5 w-10">
                       <input
                         type="checkbox"
-                        checked={filteredBooks.length > 0 && selectedBookIds.size === filteredBooks.length}
-                        onChange={(e) => {
-                          if (e.target.checked) handleSelectAllFiltered();
-                          else handleClearSelection();
-                        }}
-                        className="accent-[var(--gold)] cursor-pointer"
-                        title="Select / Deselect all filtered books"
+                        checked={
+                          selectedBookIds.size === paginatedBooks.length &&
+                          paginatedBooks.length > 0
+                        }
+                        onChange={handleToggleSelectAll}
+                        className="rounded cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-4">Book Title & Author</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Language</th>
-                    <th className="py-3 px-4">Barcode / Call No</th>
-                    <th 
-                      onClick={handleToggleDateSort}
-                      className="py-3 px-4 cursor-pointer hover:text-amber-300 transition-colors select-none"
-                      title="Click to toggle sorting by Date Added"
-                    >
-                      <div className="flex items-center gap-1">
-                        <span>Date Added</span>
-                        {sortBy === 'newest_added' ? (
-                          <ArrowDown className="w-3 h-3 text-royal-gold" />
-                        ) : sortBy === 'oldest_added' ? (
-                          <ArrowUp className="w-3 h-3 text-royal-gold" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 text-slate-500" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="py-3 px-4 text-center">Total</th>
-                    <th className="py-3 px-4 text-center">Available</th>
-                    <th className="py-3 px-4 text-center">Issued</th>
-                    <th className="py-3 px-4">Shelf / Row</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-2.5 px-3.5">Book Title & Author</th>
+                    <th className="py-2.5 px-3.5">Category</th>
+                    <th className="py-2.5 px-3.5">Language</th>
+                    <th className="py-2.5 px-3.5">Barcode / Call No</th>
+                    <th className="py-2.5 px-3.5">Total</th>
+                    <th className="py-2.5 px-3.5">Avail</th>
+                    <th className="py-2.5 px-3.5">Shelf / Row</th>
+                    <th className="py-2.5 px-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)]">
+                <tbody className="divide-y divide-slate-200/60 dark:divide-white/10 text-slate-800 dark:text-slate-200">
                   {paginatedBooks.map((book) => {
-                    const isAvailable = book.available_quantity > 0;
-                    const issued = book.total_quantity - book.available_quantity;
-                    const isUrduBook = book.language === 'Urdu' || isArabicOrUrduScript(book.book_name);
+                    const bookKey = book.id || book.barcode;
+                    const placement = placementByBookId.get(book.id);
+                    const almariCode =
+                      (book as Book & { almari_code?: string }).almari_code ||
+                      placement?.almariCode ||
+                      '';
+                    const shelfLabel =
+                      placement?.shelfNo
+                        ? `S${placement.shelfNo}`
+                        : book.shelf_no
+                        ? `S${book.shelf_no}`
+                        : book.shelf || 'S1';
 
                     return (
-                      <tr key={book.id} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 52px' }} className="hover:bg-slate-100/80 dark:hover:bg-slate-800/40 border-b border-slate-200/70 dark:border-white/5 transition-colors min-h-[48px] h-[52px]">
-                        <td className="py-3 px-3 text-center">
+                      <tr
+                        key={bookKey}
+                        className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      >
+                        <td className="py-2.5 px-3.5">
                           <input
                             type="checkbox"
-                            checked={selectedBookIds.has(book.id)}
-                            onChange={() => toggleSelectBook(book.id)}
-                            className="accent-[var(--gold)] cursor-pointer"
+                            checked={selectedBookIds.has(bookKey)}
+                            onChange={() => handleToggleSelectOne(bookKey)}
+                            className="rounded cursor-pointer"
                           />
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-9 rounded bg-white/20 dark:bg-slate-800 border border-[var(--border-subtle)] shrink-0 overflow-hidden flex items-center justify-center font-serif text-[10px] text-royal-gold font-bold">
-                              {isUrduBook ? <BookOpen className="w-3.5 h-3.5 text-royal-gold" /> : (book.book_name || 'ULM').slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p 
-                                onClick={() => onSelectBook(book)}
-                                dir="auto"
-                                style={{ unicodeBidi: 'plaintext' }}
-                                className={`font-semibold text-[var(--text-strong)] hover:text-royal-gold cursor-pointer truncate max-w-xs md:max-w-md ${
-                                  isArabicOrUrduScript(book.book_name) ? 'font-urdu text-[15px] leading-[2.1]' : ''
-                                }`}
-                                title={book.book_name}
-                              >
-                                {book.book_name}
-                                {book.title_roman && (
-                                  <span className="text-[10px] text-amber-400/90 font-mono ml-2 font-normal">
-                                    ({book.title_roman})
-                                  </span>
-                                )}
-                              </p>
-                              <p 
-                                dir="auto"
-                                style={{ unicodeBidi: 'plaintext' }}
-                                className={`text-[11px] text-slate-400 mt-0.5 truncate ${
-                                  isArabicOrUrduScript(book.author) ? 'font-urdu leading-[2]' : ''
-                                }`}
-                              >
-                                {book.author}
-                                {book.author_roman && (
-                                  <span className="text-[10px] text-slate-500 font-mono ml-1.5">
-                                    · {book.author_roman}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
-                            {book.category}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {isUrduBook ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/70 text-emerald-300 border border-emerald-800">
-                              اردو · Nastaliq
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-                              {book.language || 'English'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-mono-code">
-                          <p className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">{book.barcode}</p>
-                          <p className="font-mono text-[11px] font-semibold text-amber-700 dark:text-amber-400 mt-0.5">{book.dewey_call_number}</p>
-                        </td>
-                        <td className="py-3 px-4 font-mono-code text-[11px] text-slate-300 whitespace-nowrap">
-                          {formatDisplayDate(book.date_added || book.created_at)}
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono-code tabular-nums font-semibold text-slate-700 dark:text-slate-300">
-                          {book.total_quantity}
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono-code tabular-nums font-bold">
-                          <span className={isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                            {book.available_quantity}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono-code tabular-nums text-slate-500 dark:text-slate-400">
-                          {issued}
-                        </td>
-                        <td className="py-3 px-4">
-                          <button
-                            type="button"
-                            onClick={() => onNavigateToAlmaris && onNavigateToAlmaris()}
-                            className="px-2.5 py-1 rounded-lg font-mono text-[11px] font-extrabold bg-amber-500/15 hover:bg-amber-500/25 text-[#8A4B00] dark:text-[#FFD147] border border-[#C8963E]/40 transition-colors cursor-pointer"
-                            title="Inspect in Almaris & Shelves"
+                        <td className="py-2.5 px-3.5 max-w-[280px]">
+                          <p
+                            onClick={() => onSelectBook && onSelectBook(book)}
+                            className="font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147]"
                           >
-                            {placementByBookId.get(book.id)?.shelf_label || `${book.shelf} · Row ${book.row}`}
-                          </button>
+                            {book.book_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {book.author}
+                          </p>
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-2.5 px-3.5">{book.category || 'General'}</td>
+                        <td className="py-2.5 px-3.5">{book.language || 'English'}</td>
+                        <td className="py-2.5 px-3.5 font-mono">{book.barcode}</td>
+                        <td className="py-2.5 px-3.5 font-mono font-bold">
+                          {book.total_quantity ?? 1}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {book.available_quantity ?? 1}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 dark:text-slate-400">
+                          {almariCode ? `${almariCode} • ${shelfLabel}` : 'Unassigned'}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => onQuickLoan(book)}
-                              disabled={!isAvailable}
-                              className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                                isAvailable
-                                  ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
-                                  : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-slate-800 cursor-not-allowed'
-                              }`}
+                              type="button"
+                              onClick={() => handleIssueBookAction(book)}
+                              className="px-2 py-0.5 rounded bg-[#C8963E] text-slate-950 font-bold hover:brightness-110 cursor-pointer"
                             >
-                              <ArrowRightLeft className="w-3 h-3" />
-                              <span>Loan</span>
+                              Loan
                             </button>
                             <button
-                              onClick={() => onEditBook(book)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-[#F1F5F9] border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                              title="Edit"
-                              aria-label="Edit title record"
+                              type="button"
+                              onClick={() => onEditBook && onEditBook(book)}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-white/10 cursor-pointer"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => onPrintBarcode(book)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                              title="Print Barcode"
-                              aria-label="Print Barcode"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => onDeleteBook(book)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-900 transition-colors cursor-pointer"
-                              title="Delete Book"
-                              aria-label="Delete Book"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Edit3 className="w-3 h-3" />
                             </button>
                           </div>
                         </td>
@@ -1374,202 +1135,101 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               </table>
             </div>
           </div>
-
-          {/* List View on Narrow / Restored Screens (< 1024px): Responsive Compact Card View */}
-          <div className="lg:hidden flex flex-col gap-3">
-            {paginatedBooks.map((book) => {
-              const isAvailable = book.available_quantity > 0;
-              const issued = book.total_quantity - book.available_quantity;
-              const isUrduBook = book.language === 'Urdu' || isArabicOrUrduScript(book.book_name);
-
-              return (
-                <div 
-                  key={book.id} 
-                  style={{ contentVisibility: 'auto', containIntrinsicSize: '0 100px' }}
-                  className="rounded-[12px] ulm-liquid-glass p-3.5 flex flex-col gap-2.5 shadow-sm hover:border-[#BC881B] transition-all"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={selectedBookIds.has(book.id)}
-                        onChange={() => toggleSelectBook(book.id)}
-                        className="accent-[var(--gold)] cursor-pointer mt-1"
-                        aria-label={`Select ${book.book_name}`}
-                      />
-                      <div className="min-w-0">
-                        <h4 
-                          onClick={() => onSelectBook(book)}
-                          dir="auto"
-                          style={{ unicodeBidi: 'plaintext' }}
-                          className={`font-semibold text-[#F1F5F9] hover:text-[#E0B450] cursor-pointer truncate ${
-                            isUrduBook ? 'font-urdu text-[15px] leading-relaxed' : 'text-[14px]'
-                          }`}
-                          title={book.book_name}
-                        >
-                          {book.book_name}
-                          {book.title_roman && (
-                            <span className="text-[11px] text-amber-400/90 font-mono ml-1.5 font-normal">
-                              ({book.title_roman})
-                            </span>
-                          )}
-                        </h4>
-                        <p 
-                          dir="auto"
-                          style={{ unicodeBidi: 'plaintext' }}
-                          className="text-[12px] text-slate-400 truncate mt-0.5"
-                        >
-                          {book.author}
-                          {book.author_roman && (
-                            <span className="text-[11px] text-slate-500 font-mono ml-1">· {book.author_roman}</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        isAvailable ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60' : 'bg-rose-950/60 text-rose-300 border border-rose-800/60'
-                      }`}>
-                        {book.available_quantity}/{book.total_quantity} Avail
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Metadata Chips Row */}
-                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-300">
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
-                      {book.category}
-                    </span>
-                    <span className="font-mono text-[#E0B450] bg-[#BC881B]/15 px-2 py-0.5 rounded border border-[#BC881B]/30">
-                      {book.barcode}
-                    </span>
-                    <span className="font-mono text-slate-400">
-                      {book.dewey_call_number}
-                    </span>
-                    <span className="text-slate-400">
-                      📍 {book.shelf} · Row {book.row}
-                    </span>
-                  </div>
-
-                  {/* Actions Row */}
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-white/[0.06]">
-                    <span className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
-                      Added {formatDisplayDate(book.date_added || book.created_at)}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => onQuickLoan(book)}
-                        disabled={!isAvailable}
-                        className={`px-2.5 py-1 rounded text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                          isAvailable
-                            ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
-                            : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-                        }`}
-                      >
-                        <ArrowRightLeft className="w-3 h-3 shrink-0" />
-                        <span>Loan</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onEditBook(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer shrink-0"
-                        title="Edit"
-                        aria-label="Edit title record"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onPrintBarcode(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer shrink-0"
-                        title="Print Barcode"
-                        aria-label="Print Barcode"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteBook(book)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors cursor-pointer shrink-0"
-                        title="Delete Book"
-                        aria-label="Delete Book"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
         )}
 
-        {/* Database-side / LRU-Cached Pagination Bar (50/100/200 selector, instant 0ms switching) */}
-        {filteredBooks.length > 0 && viewMode !== 'chart' && (
-          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/90 dark:bg-[#140D22]/90 backdrop-blur-xl border border-slate-200/90 dark:border-white/10 text-xs text-slate-600 dark:text-[#B3AABD] mt-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <span className="whitespace-nowrap">
-                Showing <strong className="text-slate-900 dark:text-white font-mono">{totalMatchingBooks === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}</strong> to{' '}
-                <strong className="text-slate-900 dark:text-white font-mono">{Math.min(safeCurrentPage * pageSize, totalMatchingBooks)}</strong> of{' '}
-                <strong className="text-slate-900 dark:text-white font-mono">{totalMatchingBooks.toLocaleString()}</strong> books
+        {/* VIEW C: PHYSICAL ALMARI & SHELF VIEW */}
+        {catalogView === 'almaris' && (
+          <AlmariView
+            books={books}
+            onSelectBook={onSelectBook}
+            onOpenBook={onSelectBook}
+            onEditBook={onEditBook}
+            onUpdateBooks={onUpdateBooks}
+            onCatalogBooksUpdated={onBooksUpdated}
+            onOpenSettingsTab={() => onTabChange && onTabChange('settings')}
+          />
+        )}
+
+        {/* VIEW D: CATALOG VISUAL ANALYTICS */}
+        {catalogView === 'analytics' && (
+          <CatalogVisualAnalytics
+            books={books}
+            transactions={transactions}
+            onSelectCategory={(cat) => {
+              setSelectedDiscipline(cat);
+              setCatalogView('grid');
+            }}
+            onSwitchView={(mode) => setCatalogView(mode)}
+          />
+        )}
+
+        {/* =========================================================================
+            4. COMPACT PAGINATION FOOTER (44px HEIGHT)
+            ========================================================================= */}
+        {catalogView !== 'analytics' && catalogView !== 'almaris' && (
+          <div className="h-11 rounded-xl bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-xl border border-[#C8963E]/30 dark:border-white/10 px-4 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 shadow-xs">
+            <div className="flex items-center gap-3">
+              <span>
+                Showing{' '}
+                <strong>
+                  {filteredBooks.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+                </strong>{' '}
+                to <strong>{Math.min(safeCurrentPage * pageSize, filteredBooks.length)}</strong> of{' '}
+                <strong>{filteredBooks.length.toLocaleString()}</strong> books
               </span>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="whitespace-nowrap font-medium">Per page:</span>
+              <div className="flex items-center gap-1.5">
+                <span>Per page:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="ulm-inline-select w-auto min-w-[122px] bg-slate-100 dark:bg-[#221F26] border border-slate-300 dark:border-white/[0.12] rounded-lg px-2.5 py-1 text-slate-900 dark:text-white font-mono focus:border-[#BC881B] focus:outline-none cursor-pointer shrink-0"
+                  style={{ width: 'auto', height: '28px' }}
+                  className="ulm-compact-control w-auto h-7 px-1.5 rounded-lg bg-white/80 dark:bg-black/35 border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white text-[11px] cursor-pointer"
                 >
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
-                  <option value={200}>200 per page</option>
+                  <option value={24}>24</option>
+                  <option value={48}>48</option>
+                  <option value={96}>96</option>
                 </select>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
+                disabled={safeCurrentPage <= 1}
                 onClick={() => setCurrentPage(1)}
-                disabled={safeCurrentPage <= 1}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-mono cursor-pointer transition-colors whitespace-nowrap shrink-0"
-                title="First Page"
+                className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
-                « First
+                <ChevronsLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={safeCurrentPage <= 1}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
-                ‹ Prev
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
-              <span className="px-3.5 py-1.5 rounded-lg bg-[#541A72]/15 dark:bg-[#541A72]/40 border border-[#541A72]/30 dark:border-[#A66BC9]/30 text-[#541A72] dark:text-[#E0B450] font-mono font-extrabold whitespace-nowrap shrink-0">
+              <span className="px-2.5 py-0.5 font-mono font-bold text-slate-900 dark:text-white text-[11px]">
                 Page {safeCurrentPage} of {totalPages}
               </span>
               <button
                 type="button"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={safeCurrentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
-                Next ›
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentPage(totalPages)}
                 disabled={safeCurrentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#221F26] dark:hover:bg-white/[0.08] text-slate-800 dark:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300/80 dark:border-white/[0.08] font-mono cursor-pointer transition-colors whitespace-nowrap shrink-0"
-                title="Last Page"
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
-                Last »
+                <ChevronsRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1594,3 +1254,5 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     </div>
   );
 };
+
+export default BooksCatalogView;

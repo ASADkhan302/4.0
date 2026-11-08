@@ -115,12 +115,19 @@
     --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
     --transition: 150ms var(--ease-out);
 
-    /* Palette mapping */
-    --chart-1: #3B82F6;
-    --chart-2: #10B981;
-    --chart-3: #F59E0B;
-    --chart-4: #8B5CF6;
-    --chart-5: #F43F5E;
+    /* Palette mapping - ULM Royal Purple & 24K Academic Gold */
+    --chart-1: #541A72;
+    --chart-2: #C8963E;
+    --chart-3: #10B981;
+    --chart-4: #F59E0B;
+    --chart-5: #3B82F6;
+
+    /* Recharts & Popover / Card Glass Tokens */
+    --popover: #1A1A1A;
+    --popover-foreground: #FFFFFF;
+    --muted: #221F26;
+    --muted-foreground: #B3AABD;
+    --foreground: #FFFFFF;
   }
 
   /* Semantic Design System Utility Classes */
@@ -298,7 +305,7 @@ label {
   line-height: 1.4;
 }
 
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.ulm-scanner-bare-input):not(.ulm-inline-input), select:not(.ulm-inline-select):not(.w-auto), textarea) {
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.ulm-scanner-bare-input):not(.ulm-inline-input):not(.ulm-compact-control), select:not(.ulm-inline-select):not(.w-auto):not(.ulm-compact-control), textarea) {
   width: 100%;
   height: 40px;
   background-color: var(--control-bg) !important;
@@ -1431,12 +1438,16 @@ svg:not([fill="none"]):not([class*="fill-"]):not([data-preserve-fill="true"]) {
   [data-member-card="true"],
   [data-member-card="true"] *,
   .member-card-scalable,
-  .member-card-scalable * {
+  .member-card-scalable *,
+  .cr80-card,
+  .cr80-card * {
     visibility: visible !important;
   }
 
   [data-member-card="true"],
-  [data-member-card="true"] * {
+  [data-member-card="true"] *,
+  .cr80-card,
+  .cr80-card * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -1778,37 +1789,56 @@ html.no-watermark .watermark {
 /* Ensure print preview and thermal labels NEVER show watermark */
 @media print {
   @page {
-    size: 85.6mm 54mm;
-    margin: 0;
+    size: A4 portrait;
+    margin: 10mm;
   }
-  .watermark {
+  .watermark,
+  header,
+  nav,
+  aside,
+  button,
+  .no-print {
     display: none !important;
   }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body {
-    background: transparent !important;
+    background: #FFFFFF !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+  .cr80-card {
+    width: 85.60mm !important;
+    height: 53.98mm !important;
+    max-width: 85.60mm !important;
+    max-height: 53.98mm !important;
+    box-shadow: none !important;
+    border-radius: 3.18mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 4mm auto !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+  }
+  .cr80-card * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .member-card-scalable,
   [data-member-card="true"] {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    width: 85.6mm !important;
-    height: 54mm !important;
-    max-width: 85.6mm !important;
-    max-height: 54mm !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
   }
   .print-card-wrapper {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
-    width: 85.6mm !important;
-    height: 54mm !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    margin: 0 !important;
+    margin: 4mm auto !important;
     padding: 0 !important;
   }
   .page-break-after {
@@ -1966,25 +1996,34 @@ html.dark, html:not(.light-theme) {
 
 /* Locked Hardware Barcode Safe-Pad (Scanner Friendly) */
 .ulm-barcode-safepad,
-.ulm-barcode-safe-pad {
+.ulm-barcode-safe-pad,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safepad,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safe-pad {
   background-color: #FFFFFF !important;
+  background-image: none !important;
   color: #000000 !important;
   border: 1.5px solid #CBD5E1 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
   border-radius: 0.65rem !important;
 }
 
 .ulm-barcode-safepad *,
-.ulm-barcode-safe-pad * {
+.ulm-barcode-safe-pad *,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safepad *,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safe-pad * {
   color: #000000 !important;
 }
 
 .ulm-barcode-safepad svg,
 .ulm-barcode-safe-pad svg,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safepad svg,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safe-pad svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
 .ulm-barcode-safepad rect,
-.ulm-barcode-safe-pad rect,
-.ulm-barcode-safepad path,
-.ulm-barcode-safe-pad path {
+.ulm-barcode-safe-pad rect {
   fill: #000000 !important;
 }
 
@@ -2024,15 +2063,15 @@ html.light-theme body {
 }
 
 /* 1A. Convert ALL hardcoded dark backgrounds to crisp White Glass in Light Mode —
-       EXCEPT intentional dark previews marked .ulm-preserve-dark */
-html.light-theme [class*="bg-[#0"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-[#1"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-[#2"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-slate-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-zinc-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-neutral-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-gray-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *) {
+       EXCEPT intentional dark previews marked .ulm-preserve-dark and official .cr80-card */
+html.light-theme [class*="bg-[#0"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-[#1"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-[#2"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-slate-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-zinc-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-neutral-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-gray-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *) {
   background-color: var(--ulm-card-bg) !important;
   background-image: linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.88) 100%) !important;
   border-color: var(--ulm-border-subtle) !important;
@@ -2041,32 +2080,32 @@ html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve
 }
 
 /* Inner panels, Shelf Rack Inspector boxes, and table headers in Light Mode */
-html.light-theme [class*="bg-slate-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *),
-html.light-theme [class*="bg-zinc-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *) {
+html.light-theme [class*="bg-slate-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-zinc-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *) {
   background-color: #F1F5F9 !important;
   border-color: rgba(15, 23, 42, 0.14) !important;
   color: #0F172A !important;
 }
 
 /* 1B. Fix ALL white/light text classes on White Glass surfaces */
-html.light-theme .text-white:not(.ulm-preserve-dark *):not([class*="bg-purple-"]):not([class*="bg-[#541A72]"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-7"]):not([class*="bg-rose-6"]):not([class*="bg-amber-6"]):not([class*="from-[#B8731B]"]):not([class*="from-[#541A72]"]):not([class*="from-[#2D124D]"]),
-html.light-theme .text-slate-50:not(.ulm-preserve-dark *),
-html.light-theme .text-slate-100:not(.ulm-preserve-dark *),
-html.light-theme .text-slate-200:not(.ulm-preserve-dark *),
-html.light-theme .text-zinc-100:not(.ulm-preserve-dark *),
-html.light-theme .text-zinc-200:not(.ulm-preserve-dark *) {
+html.light-theme .text-white:not(.ulm-preserve-dark *):not(.cr80-card *):not([class*="bg-purple-"]):not([class*="bg-[#541A72]"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-7"]):not([class*="bg-rose-6"]):not([class*="bg-amber-6"]):not([class*="from-[#B8731B]"]):not([class*="from-[#541A72]"]):not([class*="from-[#2D124D]"]),
+html.light-theme .text-slate-50:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-slate-100:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-slate-200:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-zinc-100:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-zinc-200:not(.ulm-preserve-dark *):not(.cr80-card *) {
   color: #0F172A !important;
 }
 
-html.light-theme .text-slate-300:not(.ulm-preserve-dark *),
-html.light-theme .text-zinc-300:not(.ulm-preserve-dark *) {
+html.light-theme .text-slate-300:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-zinc-300:not(.ulm-preserve-dark *):not(.cr80-card *) {
   color: #1E293B !important;
 }
 
-html.light-theme .text-slate-400:not(.ulm-preserve-dark *),
-html.light-theme .text-slate-500:not(.ulm-preserve-dark *),
-html.light-theme .text-zinc-400:not(.ulm-preserve-dark *),
-html.light-theme .text-zinc-500:not(.ulm-preserve-dark *) {
+html.light-theme .text-slate-400:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-slate-500:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-zinc-400:not(.ulm-preserve-dark *):not(.cr80-card *),
+html.light-theme .text-zinc-500:not(.ulm-preserve-dark *):not(.cr80-card *) {
   color: #475569 !important;
 }
 
@@ -2110,13 +2149,13 @@ html.light-theme label {
   color: #F8FAFC !important;
   border-color: rgba(188, 136, 27, 0.55) !important;
 }
-html.light-theme .ulm-preserve-dark h1,
-html.light-theme .ulm-preserve-dark h2,
-html.light-theme .ulm-preserve-dark h3,
-html.light-theme .ulm-preserve-dark h4,
-html.light-theme .ulm-preserve-dark p,
-html.light-theme .ulm-preserve-dark span,
-html.light-theme .ulm-preserve-dark div {
+html.light-theme .ulm-preserve-dark h1:not(.ulm-barcode-safepad *),
+html.light-theme .ulm-preserve-dark h2:not(.ulm-barcode-safepad *),
+html.light-theme .ulm-preserve-dark h3:not(.ulm-barcode-safepad *),
+html.light-theme .ulm-preserve-dark h4:not(.ulm-preserve-dark .ulm-barcode-safepad *),
+html.light-theme .ulm-preserve-dark p:not(.ulm-barcode-safepad *),
+html.light-theme .ulm-preserve-dark span:not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad *),
+html.light-theme .ulm-preserve-dark div:not(.ulm-barcode-safepad):not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad):not(.ulm-barcode-safe-pad *) {
   color: #F8FAFC !important;
 }
 html.light-theme .ulm-preserve-dark .ulm-cover-gold {

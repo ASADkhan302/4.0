@@ -14,7 +14,7 @@ import { BarcodeScannerView } from './components/BarcodeScannerView';
 import { ExcelCenterView } from './components/ExcelCenterView';
 import { SettingsView } from './components/SettingsView';
 import { LmsSidebar } from './components/LmsSidebar';
-import { AlmariView } from './components/catalog/AlmariView';
+import { AlmariView } from './components/AlmariView';
 import { AlmariErrorBoundary } from './components/catalog/AlmariErrorBoundary';
 import { AppOpeningSplash } from './components/AppOpeningSplash';
 import { ToastSuccessDeco } from './components/decorative/ToastSuccessDeco';
@@ -779,6 +779,9 @@ export default function App() {
               setBatchPrintBookIds([]);
               setIsBatchLabelPrintOpen(true);
             }}
+            onUpdateBooks={(updatedBooks) => {
+              setBooks(updatedBooks);
+            }}
             onBooksUpdated={(updatedBooks, msg) => {
               setBooks(updatedBooks);
               showToast(msg);
@@ -790,6 +793,10 @@ export default function App() {
           <AlmariErrorBoundary fallbackTitle="Error loading Almaris & Shelves" onReset={() => handleTabChange('almaris')}>
             <AlmariView
               books={books}
+              onUpdateBooks={(updatedBooks) => {
+                setBooks(updatedBooks);
+              }}
+              onSelectBook={(book) => setSelectedBookForDetails(book)}
               onOpenBook={(book) => setSelectedBookForDetails(book)}
               onEditBook={(book) => {
                 setBookToEdit(book);

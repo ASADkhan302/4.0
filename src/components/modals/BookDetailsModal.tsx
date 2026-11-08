@@ -138,7 +138,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
             <div className="flex-1 space-y-2.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                  {resolvedPlacement.groupName || book.category}
+                  {resolvedPlacement.displayGroup || book.category}
                 </span>
                 {(book.language === 'Urdu' || isArabicOrUrduScript(book.book_name)) ? (
                   <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
@@ -199,7 +199,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                 <MapPin className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
                 <span className="font-bold">Almari Placement:</span>
                 <span className="font-mono font-extrabold">
-                  {resolvedPlacement.almariCode} ({resolvedPlacement.almariName}) · Shelf {resolvedPlacement.shelfNumber}
+                  {resolvedPlacement.almariCode ? `${resolvedPlacement.almariCode} (${resolvedPlacement.almariName}) · Shelf ${resolvedPlacement.shelfNo}` : resolvedPlacement.shelfLabel}
                 </span>
               </div>
 

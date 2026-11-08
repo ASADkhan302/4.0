@@ -20,7 +20,12 @@ export interface Book {
   // Book Groups & Almaris
   group_id?: string | null;
   almari_id?: string | null;
+  almari_code?: string | null;
+  almari_name?: string | null;
+  cupboard?: string | null;
   shelf_no?: number | null;
+  placement_locked?: boolean;
+  location_source?: string;
   date_added?: string; // YYYY-MM-DD local date
   title_roman?: string;
   author_roman?: string;
@@ -211,7 +216,9 @@ export interface Almari {
   name_ur: string;
   shelf_count: number;
   books_per_shelf: number; // Guidance capacity
+  approx_capacity?: number;
   location?: string;
+  location_note?: string;
   category?: string;
   notes?: string;
   is_active: boolean;

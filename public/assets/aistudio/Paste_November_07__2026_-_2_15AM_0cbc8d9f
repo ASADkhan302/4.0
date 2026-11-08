@@ -1,0 +1,781 @@
+📊 ULM LIBRARY LMS — PROFESSIONAL RECHARTS & KPI COMPONENT INTEGRATION MASTER PROMPT
+
+How to use this prompt:
+Copy and paste the entire directive below into Google AI Studio, Cursor, Antigravity, or your AI assistant. It provides the complete implementation to replace generic SaaS revenue placeholders with the official University of Lakki Marwat (ULM) Central Campus Library Visual Analytics Suite, fully styled with shadcn/ui tokens, Tailwind CSS, Recharts, and dual White Glass / Dark Obsidian mode support matching your exact application screenshots.
+
+# 🏛️ SYSTEM DIRECTIVE: INTEGRATE PROFESSIONAL ULM LIBRARY KPI & VISUAL ANALYTICS ENGINE
+
+You are an expert Frontend Architect specializing in React 18, TypeScript, Tailwind CSS, shadcn/ui design systems, and Recharts.
+
+Your objective is to integrate and adapt the Layro/shadcn Recharts component suite into the **University of Lakki Marwat (ULM) Central Campus Library System** (`Labrary-app-3.0`). 
+
+Transform the generic SaaS "revenue / MRR / churn" template into an **institutional, publication-grade Library Visual Analytics Dashboard** that replaces the basic placeholder charts in the Catalog Analytics view (seen in the live screenshots: 5,000 volumes, shelf availability, physical stacks density, and academic disciplines).
+
+---
+
+## 🏗️ 1. ARCHITECTURE & FOLDER STRUCTURE REQUIREMENTS
+
+1. **Target Component Directory**:
+   - Create `/src/components/ui/library-charts-kpi.tsx` (the core Layro/shadcn chart components: `ChartCard`, `AreaTrend`, `BarCompare`, `DonutBreakdown`, `Sparkline`, `KpiCard`).
+   - Create `/src/components/library/CatalogVisualAnalytics.tsx` (the high-end analytics view that integrates into `BooksCatalogView.tsx` under the `Analytics` pill tab).
+2. **Dependencies**:
+   - `npm install recharts lucide-react clsx tailwind-merge`
+3. **Dual-Theme Compatibility**:
+   - Fully bind to `--chart-1` through `--chart-5`, `--card`, `--card-foreground`, `--muted-foreground`, and `--border` so charts seamlessly adapt to both **White Glass** and **Dark Glass** modes without manual color hardcoding.
+
+---
+
+## 📈 2. DOMAIN MAPPING: FROM SAAS METRICS TO ULM LIBRARY ANALYTICS
+
+Replace all SaaS placeholders with real university library metrics:
+
+| Generic SaaS Template | ULM Library Institutional Metric | Visual Representation |
+| :--- | :--- | :--- |
+| `Monthly Revenue ($8.3k)` | **Total Cataloged Holdings (5,000 Volumes)** | Top KPI Card + 12-Month Acquisition Sparkline |
+| `Active Seats (139)` | **Active Circulation Loans (142 Checked Out)** | Top KPI Card + Circulation Volume Sparkline |
+| `Churn Rate (2.1%)` | **Shelf Availability Rate (97.2%)** | Top KPI Card + Health Delta (`good="up"`) |
+| `New vs Expansion Area` | **Circulation Flow (Issues vs Returns Over Time)** | `AreaTrend` with Gradient Wash & Tooltips |
+| `Seats by Plan Bar Chart` | **Volumes by Academic Discipline (Available vs Issued)** | `BarCompare` (CS, AI, Software Eng, Management, Math, Physics) |
+| `Revenue Source Donut` | **Collection Distribution by Material Type** | `DonutBreakdown` (Textbooks, Reference, Journals, Theses) |
+| `Range Select (6m / 12m)` | **Academic Timeline Filter (7D, 30D, Semester, Academic Year)** | Institutional Glass Pill Range Switcher |
+
+---
+
+## 💻 3. UNABRIDGED SOURCE CODE IMPLEMENTATION
+
+### FILE A: `src/components/ui/library-charts-kpi.tsx`
+
+```tsx
+"use client";
+
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RTooltip,
+  XAxis,
+  YAxis,
+  type TooltipProps,
+} from "recharts";
+
+const SQUIRCLE = "[corner-shape:squircle]";
+
+export interface Series {
+  key: string;
+  label: string;
+  slot?: 1 | 2 | 3 | 4 | 5;
+}
+
+const color = (s: Series, i: number) => `var(--chart-${s.slot ?? (i % 5) + 1})`;
+const AXIS = { fill: "var(--muted-foreground, #94A3B8)", fontSize: 11 };
+const defaultFormat = (v: number) => v.toLocaleString();
+
+export interface ChartCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export function ChartCard({ title, subtitle, actions, className, children, ...rest }: ChartCardProps) {
+  return (
+    <figure
+      className={cn(
+        "m-0 grid gap-4 rounded-[18px] bg-card/85 backdrop-blur-xl p-5 text-card-foreground border border-border/80 shadow-sm",
+        SQUIRCLE,
+        className
+      )}
+      {...rest}
+    >
+      <figcaption className="flex items-start justify-between gap-3">
+        <div className="grid gap-0.5">
+          <span className="text-[14px] font-bold tracking-[-0.01em] text-foreground">{title}</span>
+          {subtitle && <span className="text-[12px] text-muted-foreground font-medium">{subtitle}</span>}
+        </div>
+        {actions}
+      </figcaption>
+      {children}
+    </figure>
+  );
+}
+
+function Legend({ series }: { series: Series[] }) {
+  if (series.length < 2) return null;
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-hidden>
+      {series.map((s, i) => (
+        <li key={s.key} className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          <span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: color(s, i) }} />
+          {s.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  series,
+  format,
+  labelFormat,
+}: TooltipProps<number, string> & {
+  series: Series[];
+  format: (v: number) => string;
+  labelFormat?: (l: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[140px] rounded-[10px] bg-popover/95 backdrop-blur-md px-3.5 py-2.5 text-[12px] text-popover-foreground shadow-xl border border-border">
+      {label !== undefined && (
+        <p className="mb-1.5 font-bold text-foreground">{labelFormat ? labelFormat(String(label)) : label}</p>
+      )}
+      <ul className="grid gap-1">
+        {payload.map((p) => {
+          const i = series.findIndex((s) => s.key === p.dataKey);
+          const s = series[i] ?? { key: String(p.dataKey), label: String(p.name) };
+          return (
+            <li key={s.key} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                <span className="h-2 w-2 rounded-[3px]" style={{ background: color(s, Math.max(i, 0)) }} />
+                {s.label}
+              </span>
+              <span className="font-mono font-bold tabular-nums text-foreground">{format(Number(p.value))}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function DataTableFallback<T extends Record<string, unknown>>({
+  caption,
+  data,
+  xKey,
+  series,
+  format,
+}: {
+  caption: string;
+  data: T[];
+  xKey: string;
+  series: Series[];
+  format: (v: number) => string;
+}) {
+  return (
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{xKey}</th>
+            {series.map((s) => (
+              <th key={s.key} scope="col">{s.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i}>
+              <th scope="row">{String(row[xKey])}</th>
+              {series.map((s) => (
+                <td key={s.key}>{format(Number(row[s.key]))}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+interface CartesianProps<T> {
+  data: T[];
+  xKey: keyof T & string;
+  series: Series[];
+  format?: (v: number) => string;
+  xFormat?: (v: string) => string;
+  height?: number;
+  description: string;
+  className?: string;
+}
+
+export function AreaTrend<T extends Record<string, unknown>>({
+  data,
+  xKey,
+  series,
+  format = defaultFormat,
+  xFormat,
+  height = 220,
+  description,
+  stacked = false,
+  className,
+}: CartesianProps<T> & { stacked?: boolean }) {
+  const id = React.useId().replace(/:/g, "");
+  return (
+    <div className={cn("grid gap-3", className)}>
+      <Legend series={series} />
+      <div role="img" aria-label={description} style={{ height }}>
+        <div aria-hidden className="h-full w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
+              <defs>
+                {series.map((s, i) => (
+                  <linearGradient key={s.key} id={`${id}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color(s, i)} stopOpacity={0.24} />
+                    <stop offset="100%" stopColor={color(s, i)} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.6} />
+              <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={AXIS} tickMargin={8} tickFormatter={xFormat} minTickGap={20} />
+              <YAxis tickLine={false} axisLine={false} tick={AXIS} tickFormatter={format} width={42} />
+              <RTooltip
+                cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
+                content={<ChartTooltip series={series} format={format} labelFormat={xFormat} />}
+              />
+              {series.map((s, i) => (
+                <Area
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.label}
+                  stackId={stacked ? "a" : undefined}
+                  stroke={color(s, i)}
+                  strokeWidth={2}
+                  fill={`url(#${id}-${s.key})`}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)", fill: color(s, i) }}
+                  isAnimationActive={false}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <DataTableFallback caption={description} data={data} xKey={xKey} series={series} format={format} />
+    </div>
+  );
+}
+
+export function BarCompare<T extends Record<string, unknown>>({
+  data,
+  xKey,
+  series,
+  format = defaultFormat,
+  xFormat,
+  height = 220,
+  description,
+  stacked = false,
+  className,
+}: CartesianProps<T> & { stacked?: boolean }) {
+  return (
+    <div className={cn("grid gap-3", className)}>
+      <Legend series={series} />
+      <div role="img" aria-label={description} style={{ height }}>
+        <div aria-hidden className="h-full w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 0 }} barGap={3} barCategoryGap="28%">
+              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.6} />
+              <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={AXIS} tickMargin={8} tickFormatter={xFormat} />
+              <YAxis tickLine={false} axisLine={false} tick={AXIS} tickFormatter={format} width={42} />
+              <RTooltip
+                cursor={{ fill: "var(--muted)", opacity: 0.35 }}
+                content={<ChartTooltip series={series} format={format} labelFormat={xFormat} />}
+              />
+              {series.map((s, i) => (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  name={s.label}
+                  stackId={stacked ? "a" : undefined}
+                  fill={color(s, i)}
+                  maxBarSize={24}
+                  radius={stacked && i < series.length - 1 ? 0 : [4, 4, 0, 0]}
+                  stroke={stacked ? "var(--card)" : undefined}
+                  strokeWidth={stacked ? 2 : 0}
+                  isAnimationActive={false}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <DataTableFallback caption={description} data={data} xKey={xKey} series={series} format={format} />
+    </div>
+  );
+}
+
+export interface DonutSlice {
+  label: string;
+  value: number;
+  slot?: 1 | 2 | 3 | 4 | 5;
+}
+
+export function DonutBreakdown({
+  data,
+  format = defaultFormat,
+  centerLabel = "Total",
+  description,
+  size = 176,
+  className,
+}: {
+  data: DonutSlice[];
+  format?: (v: number) => string;
+  centerLabel?: string;
+  description: string;
+  size?: number;
+  className?: string;
+}) {
+  const total = data.reduce((n, d) => n + d.value, 0);
+  const series: Series[] = data.map((d, i) => ({
+    key: d.label,
+    label: d.label,
+    slot: d.slot ?? (((i % 5) + 1) as 1),
+  }));
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-6", className)}>
+      <div role="img" aria-label={description} className="relative shrink-0" style={{ width: size, height: size }}>
+        <div aria-hidden className="h-full w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="label"
+                innerRadius="68%"
+                outerRadius="100%"
+                stroke="var(--card)"
+                strokeWidth={2}
+                startAngle={90}
+                endAngle={-270}
+                rootTabIndex={-1}
+                isAnimationActive={false}
+              >
+                {data.map((d, i) => (
+                  <Cell key={d.label} fill={color(series[i], i)} />
+                ))}
+              </Pie>
+              <RTooltip content={<ChartTooltip series={[]} format={format} />} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{centerLabel}</span>
+          <span className="text-[18px] font-extrabold tabular-nums font-mono text-foreground">{format(total)}</span>
+        </div>
+      </div>
+      <ul className="grid max-w-[340px] min-w-[180px] flex-1 gap-2">
+        {data.map((d, i) => (
+          <li key={d.label} className="flex items-center justify-between gap-4 text-[12.5px]">
+            <span className="flex items-center gap-2 text-muted-foreground font-medium">
+              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: color(series[i], i) }} />
+              {d.label}
+            </span>
+            <span className="tabular-nums font-mono">
+              <span className="font-bold text-foreground">{format(d.value)}</span>
+              <span className="ml-2 text-muted-foreground text-[11px]">
+                {total ? Math.round((d.value / total) * 100) : 0}%
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function Sparkline({
+  data,
+  slot = 1,
+  height = 36,
+  className,
+}: {
+  data: number[];
+  slot?: 1 | 2 | 3 | 4 | 5;
+  height?: number;
+  className?: string;
+}) {
+  const rows = data.map((v, i) => ({ i, v }));
+  return (
+    <div aria-hidden className={className} style={{ height }}>
+      <div aria-hidden className="h-full w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={rows} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <Line
+              type="monotone"
+              dataKey="v"
+              stroke={`var(--chart-${slot})`}
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+              strokeLinecap="round"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+export interface KpiCardProps extends React.HTMLAttributes<HTMLDivElement> {
+  label: string;
+  value: React.ReactNode;
+  delta?: number;
+  good?: "up" | "down";
+  period?: string;
+  trend?: number[];
+  icon?: React.ReactNode;
+}
+
+export function KpiCard({ label, value, delta, good = "up", period, trend, icon, className, ...rest }: KpiCardProps) {
+  const up = (delta ?? 0) >= 0;
+  const positive = delta === undefined ? null : (up && good === "up") || (!up && good === "down");
+
+  return (
+    <div
+      className={cn(
+        "grid gap-2 rounded-[14px] bg-card/85 backdrop-blur-xl p-4 text-card-foreground border border-border/80 shadow-xs",
+        SQUIRCLE,
+        className
+      )}
+      {...rest}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+        {icon && <div className="text-muted-foreground/80">{icon}</div>}
+      </div>
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-[24px] leading-none font-extrabold tracking-[-0.02em] tabular-nums font-mono text-foreground">
+          {value}
+        </p>
+        {trend && <Sparkline data={trend} className="w-20 shrink-0" slot={1} height={28} />}
+      </div>
+      {delta !== undefined && (
+        <p className="flex items-center gap-1.5 text-[12px] mt-0.5">
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 font-bold tabular-nums px-1.5 py-0.5 rounded-[4px]",
+              positive
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                : "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+            )}
+          >
+            {up ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
+            <span className="sr-only">{up ? "Up" : "Down"} </span>
+            {Math.abs(delta * 100).toFixed(1)}%
+          </span>
+          {period && <span className="text-muted-foreground text-[11px] font-medium">{period}</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export { ChartCard as Component };
+
+
+FILE B: src/components/library/CatalogVisualAnalytics.tsx
+
+"use client";
+
+import * as React from "react";
+import {
+  AreaTrend,
+  BarCompare,
+  ChartCard,
+  DonutBreakdown,
+  KpiCard,
+} from "@/components/ui/library-charts-kpi";
+import { BookOpen, Layers, CheckCircle2, Clock, Sparkles } from "lucide-react";
+
+const TIMEFRAMES = {
+  "7d": "Past 7 Days",
+  "30d": "Past 30 Days",
+  "semester": "Fall 2026 Semester",
+  "year": "Academic Year 2026-27",
+} as const;
+
+// Institutional Data Pools for ULM Central Campus Library (5,000 Volumes)
+const CIRCULATION_DATA = {
+  "7d": [
+    { period: "Mon", issued: 24, returned: 18 },
+    { period: "Tue", issued: 32, returned: 28 },
+    { period: "Wed", issued: 45, returned: 38 },
+    { period: "Thu", issued: 39, returned: 42 },
+    { period: "Fri", issued: 52, returned: 40 },
+    { period: "Sat", issued: 20, returned: 22 },
+    { period: "Sun", issued: 12, returned: 8 },
+  ],
+  "30d": [
+    { period: "Week 1", issued: 180, returned: 165 },
+    { period: "Week 2", issued: 210, returned: 195 },
+    { period: "Week 3", issued: 245, returned: 230 },
+    { period: "Week 4", issued: 195, returned: 210 },
+  ],
+  "semester": [
+    { period: "Sep", issued: 640, returned: 510 },
+    { period: "Oct", issued: 820, returned: 780 },
+    { period: "Nov", issued: 950, returned: 890 },
+    { period: "Dec", issued: 710, returned: 740 },
+    { period: "Jan", issued: 480, returned: 530 },
+  ],
+  "year": [
+    { period: "FA25", issued: 3200, returned: 3100 },
+    { period: "SP26", issued: 3650, returned: 3500 },
+    { period: "SU26", issued: 1200, returned: 1180 },
+    { period: "FA26", issued: 4100, returned: 3958 },
+  ],
+};
+
+const DISCIPLINE_BREAKDOWN = [
+  { discipline: "Computer Science", available: 1680, issued: 120 },
+  { discipline: "AI & Data Science", available: 890, issued: 65 },
+  { discipline: "Software Eng", available: 740, issued: 48 },
+  { discipline: "Management", available: 620, issued: 35 },
+  { discipline: "Mathematics", available: 510, issued: 22 },
+  { discipline: "Physics / Eng", available: 420, issued: 18 },
+];
+
+const MATERIAL_DONUT = [
+  { label: "Core Textbooks", value: 2450, slot: 1 as const },
+  { label: "Reference & Encyclopedias", value: 1280, slot: 2 as const },
+  { label: "Research Theses & Dissertations", value: 720, slot: 3 as const },
+  { label: "Journals & Periodicals", value: 390, slot: 4 as const },
+  { label: "Digital / CD Media", value: 160, slot: 5 as const },
+];
+
+export function CatalogVisualAnalytics() {
+  const [timeframe, setTimeframe] = React.useState<keyof typeof TIMEFRAMES>("30d");
+  const activeCirculation = CIRCULATION_DATA[timeframe];
+
+  return (
+    <div
+      className="space-y-6"
+      style={
+        {
+          // Institutional Theme Palette: Royal Purple & 24K Gold
+          "--chart-1": "#541A72", // ULM Royal Purple
+          "--chart-2": "#C8963E", // ULM Academic Gold
+          "--chart-3": "#10B981", // Emerald Available
+          "--chart-4": "#F59E0B", // Amber Loans
+          "--chart-5": "#3B82F6", // Blue Science
+        } as React.CSSProperties
+      }
+    >
+      {/* Institutional Header & Timeframe Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-card/85 backdrop-blur-xl border border-border">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#FFD147]/20 text-[#B8731B] dark:text-[#FFD147] border border-[#C8963E]/40">
+              CAMPUS CATALOG ANALYTICS
+            </span>
+            <span className="text-xs text-muted-foreground font-mono">5,000 Cataloged Volumes</span>
+          </div>
+          <h2 className="text-lg font-extrabold text-foreground mt-1 tracking-tight">
+            Campus Holdings, Circulation Velocity & Stack Distribution
+          </h2>
+        </div>
+
+        {/* Squircle Timeframe Switcher */}
+        <div
+          role="radiogroup"
+          aria-label="Analytics Timeframe"
+          className="inline-flex rounded-xl bg-muted p-1 border border-border/80"
+        >
+          {(Object.keys(TIMEFRAMES) as Array<keyof typeof TIMEFRAMES>).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={timeframe === key}
+              onClick={() => setTimeframe(key)}
+              className={`h-8 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer ${
+                timeframe === key
+                  ? "bg-card text-foreground shadow-xs border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {TIMEFRAMES[key]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 1: Top Institutional KPI Cards with Sparklines */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Cataloged Volumes"
+          value="5,000"
+          delta={0.084}
+          period="vs last semester"
+          icon={<BookOpen className="w-4 h-4" />}
+          trend={[4200, 4400, 4650, 4800, 4920, 5000]}
+        />
+        <KpiCard
+          label="Active Circulation Loans"
+          value="142"
+          delta={0.142}
+          period="vs last month"
+          icon={<Layers className="w-4 h-4" />}
+          trend={[95, 110, 128, 134, 138, 142]}
+        />
+        <KpiCard
+          label="Shelf Availability Index"
+          value="97.2%"
+          delta={0.012}
+          good="up"
+          period="of collection available"
+          icon={<CheckCircle2 className="w-4 h-4" />}
+        />
+        <KpiCard
+          label="Overdue / Return Delinquency"
+          value="12"
+          delta={-0.25}
+          good="down"
+          period="accruing fines (Rs. 10/day)"
+          icon={<Clock className="w-4 h-4" />}
+        />
+      </div>
+
+      {/* Row 2: Charts Grid (Area Flow Trend + Bar Compare by Discipline) */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Circulation Velocity (Issue vs Return Flow)"
+          subtitle={`Volumes checked out vs returned during ${TIMEFRAMES[timeframe].toLowerCase()}`}
+        >
+          <AreaTrend
+            data={activeCirculation}
+            xKey="period"
+            format={(v) => `${v} vols`}
+            description="Circulation volume trends over time"
+            series={[
+              { key: "issued", label: "Books Issued", slot: 1 },
+              { key: "returned", label: "Books Returned", slot: 2 },
+            ]}
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Holdings by Academic Discipline (Available vs Issued)"
+          subtitle="Top university faculties and student borrowing pressure"
+        >
+          <BarCompare
+            data={DISCIPLINE_BREAKDOWN}
+            xKey="discipline"
+            format={(v) => `${v} vols`}
+            description="Holdings comparison across departments"
+            series={[
+              { key: "available", label: "On Shelf Available", slot: 3 },
+              { key: "issued", label: "Currently Issued", slot: 4 },
+            ]}
+          />
+        </ChartCard>
+      </div>
+
+      {/* Row 3: Collection Breakdown Donut + Stacks Density Info Card */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <ChartCard
+          title="Collection Classification Breakdown"
+          subtitle="Physical acquisition distribution across library assets"
+          className="lg:col-span-2"
+        >
+          <DonutBreakdown
+            data={MATERIAL_DONUT}
+            format={(v) => `${v.toLocaleString()} vols`}
+            centerLabel="Total Volumes"
+            description="Breakdown of collection by resource format"
+            size={185}
+          />
+        </ChartCard>
+
+        {/* Physical Stacks & Cupboard Utilization Summary */}
+        <div className="rounded-[18px] bg-card/85 backdrop-blur-xl p-5 border border-border shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[14px] font-bold text-foreground">Physical Stacks & Density</span>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                4 Active Wings
+              </span>
+            </div>
+            <p className="text-[12px] text-muted-foreground mb-4">
+              Physical cupboard mapping registered in central database:
+            </p>
+
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-foreground font-mono">Stack-01 • General Holding</p>
+                  <p className="text-[11px] text-muted-foreground">Main Reading Hall</p>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-[#C8963E]">4,850 vols</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-foreground font-mono">A-01 • Shelf 1 (CS Reserve)</p>
+                  <p className="text-[11px] text-muted-foreground">East Wing Engineering</p>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-[#541A72] dark:text-[#FFD147]">148 vols</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-foreground font-mono">Alm-CS-02 • AI Lab Stack</p>
+                  <p className="text-[11px] text-muted-foreground">Departmental Lab Aisle</p>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400">2 vols</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>Automated shelf capacity tracking</span>
+            <span className="font-mono font-bold text-foreground">100% Synced</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default CatalogVisualAnalytics;
+
+
+🔌 4. INTEGRATION INTO BooksCatalogView.tsx
+
+In src/components/BooksCatalogView.tsx, locate the catalog view switcher (List View | Grid View | Almari View | Analytics):
+
+import { CatalogVisualAnalytics } from "./library/CatalogVisualAnalytics";
+
+// Inside BooksCatalogView JSX where catalogView === 'analytics' is handled:
+{catalogView === 'analytics' && (
+  <div className="mt-6">
+    <CatalogVisualAnalytics />
+  </div>
+)}
+
+
+✅ 5. VERIFICATION & QUALITY AUDIT CHECKLIST
+
+[ ] No SaaS Dummy Copy: All occurrences of "MRR", "Seats", "Churn", and "expansion" are eliminated and replaced with University Library Holdings, Borrowing velocity, and Academic disciplines.
+
+[ ] Both Modes Perfect: Test in White Glass and Dark Glass; verify that charts automatically adopt the ULM institutional purple (#541A72) and gold (#C8963E) color scales.
+
+[ ] Interactive Tooltips & Legends: Hovering any bar, area wave, or donut slice displays formatted counts without clipping.
+
+[ ] Timeframe Switching: Switching between 7D, 30D, Semester, and Year dynamically updates circulation velocity.
+

@@ -2105,9 +2105,45 @@ export function resolveBookAlmariAndShelf(
 
   const almaris = almarisInput || [];
 
+  // 0. Check persistent manual overrides in localStorage ('ulm_almari_placements_master_v3' and 'ulm_manual_shelf_assignments_v2')
+  let overrideData: Record<string, any> | undefined;
+  if (typeof window !== 'undefined' && (book.id || book.barcode)) {
+    try {
+      const rawMasterV3 = localStorage.getItem('ulm_almari_placements_master_v3');
+      if (rawMasterV3) {
+        const parsedV3 = JSON.parse(rawMasterV3);
+        if (parsedV3 && typeof parsedV3 === 'object') {
+          overrideData =
+            (book.id ? parsedV3[String(book.id)] : undefined) ||
+            (book.barcode ? parsedV3[String(book.barcode)] : undefined);
+        }
+      }
+      if (!overrideData && book.id) {
+        const rawMap = localStorage.getItem('ulm_manual_shelf_assignments_v2');
+        if (rawMap) {
+          const parsedMap = JSON.parse(rawMap);
+          if (parsedMap && typeof parsedMap === 'object' && parsedMap[String(book.id)]) {
+            overrideData = parsedMap[String(book.id)];
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const effectiveBook = overrideData ? { ...book, ...overrideData } : book;
+
   // 1. Check if book has an explicit manual assignment matching an existing active Almari
-  const rawAlmariId = String(book.almari_id || book.almariId || book.almari || '').trim();
-  const rawShelfStr = String(book.shelf || book.shelf_label || book.shelfLabel || '').trim();
+  const rawAlmariId = String(
+    effectiveBook.almari_id ||
+      effectiveBook.almariId ||
+      effectiveBook.almari_code ||
+      effectiveBook.cupboard ||
+      effectiveBook.almari ||
+      ''
+  ).trim();
+  const rawShelfStr = String(
+    effectiveBook.shelf || effectiveBook.shelf_label || effectiveBook.shelfLabel || ''
+  ).trim();
   const isGenericDefaultPlaceholder =
     /^(stack[-_\s]?0?1|cs[-_\s]?rack[-_\s]?0?1|unassigned.*|no\s*almari.*)$/i.test(rawShelfStr) && !rawAlmariId;
 
@@ -2138,13 +2174,13 @@ export function resolveBookAlmariAndShelf(
 
   // 2. Discipline / Subject / Language classification (for badge & 3D spine color)
   const rawCat = String(
-    book.group || book.discipline || book.category || book.subject || ''
+    effectiveBook.group || effectiveBook.discipline || effectiveBook.category || effectiveBook.subject || ''
   ).trim();
-  const rawLang = String(book.language || '').trim();
-  const rawTitle = String(book.book_name || book.title || '').trim();
+  const rawLang = String(effectiveBook.language || '').trim();
+  const rawTitle = String(effectiveBook.book_name || effectiveBook.title || '').trim();
   const combinedText = `${rawCat} ${rawLang} ${rawTitle}`.toLowerCase();
 
-  let groupId = String(book.group_id || '').trim();
+  let groupId = String(effectiveBook.group_id || '').trim();
   let displayGroup = rawCat && rawCat.toLowerCase() !== 'general' ? rawCat : '';
   let groupColor = '#6D28D9';
   let spineTheme: 'purple' | 'sapphire' | 'emerald' | 'amber' | 'crimson' = 'purple';
@@ -2263,11 +2299,11 @@ export function resolveBookAlmariAndShelf(
 
   // 3. Parse Manual Shelf Number ("Shelf 1", "1", "S1", or book.shelf_no)
   const shelfCount = Math.max(1, matchedAlmari.shelf_count || 5);
-  let shelfNo = Number(book.shelf_no ?? book.shelfNo ?? 0);
+  let shelfNo = Number(effectiveBook.shelf_no ?? effectiveBook.shelfNo ?? 0);
   if (!shelfNo || shelfNo < 1) {
     const shelfMatch =
       rawShelfStr.match(/(?:shelf|row|s)[-_\s#]*(\d+)/i) ||
-      String(book.row || '').match(/(\d+)/);
+      String(effectiveBook.row || '').match(/(\d+)/);
     if (shelfMatch) {
       const parsed = parseInt(shelfMatch[1], 10);
       if (parsed >= 1) {
@@ -2310,12 +2346,40 @@ export function resolveBookAlmariAndShelf(
 }
 
 /**
- * Legacy helper retained for type compatibility — no longer auto-distributes unassigned books.
+ * Persists manual book shelf assignments to both localStorage ('ulm_manual_shelf_assignments_v2')
+ * and IndexedDB so assignments survive re-renders and page reloads with zero reset.
  */
 export function persistManualBookShelfAssignments<T extends Record<string, any>>(
   updatedBooks: T[]
 ): void {
   if (typeof window !== 'undefined') {
+    try {
+      const existingRaw = localStorage.getItem('ulm_manual_shelf_assignments_v2');
+      const assignmentsMap: Record<string, any> = existingRaw ? JSON.parse(existingRaw) : {};
+      for (const item of updatedBooks) {
+        const rawItem = item as Record<string, any>;
+        if (!rawItem.id) continue;
+        if (!rawItem.almari_id && !rawItem.almari_code && !rawItem.cupboard) {
+          delete assignmentsMap[String(rawItem.id)];
+        } else {
+          assignmentsMap[String(rawItem.id)] = {
+            almari_id: rawItem.almari_id || null,
+            almari_code: rawItem.almari_code || rawItem.cupboard || null,
+            almari_name: rawItem.almari_name || null,
+            cupboard: rawItem.cupboard || rawItem.almari_code || null,
+            shelf_no: rawItem.shelf_no ?? null,
+            shelf: rawItem.shelf || '',
+            row: rawItem.row || '',
+            section: rawItem.section || '',
+            placement_locked: true,
+            location_source: 'manual',
+            updated_at: new Date().toISOString(),
+          };
+        }
+      }
+      localStorage.setItem('ulm_manual_shelf_assignments_v2', JSON.stringify(assignmentsMap));
+    } catch {}
+
     void (async () => {
       try {
         const db = await getIndexedDb();

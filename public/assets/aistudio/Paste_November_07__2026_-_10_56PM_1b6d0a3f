@@ -1,0 +1,884 @@
+🛡️ ULM ALMARI — PREVENT SHELF WIPEOUT & PURE 3D BOOKSHELF DEFINITIVE MASTER PROMPT
+
+How to use this prompt:
+Copy and paste the entire directive below into Google AI Studio, Cursor, Antigravity, or your AI assistant. It eliminates the exact bug shown in your screenshot (edited-image_2.png) where moving 1 book from Shelf 1 to Shelf 2 wiped out the remaining books from Shelf 1, completely removes the 2D view toggle to provide a pure 100% 3D physical library stack, and ensures all sibling books stay locked on their shelves.
+
+# 🏛️ SYSTEM DIRECTIVE: FIX SHELF BOOK WIPEOUT ON DRAG & DROP & CONVERT ALMARI TO PURE 3D BOOKSHELF
+
+You are the Lead Systems Architect and Senior React Engineer for the **University of Lakki Marwat (ULM) Central Campus Library System**.
+
+---
+
+## 🔍 THE TWO CRITICAL DEFECTS RESOLVED IN THIS DIRECTIVE:
+
+1. **The Shelf Wipeout Bug (Shown in `edited-image_2.png`)**:
+   - **What happened**: When moving 1 book from Shelf 1 to Shelf 2, Shelf 1 was emptied out (dropped from 15 books to 1), dumping the remaining books into the unassigned queue!
+   - **Root Cause**: The master placement registry was initialized as empty (`{}`). When 1 book was dragged, an override was saved for *only that 1 book*. During re-render, the other 14 books had no entry in the override dictionary, so their initial shelf position was stripped and they fell back to `shelf_no = 0`!
+   - **The Fix**: On mount, `AlmariView` **automatically seeds all existing book shelf positions** into the master registry. Moving Book A preserves Books B through Z on their respective shelves!
+
+2. **Removal of 2D Cards View (User Request)**:
+   - Completely remove the `[ 📚 3D Bookshelf | 🗂️ 2D Cards ]` toggle pill from the top toolbar.
+   - Eliminate the 2D cards grid branch entirely.
+   - Render **100% immersive 3D physical bookshelves** with standing volume spines, realistic shelf beams, pull-out hover physics, and native HTML5 Drag & Drop.
+
+---
+
+## 💻 COMPLETE UNABRIDGED CODE: `src/components/AlmariView.tsx`
+
+Replace `src/components/AlmariView.tsx` with this 100% complete, clean implementation:
+
+```tsx
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  Library,
+  Plus,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  GripVertical,
+  BookMarked,
+  Database,
+} from 'lucide-react';
+import { Book, Almari } from '../types/library';
+import { AlmariService } from '../services/almariService';
+import { StorageEngine } from '../services/storageEngine';
+
+export interface AlmariViewProps {
+  books: Book[];
+  onUpdateBooks?: (updatedBooks: Book[]) => void;
+  onSelectBook?: (book: Book) => void;
+  onOpenBook?: (book: Book) => void;
+}
+
+const MASTER_PLACEMENTS_KEY = 'ulm_almari_placements_master_v3';
+const ACTIVE_ALMARI_KEY = 'ulm_active_almari_id_v3';
+const SHELF_CAPACITIES_KEY = 'ulm_shelf_capacities_v3';
+
+// Academic book spine binding palettes
+const SPINE_PALETTES = [
+  { bg: 'from-[#2A0845] to-[#1B032E]', border: 'border-[#FFD147]/50', text: 'text-[#FFD147]' }, // Royal ULM Purple
+  { bg: 'from-[#7F1D1D] to-[#450A0A]', border: 'border-red-400/40', text: 'text-amber-200' },    // Burgundy Leather
+  { bg: 'from-[#1E3A8A] to-[#0F172A]', border: 'border-blue-400/40', text: 'text-sky-200' },     // Oxford Navy
+  { bg: 'from-[#064E3B] to-[#022C22]', border: 'border-emerald-400/40', text: 'text-emerald-200' }, // Forest Emerald
+  { bg: 'from-[#78350F] to-[#451A03]', border: 'border-amber-400/50', text: 'text-amber-300' },   // Gold Ochre
+  { bg: 'from-[#1E293B] to-[#0F172A]', border: 'border-slate-400/30', text: 'text-slate-200' },   // Obsidian Slate
+];
+
+export const AlmariView: React.FC<AlmariViewProps> = ({
+  books,
+  onUpdateBooks,
+  onSelectBook,
+  onOpenBook,
+}) => {
+  // 1. Persistent Cupboards Registry
+  const [almaris, setAlmaris] = useState<Almari[]>(() => AlmariService.getAlmaris());
+
+  // 2. Persistent Selected Almari ID
+  const [selectedAlmariId, setSelectedAlmariId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(ACTIVE_ALMARI_KEY);
+      const all = AlmariService.getAlmaris();
+      if (saved && all.some((a) => a.id === saved)) return saved;
+      return all[0]?.id || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // 3. Authoritative Master Placements with AUTO-SEEDING of all existing shelf books!
+  // This guarantees moving 1 book NEVER wipes the other 14 books!
+  const [masterPlacements, setMasterPlacements] = useState<
+    Record<string, { almari_id: string; almari_code: string; shelf_no: number }>
+  >(() => {
+    let existingOverrides: Record<string, { almari_id: string; almari_code: string; shelf_no: number }> = {};
+    try {
+      const raw = localStorage.getItem(MASTER_PLACEMENTS_KEY);
+      if (raw) existingOverrides = JSON.parse(raw);
+    } catch {}
+
+    // Auto-seed: capture any book that currently has a shelf assigned
+    const allAlmaris = AlmariService.getAlmaris();
+    books.forEach((b) => {
+      const key = b.id || b.barcode;
+      if (!key) return;
+
+      if (!existingOverrides[key]) {
+        const matched = allAlmaris.find(
+          (a) => a.id === b.almari_id || a.code.toUpperCase() === (b.almari_code || '').toUpperCase() || a.code.toUpperCase() === (b.cupboard || '').toUpperCase()
+        );
+        const sNo = Number(b.shelf_no) || 0;
+        if (matched && sNo >= 1) {
+          existingOverrides[key] = {
+            almari_id: matched.id,
+            almari_code: matched.code,
+            shelf_no: sNo,
+          };
+        }
+      }
+    });
+
+    try {
+      localStorage.setItem(MASTER_PLACEMENTS_KEY, JSON.stringify(existingOverrides));
+    } catch {}
+
+    return existingOverrides;
+  });
+
+  // 4. Merge books with Master Placements
+  const localBooks = useMemo(() => {
+    return books.map((b) => {
+      const key = b.id || b.barcode;
+      const override =
+        (b.id && masterPlacements[b.id]) ||
+        (b.barcode && masterPlacements[b.barcode]) ||
+        (key && masterPlacements[key]);
+
+      if (override) {
+        return {
+          ...b,
+          almari_id: override.almari_id,
+          almari_code: override.almari_code,
+          shelf_no: override.shelf_no,
+          cupboard: override.almari_code,
+          shelf: `Shelf ${override.shelf_no}`,
+          placement_locked: true,
+        };
+      }
+      return b;
+    });
+  }, [books, masterPlacements]);
+
+  const [dragOverShelfNo, setDragOverShelfNo] = useState<number | null>(null);
+  const [hoveredBook, setHoveredBook] = useState<Book | null>(null);
+
+  // 5. Drag refs to prevent React closure staleness
+  const draggedBookRef = useRef<string | null>(null);
+  const sourceShelfRef = useRef<number | null>(null);
+
+  // 6. Persistent Shelf Capacities (1–50)
+  const [shelfCapacities, setShelfCapacities] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(SHELF_CAPACITIES_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [isAddAlmariOpen, setIsAddAlmariOpen] = useState<boolean>(false);
+  const [newAlmariCode, setNewAlmariCode] = useState<string>('');
+  const [newAlmariName, setNewAlmariName] = useState<string>('');
+  const [newAlmariWing, setNewAlmariWing] = useState<string>('Main Hall • Ground Floor');
+  const [newAlmariShelves, setNewAlmariShelves] = useState<number>(5);
+  const [newAlmariShelfCap, setNewAlmariShelfCap] = useState<number>(25);
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'warning'; text: string } | null>(null);
+
+  const selectedAlmari = useMemo(() => {
+    return almaris.find((a) => a.id === selectedAlmariId) || almaris[0] || null;
+  }, [almaris, selectedAlmariId]);
+
+  const handleSelectAlmari = (id: string) => {
+    setSelectedAlmariId(id);
+    try {
+      localStorage.setItem(ACTIVE_ALMARI_KEY, id);
+    } catch {}
+  };
+
+  const getShelfCapacity = (almari: Almari, shelfNo: number): number => {
+    const key = `${almari.id}::${shelfNo}`;
+    if (shelfCapacities[key] !== undefined) return shelfCapacities[key];
+    const perShelf = Math.max(
+      1,
+      Math.min(50, Math.round((almari.approx_capacity || 125) / Math.max(1, almari.shelf_count || 5)))
+    );
+    return perShelf;
+  };
+
+  const handleSetShelfCapacity = (almari: Almari, shelfNo: number, cap: number) => {
+    const clamped = Math.max(1, Math.min(50, cap));
+    const key = `${almari.id}::${shelfNo}`;
+    setShelfCapacities((prev) => {
+      const updated = { ...prev, [key]: clamped };
+      try {
+        localStorage.setItem(SHELF_CAPACITIES_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  // 7. Direct Manual Placement Mapping
+  const placementMap = useMemo(() => {
+    const byAlmariShelf = new Map<string, Book[]>();
+    const unassigned: Book[] = [];
+
+    for (const book of localBooks) {
+      const matchedAlmari = almaris.find(
+        (a) =>
+          a.id === book.almari_id ||
+          a.code.toUpperCase() === (book.almari_code || '').toUpperCase() ||
+          a.code.toUpperCase() === (book.cupboard || '').toUpperCase()
+      );
+      const shelfNum = Number(book.shelf_no) || 0;
+
+      if (matchedAlmari && shelfNum >= 1) {
+        const key = `${matchedAlmari.id}::${shelfNum}`;
+        const list = byAlmariShelf.get(key) || [];
+        list.push(book);
+        byAlmariShelf.set(key, list);
+      } else {
+        unassigned.push(book);
+      }
+    }
+
+    return { byAlmariShelf, unassigned };
+  }, [localBooks, almaris]);
+
+  // 8. DEFINITIVE NON-DESTRUCTIVE REASSIGNMENT FUNCTION
+  const executeReassignBook = (bookId: string, targetAlmari: Almari, targetShelf: number) => {
+    if (!bookId || !targetAlmari) return;
+
+    // Strict non-empty matching
+    const targetBook = localBooks.find((b) => {
+      if (b.id && b.id === bookId) return true;
+      if (b.barcode && b.barcode === bookId) return true;
+      return false;
+    });
+
+    if (!targetBook) return;
+
+    const currentShelfBooks = placementMap.byAlmariShelf.get(`${targetAlmari.id}::${targetShelf}`) || [];
+    const capacity = getShelfCapacity(targetAlmari, targetShelf);
+
+    if (currentShelfBooks.length >= capacity && targetBook.shelf_no !== targetShelf) {
+      setToastMessage({
+        type: 'warning',
+        text: `Shelf ${targetShelf} reached capacity (${currentShelfBooks.length}/${capacity} vols). Volume placed.`,
+      });
+    } else {
+      setToastMessage({
+        type: 'success',
+        text: `Moved "${targetBook.book_name}" to ${targetAlmari.code} • Shelf ${targetShelf}`,
+      });
+    }
+
+    // 1. Lock in the target book override without touching any sibling books!
+    const newOverrides = { ...masterPlacements };
+    if (targetBook.id) {
+      newOverrides[targetBook.id] = {
+        almari_id: targetAlmari.id,
+        almari_code: targetAlmari.code,
+        shelf_no: targetShelf,
+      };
+    }
+    if (targetBook.barcode) {
+      newOverrides[targetBook.barcode] = {
+        almari_id: targetAlmari.id,
+        almari_code: targetAlmari.code,
+        shelf_no: targetShelf,
+      };
+    }
+    setMasterPlacements(newOverrides);
+
+    try {
+      localStorage.setItem(MASTER_PLACEMENTS_KEY, JSON.stringify(newOverrides));
+    } catch (e) {
+      console.error('LocalStorage write error:', e);
+    }
+
+    // 2. Prepare updated book record
+    const updatedBook: Book = {
+      ...targetBook,
+      almari_id: targetAlmari.id,
+      almari_code: targetAlmari.code,
+      almari_name: targetAlmari.name_en,
+      shelf_no: targetShelf,
+      cupboard: targetAlmari.code,
+      shelf: `Shelf ${targetShelf}`,
+      placement_locked: true,
+      location_source: 'manual',
+    };
+
+    // 3. Persist to SQLite / StorageEngine asynchronously
+    StorageEngine.upsertBook({
+      accession: updatedBook.barcode || updatedBook.accession_no || '',
+      title: updatedBook.book_name,
+      author: updatedBook.author,
+      isbn: updatedBook.isbn || '',
+      category: updatedBook.category || 'General',
+      almariId: targetAlmari.id,
+      shelfId: String(targetShelf),
+      status: 'AVAILABLE',
+      updatedAt: new Date().toISOString(),
+    }).catch((err) => console.warn('StorageEngine sync note:', err));
+
+    // 4. Update parent list without resetting sibling books
+    if (onUpdateBooks) {
+      const updatedList = localBooks.map((b) => {
+        const isThisBook =
+          (targetBook.id && b.id && b.id === targetBook.id) ||
+          (targetBook.barcode && b.barcode && b.barcode === targetBook.barcode);
+        return isThisBook ? updatedBook : b;
+      });
+      onUpdateBooks(updatedList);
+    }
+  };
+
+  const handleUnassignBook = (book: Book) => {
+    const newOverrides = { ...masterPlacements };
+    if (book.id) delete newOverrides[book.id];
+    if (book.barcode) delete newOverrides[book.barcode];
+    setMasterPlacements(newOverrides);
+
+    try {
+      localStorage.setItem(MASTER_PLACEMENTS_KEY, JSON.stringify(newOverrides));
+    } catch {}
+
+    const updatedBook: Book = {
+      ...book,
+      almari_id: '',
+      almari_code: '',
+      almari_name: '',
+      shelf_no: 0,
+      cupboard: '',
+      shelf: '',
+      placement_locked: false,
+      location_source: 'manual',
+    };
+
+    StorageEngine.upsertBook({
+      accession: updatedBook.barcode || updatedBook.accession_no || '',
+      title: updatedBook.book_name,
+      author: updatedBook.author,
+      isbn: updatedBook.isbn || '',
+      category: updatedBook.category || 'General',
+      almariId: '',
+      shelfId: '0',
+      status: 'AVAILABLE',
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {});
+
+    if (onUpdateBooks) {
+      const updatedList = localBooks.map((b) => {
+        const isThisBook =
+          (book.id && b.id && b.id === book.id) ||
+          (book.barcode && b.barcode && b.barcode === book.barcode);
+        return isThisBook ? updatedBook : b;
+      });
+      onUpdateBooks(updatedList);
+    }
+
+    setToastMessage({
+      type: 'success',
+      text: `Removed "${book.book_name}" from shelf to Unassigned Queue.`,
+    });
+  };
+
+  // Drag & Drop handlers with ref backup
+  const handleDragStart = (e: React.DragEvent, bookId: string, currentShelf?: number) => {
+    e.dataTransfer.setData('text/plain', bookId);
+    e.dataTransfer.effectAllowed = 'move';
+    draggedBookRef.current = bookId;
+    sourceShelfRef.current = currentShelf ?? null;
+  };
+
+  const handleDragOver = (e: React.DragEvent, shelfNo: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverShelfNo !== shelfNo) {
+      setDragOverShelfNo(shelfNo);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverShelfNo(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetShelfNo: number) => {
+    e.preventDefault();
+    setDragOverShelfNo(null);
+    const bookId = e.dataTransfer.getData('text/plain') || draggedBookRef.current;
+    if (bookId && selectedAlmari) {
+      executeReassignBook(bookId, selectedAlmari, targetShelfNo);
+    }
+    draggedBookRef.current = null;
+    sourceShelfRef.current = null;
+  };
+
+  const handleCreateManualAlmari = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = newAlmariCode.trim().toUpperCase() || `ALM-${String(almaris.length + 1).padStart(2, '0')}`;
+    const nameEn = newAlmariName.trim() || `Academic Cupboard ${almaris.length + 1}`;
+    const shelfCount = Math.max(1, Math.min(12, newAlmariShelves));
+    const perShelfCap = Math.max(1, Math.min(50, newAlmariShelfCap));
+
+    const created = AlmariService.saveAlmari({
+      code,
+      name_en: nameEn,
+      name_ur: nameEn,
+      location_note: newAlmariWing.trim() || 'Main Library Wing',
+      shelf_count: shelfCount,
+      approx_capacity: shelfCount * perShelfCap,
+      is_active: true,
+    });
+
+    for (let s = 1; s <= shelfCount; s++) {
+      handleSetShelfCapacity(created, s, perShelfCap);
+    }
+
+    const refreshed = AlmariService.getAlmaris();
+    setAlmaris(refreshed);
+    handleSelectAlmari(created.id);
+    setIsAddAlmariOpen(false);
+    setNewAlmariCode('');
+    setNewAlmariName('');
+    setToastMessage({
+      type: 'success',
+      text: `Created Manual Almari ${created.code} (${shelfCount} physical shelves).`,
+    });
+  };
+
+  const activeAlmariBooksCount = useMemo(() => {
+    if (!selectedAlmari) return 0;
+    let count = 0;
+    for (let s = 1; s <= (selectedAlmari.shelf_count || 5); s++) {
+      count += (placementMap.byAlmariShelf.get(`${selectedAlmari.id}::${s}`) || []).length;
+    }
+    return count;
+  }, [selectedAlmari, placementMap]);
+
+  return (
+    <div className="space-y-4 pb-16 select-none">
+      {/* Top Toolbar with Live Database Sync HUD (2D View Toggle REMOVED) */}
+      <div className="p-3.5 rounded-2xl bg-white/65 dark:bg-[#140D22]/65 backdrop-blur-2xl border border-[#C8963E]/30 dark:border-white/10 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#541A72] to-[#3B1054] border border-[#FFD147]/50 flex items-center justify-center text-[#FFD147] shadow-sm shrink-0">
+            <Library className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Physical Almari Cupboard &amp; 3D Bookshelf Registry
+              </h2>
+              {/* LIVE DATABASE SYNC HUD */}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <Database className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>DB SYNCED • {activeAlmariBooksCount} VOLS LOCKED IN {selectedAlmari?.code || 'ALMARI'}</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Drag volumes directly between physical shelves. Moving a volume keeps all sibling books locked in place.
+            </p>
+          </div>
+        </div>
+
+        {/* Action Button: Add Almari */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsAddAlmariOpen(true)}
+            className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Add Almari</span>
+          </button>
+        </div>
+      </div>
+
+      {toastMessage && (
+        <div className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between border ${
+          toastMessage.type === 'warning'
+            ? 'bg-amber-500/15 border-amber-500/40 text-amber-900 dark:text-amber-200'
+            : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastMessage.type === 'warning' ? (
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-[11px] underline opacity-80 hover:opacity-100 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left Column: Almari Cupboards List */}
+        <div className="lg:col-span-3 space-y-2.5">
+          <div className="p-3.5 rounded-2xl bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl border border-[#C8963E]/30 dark:border-white/10 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Cupboards ({almaris.length})
+              </span>
+              <span className="text-[11px] font-mono font-bold text-amber-600 dark:text-[#FFD147]">
+                Unassigned: {placementMap.unassigned.length}
+              </span>
+            </div>
+
+            <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1">
+              {almaris.map((almari) => {
+                const isSelected = selectedAlmari?.id === almari.id;
+                const shelfCount = Math.max(1, almari.shelf_count || 5);
+                let allocated = 0;
+                let capacity = 0;
+                for (let s = 1; s <= shelfCount; s++) {
+                  const list = placementMap.byAlmariShelf.get(`${almari.id}::${s}`) || [];
+                  allocated += list.length;
+                  capacity += getShelfCapacity(almari, s);
+                }
+                const ratio = Math.min(100, Math.round((allocated / Math.max(1, capacity)) * 100));
+
+                return (
+                  <div
+                    key={almari.id}
+                    onClick={() => handleSelectAlmari(almari.id)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 text-white border-[#FFD147]/70 shadow-md ring-1 ring-[#FFD147]/50'
+                        : 'bg-white/80 dark:bg-white/[0.04] text-slate-800 dark:text-slate-200 border-slate-200/80 dark:border-white/10 hover:border-[#C8963E]/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="font-mono text-[11px] font-extrabold px-1.5 py-0.2 rounded bg-black/20 text-[#FFD147]">
+                        {almari.code}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold opacity-90">
+                        {allocated} / {capacity} vols
+                      </span>
+                    </div>
+
+                    <p className="font-bold text-xs mt-1 truncate">{almari.name_en}</p>
+                    <p className="text-[10px] opacity-75 flex items-center gap-1 mt-0.5 truncate">
+                      <MapPin className="w-2.5 h-2.5 shrink-0" />
+                      <span>{almari.location_note || 'Main Wing'}</span>
+                    </p>
+
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-black/20 overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${
+                          ratio >= 90 ? 'bg-amber-400' : ratio >= 60 ? 'bg-[#FFD147]' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${ratio}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Draggable Unassigned Queue */}
+          <div className="p-3.5 rounded-2xl bg-white/60 dark:bg-[#140D22]/60 backdrop-blur-2xl border border-[#C8963E]/30 dark:border-white/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Unassigned Queue ({placementMap.unassigned.length})
+              </span>
+              <span className="text-[9px] font-mono text-slate-400">Drag onto shelf</span>
+            </div>
+
+            <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+              {placementMap.unassigned.slice(0, 30).map((b) => {
+                const bookId = b.id || b.barcode;
+                return (
+                  <div
+                    key={bookId}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, bookId)}
+                    className="p-1.5 rounded-lg bg-white/80 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs flex items-center justify-between cursor-grab active:cursor-grabbing hover:border-[#C8963E]/60 shadow-2xs"
+                  >
+                    <div className="min-w-0 pr-1">
+                      <p className="font-bold truncate text-[11px] text-slate-800 dark:text-slate-200">{b.book_name}</p>
+                      <span className="font-mono text-[9px] text-[#C8963E]">#{b.barcode}</span>
+                    </div>
+                    <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  </div>
+                );
+              })}
+              {placementMap.unassigned.length === 0 && (
+                <p className="text-[11px] text-slate-400 text-center py-4">All volumes assigned!</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Pure 3D Physical Bookshelf Cupboard */}
+        <div className="lg:col-span-9 space-y-4">
+          {selectedAlmari ? (
+            <div className="rounded-[24px] bg-gradient-to-b from-[#1C0F2B]/90 via-[#140A20]/95 to-[#0D0517] backdrop-blur-2xl border-2 border-[#C8963E]/45 p-5 shadow-2xl relative overflow-hidden">
+              {/* Plaque Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#C8963E]/30">
+                <div className="flex items-center gap-2.5">
+                  <div className="px-2.5 py-1 rounded-lg bg-[#FFD147]/20 border border-[#FFD147]/50 text-[#FFD147] font-mono font-extrabold text-xs shadow-xs">
+                    {selectedAlmari.code}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-white tracking-wide font-display">
+                      {selectedAlmari.name_en}
+                    </h3>
+                    <p className="text-[11px] text-[#FFD147]/80 flex items-center gap-1 font-mono">
+                      <MapPin className="w-3 h-3 text-[#FFD147]" />
+                      <span>{selectedAlmari.location_note || 'Main Wing'} • {selectedAlmari.shelf_count || 5} Physical Shelves</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Persistent Shelves
+                  </span>
+                  <span className="font-mono text-xs font-bold text-emerald-400">
+                    Moving a volume preserves all sibling books
+                  </span>
+                </div>
+              </div>
+
+              {/* Pure 3D Physical Shelves */}
+              <div className="mt-4 space-y-6">
+                {Array.from({ length: Math.max(1, selectedAlmari.shelf_count || 5) }, (_, idx) => {
+                  const shelfNo = idx + 1;
+                  const shelfBooks = placementMap.byAlmariShelf.get(`${selectedAlmari.id}::${shelfNo}`) || [];
+                  const capacity = getShelfCapacity(selectedAlmari, shelfNo);
+                  const isDropTarget = dragOverShelfNo === shelfNo;
+
+                  return (
+                    <div
+                      key={shelfNo}
+                      onDragOver={(e) => handleDragOver(e, shelfNo)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, shelfNo)}
+                      className={`relative rounded-2xl transition-all duration-200 p-3 ${
+                        isDropTarget
+                          ? 'ring-2 ring-[#FFD147] bg-[#541A72]/30 shadow-[0_0_30px_rgba(255,209,71,0.25)]'
+                          : 'bg-black/25 border border-white/5'
+                      }`}
+                    >
+                      {/* Shelf Bar */}
+                      <div className="flex items-center justify-between pb-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-extrabold text-[#FFD147] px-2 py-0.5 rounded bg-white/10">
+                            SHELF {shelfNo}
+                          </span>
+                          <span className="font-mono text-[11px] text-slate-300">
+                            {shelfBooks.length} / {capacity} Volumes
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>Max:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={capacity}
+                            onChange={(e) =>
+                              handleSetShelfCapacity(
+                                selectedAlmari,
+                                shelfNo,
+                                parseInt(e.target.value, 10) || 25
+                              )
+                            }
+                            className="w-12 h-6 rounded text-center font-mono text-xs bg-black/40 border border-[#C8963E]/40 text-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 3D Spines Container */}
+                      <div className="relative min-h-[145px] flex items-end px-3 pt-4 pb-0 overflow-x-auto gap-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-[#C8963E]/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+                        {shelfBooks.length === 0 ? (
+                          <div className="w-full h-24 flex items-center justify-center text-slate-500 text-xs border border-dashed border-white/10 rounded-xl">
+                            Empty Shelf — Drag books here
+                          </div>
+                        ) : (
+                          shelfBooks.map((book, bIdx) => {
+                            const bookId = book.id || book.barcode;
+                            const palette = SPINE_PALETTES[bIdx % SPINE_PALETTES.length];
+                            const isUrdu = /[\u0600-\u06FF]/.test(book.book_name || '');
+
+                            return (
+                              <div
+                                key={bookId}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, bookId, shelfNo)}
+                                onClick={() => onSelectBook && onSelectBook(book)}
+                                onMouseEnter={() => setHoveredBook(book)}
+                                onMouseLeave={() => setHoveredBook(null)}
+                                className={`group relative h-32 w-8 hover:w-10 rounded-t-[4px] bg-gradient-to-r ${palette.bg} border-t-2 border-r border-l ${palette.border} shadow-lg cursor-grab active:cursor-grabbing hover:-translate-y-3 hover:scale-105 hover:z-30 transition-all duration-150 flex flex-col justify-between p-1 shrink-0 overflow-hidden select-none`}
+                                title={`${book.book_name} (${book.barcode})`}
+                              >
+                                <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-white/20" />
+                                <span className={`text-[6px] font-mono font-bold tracking-widest text-center ${palette.text} uppercase`}>
+                                  ULM
+                                </span>
+                                <div className="flex-1 flex items-center justify-center overflow-hidden py-1">
+                                  <span
+                                    className={`text-[9px] font-bold text-white tracking-wider truncate [writing-mode:vertical-rl] rotate-180 max-h-20 ${
+                                      isUrdu ? 'font-serif text-[10px]' : ''
+                                    }`}
+                                  >
+                                    {book.book_name}
+                                  </span>
+                                </div>
+                                <div className="w-full py-0.5 rounded-[2px] bg-white text-slate-950 font-mono text-[6.5px] font-extrabold text-center shadow-xs">
+                                  {String(book.barcode).slice(-4)}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Wooden Shelf Beam */}
+                      <div className="h-3 w-full rounded bg-gradient-to-r from-[#9A6B24] via-[#FFD147] to-[#8C5D19] border-t border-white/40 shadow-[0_4px_12px_rgba(0,0,0,0.6)] relative z-10" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Hover Inspection Bar */}
+              {hoveredBook && (
+                <div className="mt-4 p-3 rounded-xl bg-[#0F0819]/90 border border-[#FFD147]/40 flex items-center justify-between text-xs animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-3">
+                    <BookMarked className="w-4 h-4 text-[#FFD147]" />
+                    <div>
+                      <p className="font-bold text-white">{hoveredBook.book_name}</p>
+                      <p className="text-[11px] text-[#FFD147]/80 font-mono">
+                        Barcode: #{hoveredBook.barcode} • Author: {hoveredBook.author || 'Unknown'} • Category: {hoveredBook.category || 'General'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                    Click to inspect
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Modal: Add Almari */}
+      {isAddAlmariOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateManualAlmari}
+            className="w-full max-w-md rounded-2xl bg-[#140D22] border border-[#C8963E]/60 p-5 space-y-4 shadow-2xl text-white"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-base font-extrabold text-[#FFD147]">
+                Add New Physical Almari Cupboard
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddAlmariOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Almari Code</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ALM-CS-02"
+                  value={newAlmariCode}
+                  onChange={(e) => setNewAlmariCode(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/15"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Cupboard Title / Department</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. AI & Robotics Research Cupboard"
+                  value={newAlmariName}
+                  onChange={(e) => setNewAlmariName(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/15"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Physical Location / Wing</label>
+                <input
+                  type="text"
+                  value={newAlmariWing}
+                  onChange={(e) => setNewAlmariWing(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/15"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold mb-1">Physical Shelves</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={newAlmariShelves}
+                    onChange={(e) => setNewAlmariShelves(parseInt(e.target.value, 10) || 5)}
+                    className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/15"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Capacity per Shelf</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={newAlmariShelfCap}
+                    onChange={(e) => setNewAlmariShelfCap(parseInt(e.target.value, 10) || 25)}
+                    className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/15"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsAddAlmariOpen(false)}
+                className="h-9 px-4 rounded-xl text-xs font-semibold border border-white/15"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] text-white"
+              >
+                Create Cupboard
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AlmariView;
+
+
+✅ 30-SECOND VERIFICATION CHECKLIST
+
+Pure 3D UI: Confirm that the [ 📚 3D Bookshelf | 🗂️ 2D Cards ] buttons are gone. The Almari view now displays only the physical 3D bookshelf.
+
+Move 1 Book: Drag 1 book from Shelf 1 to Shelf 2.
+
+Verify that all other 13 or 14 books remain on Shelf 1.
+
+Verify that Shelf 2 now contains the moved book.
+
+Persist Across Refreshes: Press F5 / Ctrl+F5. All books remain locked in their shelves with zero data loss.
+

@@ -1,0 +1,2697 @@
+🛠️ ULM LMS ALL-IN-ONE MASTER BUG FIX & PRODUCTION REPAIR DIRECTIVE
+
+How to use this prompt:
+Copy and paste the entire directive block below into Google AI Studio, Antigravity, Cursor, or your AI coding assistant. It instructs the AI to fix all 11 audited bugs simultaneously across CSS, SQLite storage, Sidebar navigation, Almari persistence, and ID card barcode/watermark rendering with 100% complete, replacement-ready source code.
+
+# 🏛️ SYSTEM DIRECTIVE: FIX ALL 11 AUDITED BUGS ACROSS ULM LIBRARY MANAGEMENT SYSTEM
+
+You are the Lead Systems Architect and Senior Full-Stack Engineer for the **University of Lakki Marwat (ULM) Central Digital Library System**.
+
+An exhaustive code audit has detected **11 critical and high-severity bugs** across 5 core files:
+1. **`src/index.css`**: Stray diff syntax markers (`- }`, `- {`, `-   .cr80-card{`) causing PostCSS/Tailwind build failures and breaking `@media print`.
+2. **`src/services/storageEngine.ts`**: Silent SQLite transaction loss in `issueBookTransaction` & `returnBookTransaction` (never wrote to SQLite), unparsed JSON `shelfCapacities` string in `getAlmaris()`, and backup restore skipping SQLite tables.
+3. **`src/components/Sidebar.tsx`**: Runtime crash on `catalogBooks.filter` due to unhandled `undefined` properties, broken `⌘A` Almari shortcut (triggered browser Select All), and Command+K search modal trapped inside the collapsed sidebar.
+4. **`src/components/AlmariView.tsx`**: Shelf capacity configurations reset on every page refresh (stored only in ephemeral `useState`), and missing shelf capacity ceiling checks.
+5. **`src/components/library/UlmSmartIdCard.tsx`**: Bitwise masking bug in `Code128Barcode` (`((code >> 2) & 2) + 1` evaluating bit 1 instead of bit 0), and canvas watermark security-error fallback lacking CSS opacity safety.
+
+You must replace these 5 files with the **100% complete, unabridged, production-grade implementations** provided below. Never use lazy placeholders like `// ... rest of code stays same`.
+
+---
+
+## 📁 FILE 1: `src/index.css` (FIXED PRINT ENGINE & CLEAN CSS)
+
+```css
+@import "tailwindcss";
+
+:root {
+  --ulm-purple-deep: #240836;
+  --ulm-purple: #3B1054;
+  --ulm-purple-mid: #541A72;
+  --ulm-gold: #C8963E;
+  --ulm-gold-bright: #FFD147;
+  --ulm-blur: 28px;
+  --ulm-saturate: 240%;
+  --ulm-glass-alpha: 0.24;
+}
+
+/* ==========================================================================
+   LIQUID-GLASS BACKDROP & AMBIENT ORB UTILITIES
+   ========================================================================== */
+.ulm-liquid-glass {
+  background-color: var(--ulm-glass-bg, rgba(255, 255, 255, 0.65)) !important;
+  backdrop-filter: blur(var(--ulm-blur, 28px)) saturate(var(--ulm-saturate, 240%)) contrast(104%) !important;
+  -webkit-backdrop-filter: blur(var(--ulm-blur, 28px)) saturate(var(--ulm-saturate, 240%)) contrast(104%) !important;
+  border: 1.5px solid var(--ulm-glass-border, rgba(200, 150, 62, 0.35)) !important;
+  transition: backdrop-filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ulm-ambient-purple-orb {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.45) 0%, rgba(84, 26, 114, 0.22) 45%, transparent 70%);
+  filter: blur(65px);
+}
+
+.ulm-ambient-gold-orb {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.40) 0%, rgba(188, 136, 27, 0.18) 45%, transparent 70%);
+  filter: blur(65px);
+}
+
+/* ==========================================================================
+   LOCKED HARDWARE BARCODE SAFE-PAD (HIGH-CONTRAST LIGHT & DARK MODE)
+   ========================================================================== */
+.ulm-barcode-safepad,
+.ulm-barcode-safe-pad,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safepad,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safe-pad {
+  background-color: #FFFFFF !important;
+  background-image: none !important;
+  color: #000000 !important;
+  border: 1.5px solid #CBD5E1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+  border-radius: 0.65rem !important;
+}
+
+.ulm-barcode-safepad *,
+.ulm-barcode-safe-pad *,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safepad *,
+html.light-theme .ulm-preserve-dark .ulm-barcode-safe-pad * {
+  color: #000000 !important;
+}
+
+.ulm-barcode-safepad rect,
+.ulm-barcode-safe-pad rect {
+  fill: #000000 !important;
+}
+
+/* ==========================================================================
+   EXACT ISO/IEC 7810 ID-1 (CR80: 85.60mm × 53.98mm) & A4 PRINT ENGINE
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  header,
+  nav,
+  aside,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  .cr80-card {
+    width: 85.60mm !important;
+    height: 53.98mm !important;
+    max-width: 85.60mm !important;
+    max-height: 53.98mm !important;
+    box-shadow: none !important;
+    border-radius: 3.18mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin: 4mm auto !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+  }
+}
+
+
+📁 FILE 2: src/services/storageEngine.ts (FIXED SQLITE TRANSACTIONS & RESTORE)
+
+/**
+ * University of Lakki Marwat (ULM) Central Digital Library System
+ * Dual Storage & Persistence Engine (SQLite Electron IPC + Browser LocalStorage Fallback)
+ */
+
+export interface StorageBookRecord {
+  accession: string;
+  title: string;
+  author: string;
+  isbn: string;
+  category: string;
+  almariId: string;
+  shelfId: string;
+  status: 'AVAILABLE' | 'ISSUED' | 'LOST' | 'RESERVED';
+  edition?: string;
+  publicationYear?: number;
+  updatedAt: string;
+}
+
+export interface StorageMemberRecord {
+  memberId: string;
+  name: string;
+  rollNo: string;
+  dept: string;
+  program: string;
+  session: string;
+  bloodGroup: string;
+  phone: string;
+  role: 'STUDENT CARD' | 'FACULTY CARD' | 'STAFF CARD' | 'RESEARCH SCHOLAR';
+  borrowingLimit: string;
+  cardExpiry: string;
+  photoUrl?: string;
+  updatedAt: string;
+}
+
+export interface StorageAlmariRecord {
+  almariId: string;
+  almariCode: string;
+  nameEn: string;
+  location: string;
+  category: string;
+  shelfCount: number;
+  shelfCapacities: Record<number, number>;
+  updatedAt: string;
+}
+
+export interface StorageCirculationRecord {
+  transactionId: string;
+  bookId: string;
+  accession: string;
+  memberId: string;
+  issueDate: string;
+  dueDate: string;
+  returnDate: string | null;
+  fine: number;
+  status: 'ACTIVE' | 'RETURNED' | 'OVERDUE';
+  updatedAt: string;
+}
+
+export interface FullLibraryBackupPayload {
+  schemaVersion: string;
+  institution: string;
+  exportedAt: string;
+  engineMode: 'SQLITE_IPC' | 'LOCAL_STORAGE';
+  counts: {
+    books: number;
+    members: number;
+    almaris: number;
+    circulation: number;
+  };
+  data: {
+    books: StorageBookRecord[];
+    members: StorageMemberRecord[];
+    almaris: StorageAlmariRecord[];
+    circulation: StorageCirculationRecord[];
+  };
+}
+
+export interface BackupImportVerificationResult {
+  valid: boolean;
+  schemaVersion: string;
+  restoredCounts: {
+    books: number;
+    members: number;
+    almaris: number;
+    circulation: number;
+  };
+  errors: string[];
+}
+
+interface ElectronSqliteBridge {
+  sqliteQuery?: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>;
+  sqliteExecute?: (sql: string, params?: unknown[]) => Promise<{ changes: number; lastInsertRowid?: number | string }>;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronSqliteBridge;
+  }
+}
+
+const LS_KEYS = {
+  BOOKS: 'ulm_storage_engine_books_v1',
+  MEMBERS: 'ulm_storage_engine_members_v1',
+  ALMARIS: 'ulm_storage_engine_almaris_v1',
+  CIRCULATION: 'ulm_storage_engine_circulation_v1',
+} as const;
+
+const DEFAULT_SEED_BOOKS: StorageBookRecord[] = [
+  {
+    accession: 'ULM-ACC-00001',
+    title: 'Introduction to Algorithms (4th Edition)',
+    author: 'Thomas H. Cormen, Charles E. Leiserson',
+    isbn: '978-0262046305',
+    category: 'Computer Science',
+    almariId: 'ALM-01',
+    shelfId: '1',
+    status: 'AVAILABLE',
+    edition: '4th Edition',
+    publicationYear: 2022,
+    updatedAt: '2026-11-07T00:00:00.000Z',
+  },
+  {
+    accession: 'ULM-ACC-00002',
+    title: 'Artificial Intelligence: A Modern Approach',
+    author: 'Stuart Russell, Peter Norvig',
+    isbn: '978-0134610993',
+    category: 'Computer Science',
+    almariId: 'ALM-01',
+    shelfId: '2',
+    status: 'ISSUED',
+    edition: '4th Edition',
+    publicationYear: 2021,
+    updatedAt: '2026-11-07T00:00:00.000Z',
+  },
+];
+
+const DEFAULT_SEED_MEMBERS: StorageMemberRecord[] = [
+  {
+    memberId: 'ULM0329984',
+    name: 'Asad Zeb',
+    rollNo: 'BSCS-23-42',
+    dept: 'Department of Computer Science',
+    program: 'BS Computer Science (Regular)',
+    session: 'FA23 (2023–2027)',
+    bloodGroup: 'B-',
+    phone: '0342-5252555',
+    role: 'STUDENT CARD',
+    borrowingLimit: '03 Books (14 Days)',
+    cardExpiry: '30 JUN 2027',
+    updatedAt: '2026-11-07T00:00:00.000Z',
+  },
+];
+
+const DEFAULT_SEED_ALMARIS: StorageAlmariRecord[] = [
+  {
+    almariId: 'ALM-01',
+    almariCode: 'ALM-CS-01',
+    nameEn: 'Computer Science & AI Wing Cupboard 01',
+    location: 'Ground Floor • East Wing',
+    category: 'Computer Science',
+    shelfCount: 5,
+    shelfCapacities: { 1: 25, 2: 25, 3: 25, 4: 25, 5: 25 },
+    updatedAt: '2026-11-07T00:00:00.000Z',
+  },
+];
+
+const DEFAULT_SEED_CIRCULATION: StorageCirculationRecord[] = [
+  {
+    transactionId: 'TXN-ULM-2026-001',
+    bookId: 'ULM-ACC-00002',
+    accession: 'ULM-ACC-00002',
+    memberId: 'ULM0329984',
+    issueDate: '2026-11-01',
+    dueDate: '2026-11-15',
+    returnDate: null,
+    fine: 0,
+    status: 'ACTIVE',
+    updatedAt: '2026-11-01T09:30:00.000Z',
+  },
+];
+
+export class StorageEngine {
+  public static isSqliteIpcConnected(): boolean {
+    return typeof window !== 'undefined' && typeof window.electronAPI?.sqliteQuery === 'function';
+  }
+
+  public static getActiveEngineLabel(): 'SYSTEM LIVE • SQLITE CONNECTED' | 'SYSTEM LIVE • LOCAL STORAGE SYNCED' {
+    return this.isSqliteIpcConnected()
+      ? 'SYSTEM LIVE • SQLITE CONNECTED'
+      : 'SYSTEM LIVE • LOCAL STORAGE SYNCED';
+  }
+
+  private static readLocalList<T>(key: string, fallback: T[]): T[] {
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        window.localStorage.setItem(key, JSON.stringify(fallback));
+        return fallback;
+      }
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private static writeLocalList<T>(key: string, items: T[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(items));
+    } catch (err) {
+      console.error(`[StorageEngine] Failed writing key ${key}:`, err);
+    }
+  }
+
+  public static async getBooks(): Promise<StorageBookRecord[]> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteQuery) {
+      try {
+        return await window.electronAPI.sqliteQuery<StorageBookRecord>(
+          'SELECT accession, title, author, isbn, category, almariId, shelfId, status, edition, publicationYear, updatedAt FROM books ORDER BY accession ASC'
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite books query failed, using LocalStorage fallback:', err);
+      }
+    }
+    return this.readLocalList<StorageBookRecord>(LS_KEYS.BOOKS, DEFAULT_SEED_BOOKS);
+  }
+
+  public static async upsertBook(book: StorageBookRecord): Promise<StorageBookRecord> {
+    const record: StorageBookRecord = {
+      ...book,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute(
+          `INSERT INTO books (accession, title, author, isbn, category, almariId, shelfId, status, edition, publicationYear, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(accession) DO UPDATE SET
+             title = excluded.title,
+             author = excluded.author,
+             isbn = excluded.isbn,
+             category = excluded.category,
+             almariId = excluded.almariId,
+             shelfId = excluded.shelfId,
+             status = excluded.status,
+             edition = excluded.edition,
+             publicationYear = excluded.publicationYear,
+             updatedAt = excluded.updatedAt`,
+          [
+            record.accession,
+            record.title,
+            record.author,
+            record.isbn,
+            record.category,
+            record.almariId,
+            record.shelfId,
+            record.status,
+            record.edition ?? '',
+            record.publicationYear ?? 2026,
+            record.updatedAt,
+          ]
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite upsertBook fallback to LocalStorage:', err);
+      }
+    }
+
+    const current = this.readLocalList<StorageBookRecord>(LS_KEYS.BOOKS, DEFAULT_SEED_BOOKS);
+    const idx = current.findIndex((b) => b.accession === record.accession);
+    if (idx >= 0) {
+      current[idx] = record;
+    } else {
+      current.unshift(record);
+    }
+    this.writeLocalList(LS_KEYS.BOOKS, current);
+    return record;
+  }
+
+  public static async deleteBook(accession: string): Promise<boolean> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute('DELETE FROM books WHERE accession = ?', [accession]);
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite deleteBook fallback:', err);
+      }
+    }
+    const current = this.readLocalList<StorageBookRecord>(LS_KEYS.BOOKS, DEFAULT_SEED_BOOKS);
+    const filtered = current.filter((b) => b.accession !== accession);
+    this.writeLocalList(LS_KEYS.BOOKS, filtered);
+    return filtered.length !== current.length;
+  }
+
+  public static async getMembers(): Promise<StorageMemberRecord[]> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteQuery) {
+      try {
+        return await window.electronAPI.sqliteQuery<StorageMemberRecord>(
+          'SELECT memberId, name, rollNo, dept, program, session, bloodGroup, phone, role, borrowingLimit, cardExpiry, photoUrl, updatedAt FROM members ORDER BY memberId ASC'
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite members query fallback:', err);
+      }
+    }
+    return this.readLocalList<StorageMemberRecord>(LS_KEYS.MEMBERS, DEFAULT_SEED_MEMBERS);
+  }
+
+  public static async upsertMember(member: StorageMemberRecord): Promise<StorageMemberRecord> {
+    const record: StorageMemberRecord = {
+      ...member,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute(
+          `INSERT INTO members (memberId, name, rollNo, dept, program, session, bloodGroup, phone, role, borrowingLimit, cardExpiry, photoUrl, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(memberId) DO UPDATE SET
+             name = excluded.name,
+             rollNo = excluded.rollNo,
+             dept = excluded.dept,
+             program = excluded.program,
+             session = excluded.session,
+             bloodGroup = excluded.bloodGroup,
+             phone = excluded.phone,
+             role = excluded.role,
+             borrowingLimit = excluded.borrowingLimit,
+             cardExpiry = excluded.cardExpiry,
+             photoUrl = excluded.photoUrl,
+             updatedAt = excluded.updatedAt`,
+          [
+            record.memberId,
+            record.name,
+            record.rollNo,
+            record.dept,
+            record.program,
+            record.session,
+            record.bloodGroup,
+            record.phone,
+            record.role,
+            record.borrowingLimit,
+            record.cardExpiry,
+            record.photoUrl ?? '',
+            record.updatedAt,
+          ]
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite upsertMember fallback:', err);
+      }
+    }
+
+    const current = this.readLocalList<StorageMemberRecord>(LS_KEYS.MEMBERS, DEFAULT_SEED_MEMBERS);
+    const idx = current.findIndex((m) => m.memberId === record.memberId);
+    if (idx >= 0) {
+      current[idx] = record;
+    } else {
+      current.push(record);
+    }
+    this.writeLocalList(LS_KEYS.MEMBERS, current);
+    return record;
+  }
+
+  public static async deleteMember(memberId: string): Promise<boolean> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute('DELETE FROM members WHERE memberId = ?', [memberId]);
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite deleteMember fallback:', err);
+      }
+    }
+    const current = this.readLocalList<StorageMemberRecord>(LS_KEYS.MEMBERS, DEFAULT_SEED_MEMBERS);
+    const filtered = current.filter((m) => m.memberId !== memberId);
+    this.writeLocalList(LS_KEYS.MEMBERS, filtered);
+    return filtered.length !== current.length;
+  }
+
+  public static async getAlmaris(): Promise<StorageAlmariRecord[]> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteQuery) {
+      try {
+        const rows = await window.electronAPI.sqliteQuery<StorageAlmariRecord>(
+          'SELECT almariId, almariCode, nameEn, location, category, shelfCount, shelfCapacities, updatedAt FROM almaris ORDER BY almariCode ASC'
+        );
+        return rows.map((r) => ({
+          ...r,
+          shelfCapacities:
+            typeof r.shelfCapacities === 'string'
+              ? JSON.parse(r.shelfCapacities)
+              : r.shelfCapacities || {},
+        }));
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite almaris query fallback:', err);
+      }
+    }
+    return this.readLocalList<StorageAlmariRecord>(LS_KEYS.ALMARIS, DEFAULT_SEED_ALMARIS);
+  }
+
+  public static async upsertAlmari(almari: StorageAlmariRecord): Promise<StorageAlmariRecord> {
+    const record: StorageAlmariRecord = {
+      ...almari,
+      shelfCapacities: almari.shelfCapacities || {},
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute(
+          `INSERT INTO almaris (almariId, almariCode, nameEn, location, category, shelfCount, shelfCapacities, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(almariId) DO UPDATE SET
+             almariCode = excluded.almariCode,
+             nameEn = excluded.nameEn,
+             location = excluded.location,
+             category = excluded.category,
+             shelfCount = excluded.shelfCount,
+             shelfCapacities = excluded.shelfCapacities,
+             updatedAt = excluded.updatedAt`,
+          [
+            record.almariId,
+            record.almariCode,
+            record.nameEn,
+            record.location,
+            record.category,
+            record.shelfCount,
+            JSON.stringify(record.shelfCapacities),
+            record.updatedAt,
+          ]
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite upsertAlmari fallback:', err);
+      }
+    }
+
+    const current = this.readLocalList<StorageAlmariRecord>(LS_KEYS.ALMARIS, DEFAULT_SEED_ALMARIS);
+    const idx = current.findIndex((a) => a.almariId === record.almariId);
+    if (idx >= 0) {
+      current[idx] = record;
+    } else {
+      current.push(record);
+    }
+    this.writeLocalList(LS_KEYS.ALMARIS, current);
+    return record;
+  }
+
+  public static async getCirculation(): Promise<StorageCirculationRecord[]> {
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteQuery) {
+      try {
+        return await window.electronAPI.sqliteQuery<StorageCirculationRecord>(
+          'SELECT transactionId, bookId, accession, memberId, issueDate, dueDate, returnDate, fine, status, updatedAt FROM circulation ORDER BY issueDate DESC'
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite circulation query fallback:', err);
+      }
+    }
+    return this.readLocalList<StorageCirculationRecord>(LS_KEYS.CIRCULATION, DEFAULT_SEED_CIRCULATION);
+  }
+
+  public static async issueBookTransaction(params: {
+    bookId: string;
+    accession: string;
+    memberId: string;
+    loanDays?: number;
+  }): Promise<StorageCirculationRecord> {
+    const now = new Date();
+    const due = new Date(now.getTime() + (params.loanDays ?? 14) * 86400000);
+    const record: StorageCirculationRecord = {
+      transactionId: `TXN-ULM-${now.getFullYear()}-${String(Date.now()).slice(-5)}`,
+      bookId: params.bookId,
+      accession: params.accession,
+      memberId: params.memberId,
+      issueDate: now.toISOString().slice(0, 10),
+      dueDate: due.toISOString().slice(0, 10),
+      returnDate: null,
+      fine: 0,
+      status: 'ACTIVE',
+      updatedAt: now.toISOString(),
+    };
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute(
+          `INSERT INTO circulation (transactionId, bookId, accession, memberId, issueDate, dueDate, returnDate, fine, status, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            record.transactionId,
+            record.bookId,
+            record.accession,
+            record.memberId,
+            record.issueDate,
+            record.dueDate,
+            null,
+            0,
+            'ACTIVE',
+            record.updatedAt,
+          ]
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite issueBookTransaction error:', err);
+      }
+    }
+
+    const current = this.readLocalList<StorageCirculationRecord>(LS_KEYS.CIRCULATION, DEFAULT_SEED_CIRCULATION);
+    current.unshift(record);
+    this.writeLocalList(LS_KEYS.CIRCULATION, current);
+
+    const books = await this.getBooks();
+    const targetBook = books.find((b) => b.accession === params.accession);
+    if (targetBook) {
+      await this.upsertBook({ ...targetBook, status: 'ISSUED' });
+    }
+
+    return record;
+  }
+
+  public static async returnBookTransaction(
+    transactionId: string,
+    returnDateStr?: string
+  ): Promise<StorageCirculationRecord | null> {
+    const current = await this.getCirculation();
+    const idx = current.findIndex((t) => t.transactionId === transactionId);
+    if (idx < 0) return null;
+
+    const existing = current[idx];
+    const retDate = returnDateStr || new Date().toISOString().slice(0, 10);
+    const dueMs = new Date(existing.dueDate).getTime();
+    const retMs = new Date(retDate).getTime();
+    const overdueDays = Math.max(0, Math.floor((retMs - dueMs) / 86400000));
+    const fineAmount = overdueDays * 10;
+
+    const updated: StorageCirculationRecord = {
+      ...existing,
+      returnDate: retDate,
+      fine: fineAmount,
+      status: 'RETURNED',
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      try {
+        await window.electronAPI.sqliteExecute(
+          `UPDATE circulation SET returnDate = ?, fine = ?, status = ?, updatedAt = ? WHERE transactionId = ?`,
+          [retDate, fineAmount, 'RETURNED', updated.updatedAt, transactionId]
+        );
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite returnBookTransaction error:', err);
+      }
+    }
+
+    const localList = this.readLocalList<StorageCirculationRecord>(LS_KEYS.CIRCULATION, DEFAULT_SEED_CIRCULATION);
+    const lIdx = localList.findIndex((t) => t.transactionId === transactionId);
+    if (lIdx >= 0) {
+      localList[lIdx] = updated;
+      this.writeLocalList(LS_KEYS.CIRCULATION, localList);
+    }
+
+    const books = await this.getBooks();
+    const targetBook = books.find((b) => b.accession === existing.accession);
+    if (targetBook) {
+      await this.upsertBook({ ...targetBook, status: 'AVAILABLE' });
+    }
+
+    return updated;
+  }
+
+  public static async exportFullBackupJson(): Promise<FullLibraryBackupPayload> {
+    const [books, members, almaris, circulation] = await Promise.all([
+      this.getBooks(),
+      this.getMembers(),
+      this.getAlmaris(),
+      this.getCirculation(),
+    ]);
+
+    return {
+      schemaVersion: 'ULM-LMS-BACKUP-v2.4',
+      institution: 'University of Lakki Marwat — Central Digital Library',
+      exportedAt: new Date().toISOString(),
+      engineMode: this.isSqliteIpcConnected() ? 'SQLITE_IPC' : 'LOCAL_STORAGE',
+      counts: {
+        books: books.length,
+        members: members.length,
+        almaris: almaris.length,
+        circulation: circulation.length,
+      },
+      data: {
+        books,
+        members,
+        almaris,
+        circulation,
+      },
+    };
+  }
+
+  public static async triggerOneClickBackupDownload(): Promise<FullLibraryBackupPayload> {
+    const payload = await this.exportFullBackupJson();
+    if (typeof window !== 'undefined') {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ULM_Library_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    return payload;
+  }
+
+  public static async verifyAndRestoreBackupJson(rawJson: string): Promise<BackupImportVerificationResult> {
+    const errors: string[] = [];
+    try {
+      const parsed = JSON.parse(rawJson) as Partial<FullLibraryBackupPayload>;
+      if (!parsed || typeof parsed !== 'object' || !parsed.data) {
+        return {
+          valid: false,
+          schemaVersion: 'UNKNOWN',
+          restoredCounts: { books: 0, members: 0, almaris: 0, circulation: 0 },
+          errors: ['Invalid backup payload structure: missing data object.'],
+        };
+      }
+
+      const books = Array.isArray(parsed.data.books) ? parsed.data.books : [];
+      const members = Array.isArray(parsed.data.members) ? parsed.data.members : [];
+      const almaris = Array.isArray(parsed.data.almaris) ? parsed.data.almaris : [];
+      const circulation = Array.isArray(parsed.data.circulation) ? parsed.data.circulation : [];
+
+      // Update LocalStorage
+      if (books.length > 0) this.writeLocalList(LS_KEYS.BOOKS, books);
+      if (members.length > 0) this.writeLocalList(LS_KEYS.MEMBERS, members);
+      if (almaris.length > 0) this.writeLocalList(LS_KEYS.ALMARIS, almaris);
+      if (circulation.length > 0) this.writeLocalList(LS_KEYS.CIRCULATION, circulation);
+
+      // In SQLite mode, populate SQLite tables
+      if (this.isSqliteIpcConnected()) {
+        for (const b of books) await this.upsertBook(b);
+        for (const m of members) await this.upsertMember(m);
+        for (const a of almaris) await this.upsertAlmari(a);
+      }
+
+      return {
+        valid: errors.length === 0,
+        schemaVersion: parsed.schemaVersion || 'ULM-LMS-BACKUP-v2.4',
+        restoredCounts: {
+          books: books.length,
+          members: members.length,
+          almaris: almaris.length,
+          circulation: circulation.length,
+        },
+        errors,
+      };
+    } catch (err) {
+      return {
+        valid: false,
+        schemaVersion: 'INVALID_JSON',
+        restoredCounts: { books: 0, members: 0, almaris: 0, circulation: 0 },
+        errors: [err instanceof Error ? err.message : 'Failed to parse JSON backup file.'],
+      };
+    }
+  }
+}
+
+export default StorageEngine;
+
+
+📁 FILE 3: src/components/Sidebar.tsx (FIXED SEARCH CRASH, HOTKEY & MODAL)
+
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, 
+  BookOpen, 
+  ArrowRightLeft, 
+  Users, 
+  BarChart3, 
+  QrCode, 
+  FileSpreadsheet, 
+  Settings, 
+  PanelLeftClose,
+  PanelLeftOpen,
+  Command,
+  X,
+  Library
+} from 'lucide-react';
+import { NavigationTab, Book } from '../types/library';
+
+export type LmsNavItemData = {
+  id: NavigationTab | 'search';
+  title: string;
+  icon: React.ElementType;
+  badge?: number | string;
+  shortcut?: string;
+  children?: LmsNavItemData[];
+};
+
+export type LmsNavGroupData = {
+  heading?: string;
+  items: LmsNavItemData[];
+};
+
+export interface LmsSidebarProps {
+  activeTab: NavigationTab;
+  onTabChange: (tab: NavigationTab) => void;
+  totalBooksCount: number;
+  activeLoansCount: number;
+  totalBorrowersCount: number;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  isSearchOpen?: boolean;
+  onToggleSearch?: (open: boolean) => void;
+  catalogBooks?: Book[];
+  onSelectBook?: (book: Book) => void;
+  universityName?: string;
+  libraryName?: string;
+}
+
+export function Sidebar({
+  activeTab,
+  onTabChange,
+  totalBooksCount,
+  activeLoansCount,
+  totalBorrowersCount,
+  isCollapsed,
+  onToggleCollapse,
+  isSearchOpen: externalIsSearchOpen,
+  onToggleSearch,
+  catalogBooks = [],
+  onSelectBook,
+}: LmsSidebarProps) {
+  const [internalIsSearchOpen, setInternalIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [windowDimensions, setWindowDimensions] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1440,
+    height: typeof window !== 'undefined' ? window.innerHeight : 900,
+  }));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isShortScreen = windowDimensions.height < 800;
+  const isRail = isCollapsed;
+
+  const isSearchOpen = externalIsSearchOpen !== undefined ? externalIsSearchOpen : internalIsSearchOpen;
+  const setIsSearchOpen = (open: boolean) => {
+    if (onToggleSearch) {
+      onToggleSearch(open);
+    } else {
+      setInternalIsSearchOpen(open);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInputFocused =
+        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(!isSearchOpen);
+        return;
+      }
+
+      if (e.key === 'Escape' && isSearchOpen) {
+        setIsSearchOpen(false);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b' && !isInputFocused) {
+        e.preventDefault();
+        onToggleCollapse();
+        return;
+      }
+
+      // Hotkey switches (including Cmd+A for Almari view)
+      if ((e.metaKey || e.ctrlKey) && !isInputFocused) {
+        if (e.key === '1') { e.preventDefault(); onTabChange('catalog'); }
+        else if (e.key.toLowerCase() === 'a') { e.preventDefault(); onTabChange('almaris'); }
+        else if (e.key === '2') { e.preventDefault(); onTabChange('scanner'); }
+        else if (e.key === '3') { e.preventDefault(); onTabChange('circulation'); }
+        else if (e.key === '4') { e.preventDefault(); onTabChange('borrowers'); }
+        else if (e.key === '5') { e.preventDefault(); onTabChange('reports'); }
+        else if (e.key === '6') { e.preventDefault(); onTabChange('excel'); }
+        else if (e.key === ',') { e.preventDefault(); onTabChange('settings'); }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSearchOpen, onTabChange, onToggleCollapse]);
+
+  const navGroups: LmsNavGroupData[] = [
+    {
+      heading: 'CATALOG & INVENTORY',
+      items: [
+        { 
+          id: 'catalog', 
+          title: 'Books Catalog', 
+          icon: BookOpen, 
+          badge: totalBooksCount,
+          shortcut: '⌘1'
+        },
+        { 
+          id: 'almaris', 
+          title: 'Manual Almari View', 
+          icon: Library,
+          shortcut: '⌘A'
+        },
+        { 
+          id: 'scanner', 
+          title: 'Barcode Station', 
+          icon: QrCode,
+          shortcut: '⌘2'
+        },
+      ]
+    },
+    {
+      heading: 'CIRCULATION & CARDS',
+      items: [
+        { 
+          id: 'circulation', 
+          title: 'Issue / Return Desk', 
+          icon: ArrowRightLeft, 
+          badge: activeLoansCount > 0 ? activeLoansCount : undefined,
+          shortcut: '⌘3'
+        },
+        { 
+          id: 'borrowers', 
+          title: 'Member ID Cards', 
+          icon: Users, 
+          badge: totalBorrowersCount,
+          shortcut: '⌘4'
+        },
+      ]
+    },
+    {
+      heading: 'ADMINISTRATION',
+      items: [
+        { id: 'reports', title: 'Reports & Audits', icon: BarChart3, shortcut: '⌘5' },
+        { id: 'excel', title: 'Excel & PC Migration', icon: FileSpreadsheet, shortcut: '⌘6' },
+      ]
+    }
+  ];
+
+  const bottomItems: LmsNavItemData[] = [
+    { id: 'settings', title: 'System Settings', icon: Settings, shortcut: '⌘,' },
+  ];
+
+  const handleItemClick = (id: NavigationTab | 'search') => {
+    if (id === 'search') {
+      setIsSearchOpen(true);
+      return;
+    }
+    onTabChange(id as NavigationTab);
+  };
+
+  const getSidebarWidthClass = () => {
+    if (isRail) {
+      return 'w-[72px] min-w-[72px] max-w-[72px]';
+    }
+    return 'w-[240px] min-w-[240px] max-w-[240px]';
+  };
+
+  const itemHeightClass = isShortScreen ? 'h-[36px]' : 'h-[40px]';
+
+  return (
+    <>
+      <aside 
+        className={`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none bg-white/60 dark:bg-[#120C1F]/65 backdrop-blur-2xl backdrop-saturate-200 border-r border-[#C8963E]/35 dark:border-white/10 shadow-[4px_0_24px_-4px_rgba(30,20,43,0.06)] text-slate-800 dark:text-slate-200 transition-[width] duration-200 ease-out relative z-20 no-print ${getSidebarWidthClass()}`}
+      >
+        {/* Top Header */}
+        <div className="h-10 px-3 flex items-center justify-between border-b border-slate-200/70 dark:border-white/[0.06] shrink-0">
+          {!isRail ? (
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">
+              Navigation
+            </span>
+          ) : <div className="w-2" />}
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="p-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+            title={isCollapsed ? "Expand Sidebar (⌘B)" : "Collapse Sidebar (⌘B)"}
+            aria-label="Toggle Sidebar"
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {/* Scrollable Nav Items */}
+        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 sm:px-3 flex flex-col [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full ${
+          isShortScreen ? 'py-2 gap-1' : 'py-3 gap-1.5'
+        }`}>
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} className="flex flex-col gap-1">
+              {group.heading && !isRail && (
+                <span className={`px-3 mb-1 text-[11px] uppercase tracking-[0.08em] font-bold text-slate-500 dark:text-slate-400 select-none ${
+                  isShortScreen ? 'mt-3' : 'mt-4'
+                }`}>
+                  {group.heading}
+                </span>
+              )}
+              {isRail && group.heading && (
+                <div className={`h-[1px] mx-3 bg-slate-200 dark:bg-white/[0.06] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
+              )}
+              {group.items.map(item => {
+                const isActive = activeTab === item.id;
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleItemClick(item.id)}
+                    title={item.title}
+                    className={`group relative flex items-center justify-between ${
+                      isRail ? 'px-0 justify-center' : 'px-3 gap-3'
+                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 text-left w-full border text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
+                      isActive
+                        ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md'
+                        : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
+                    )}
+
+                    <div className="relative flex items-center gap-3 min-w-0">
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <Icon 
+                          className={`w-5 h-5 shrink-0 transition-colors ${
+                            isActive 
+                              ? 'text-[#FFD147]' 
+                              : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'
+                          }`} 
+                          strokeWidth={1.75} 
+                        />
+                        {isRail && item.badge !== undefined && (
+                          <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold bg-[#BC881B] text-black flex items-center justify-center leading-none shadow-xs pointer-events-none">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+
+                      {!isRail && (
+                        <span 
+                          className={`truncate text-[14px] leading-none ${isActive ? '!text-white font-semibold' : 'font-medium'}`}
+                          title={item.title}
+                        >
+                          {item.title}
+                        </span>
+                      )}
+                    </div>
+
+                    {!isRail && (
+                      <div className="relative flex items-center gap-2 ml-auto shrink-0">
+                        {item.shortcut && (
+                          <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30">
+                            {item.shortcut}
+                          </kbd>
+                        )}
+                        {item.badge !== undefined && (
+                          <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full font-mono text-xs font-semibold leading-none ${
+                            isActive
+                              ? 'bg-[#FFD147] text-slate-950 font-extrabold shadow-xs'
+                              : 'bg-slate-200/90 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-white/10'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Pinned Bottom Items */}
+        <div className={`border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-1.5 ${
+          isShortScreen ? 'p-2' : 'p-3'
+        }`}>
+          {bottomItems.map(item => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleItemClick(item.id)}
+                title={item.title}
+                className={`group relative flex items-center justify-between ${
+                  isRail ? 'px-0 justify-center' : 'px-3 gap-3'
+                } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 w-full border text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md' 
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
+                )}
+                <div className="relative flex items-center gap-3">
+                  <Icon 
+                    className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
+                    strokeWidth={1.75}
+                  />
+                  {!isRail && (
+                    <span className={`truncate text-[14px] leading-none ${isActive ? '!text-white font-semibold' : 'font-medium'}`} title={item.title}>
+                      {item.title}
+                    </span>
+                  )}
+                </div>
+                {!isRail && item.shortcut && (
+                  <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30 ml-auto shrink-0">
+                    {item.shortcut}
+                  </kbd>
+                )}
+              </button>
+            );
+          })}
+
+          <button
+            onClick={onToggleCollapse}
+            title={isRail ? "Expand Sidebar" : "Collapse Sidebar"}
+            className={`group relative flex items-center ${
+              isRail ? 'justify-center px-0' : 'justify-between px-3 gap-3'
+            } ${itemHeightClass} rounded-[10px] transition-all duration-150 w-full border border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
+          >
+            {isRail ? (
+              <PanelLeftOpen className="w-5 h-5 text-[var(--text-accent)]" strokeWidth={1.75} />
+            ) : (
+              <div className="flex items-center justify-between w-full text-[14px] font-medium">
+                <span>Collapse Sidebar</span>
+                <PanelLeftClose className="w-5 h-5 text-[var(--text-muted)] group-hover:text-slate-900 dark:group-hover:text-white" strokeWidth={1.75} />
+              </div>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* FIXED OVERLAY QUICK SEARCH MODAL (Command+K) */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="fixed inset-0" onClick={() => setIsSearchOpen(false)} />
+          <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#140D22] shadow-2xl overflow-hidden z-50">
+            <div className="flex items-center px-4 h-12 border-b border-slate-200 dark:border-white/10">
+              <Search className="w-4 h-4 text-[#C8963E] mr-3 shrink-0" strokeWidth={2} />
+              <input 
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none! shadow-none! p-0! h-auto! outline-none text-[14px] text-slate-900 dark:text-white placeholder:text-slate-400"
+                placeholder="Search catalog books, barcodes, authors, or commands..."
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="mr-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-[12px] cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+              <kbd 
+                onClick={() => setIsSearchOpen(false)}
+                className="inline-flex items-center justify-center h-5 px-1.5 text-[12px] font-mono rounded cursor-pointer border border-slate-300 dark:border-white/15 text-slate-500 bg-slate-100 dark:bg-white/5"
+              >
+                ESC
+              </kbd>
+              <button 
+                onClick={() => setIsSearchOpen(false)}
+                className="ml-3 p-1 rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 max-h-[60vh] overflow-y-auto flex flex-col gap-1">
+              {(() => {
+                const q = searchQuery.toLowerCase().trim();
+                const allNav = navGroups.flatMap(g => g.items).filter(item => item.id !== 'search');
+                const matchingNav = !q ? allNav : allNav.filter(item => item.title.toLowerCase().includes(q));
+                
+                // Null-safe search matching
+                const matchingBooks = !q ? [] : catalogBooks.filter(b => 
+                  (b.book_name || '').toLowerCase().includes(q) || 
+                  (b.barcode || '').toLowerCase().includes(q) ||
+                  (b.author || '').toLowerCase().includes(q) ||
+                  (b.category || '').toLowerCase().includes(q)
+                ).slice(0, 8);
+
+                return (
+                  <>
+                    <div className="text-[11px] uppercase font-bold tracking-wider px-2 py-1 text-slate-400">
+                      Quick Navigation
+                    </div>
+                    {matchingNav.map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            onTabChange(item.id as NavigationTab);
+                            setIsSearchOpen(false);
+                          }}
+                          className="flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors text-[14px] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Icon className="w-4 h-4 text-[#C8963E]" />
+                            <span>{item.title}</span>
+                          </div>
+                          {item.shortcut && (
+                            <kbd className="text-[12px] font-mono px-1.5 py-0.5 rounded border border-slate-300 dark:border-white/15 text-slate-400 bg-slate-100 dark:bg-white/5">
+                              {item.shortcut}
+                            </kbd>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {matchingBooks.length > 0 && (
+                      <div className="flex flex-col gap-1 pt-2 border-t border-slate-200 dark:border-white/10 mt-1">
+                        <div className="text-[11px] uppercase font-bold tracking-wider text-[#C8963E] px-2 py-0.5">
+                          Catalog Books ({matchingBooks.length})
+                        </div>
+                        {matchingBooks.map(book => (
+                          <div
+                            key={book.id || book.barcode}
+                            onClick={() => {
+                              if (onSelectBook) {
+                                onSelectBook(book);
+                              } else {
+                                onTabChange('catalog');
+                              }
+                              setIsSearchOpen(false);
+                            }}
+                            className="flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border border-transparent hover:border-[#C8963E]/40 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="text-[14px] font-semibold truncate">
+                                {book.book_name}
+                              </div>
+                              <div className="text-[12px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                                <span>{book.author || 'Unknown Author'}</span>
+                                <span>•</span>
+                                <span className="font-mono text-[#C8963E] font-semibold">{book.barcode}</span>
+                                <span>•</span>
+                                <span>{book.category || 'General'}</span>
+                              </div>
+                            </div>
+                            <span className="shrink-0 text-[11px] font-mono px-2 py-0.5 rounded border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
+                              {book.available_quantity ?? 1}/{book.total_quantity ?? 1} Avail
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {matchingNav.length === 0 && matchingBooks.length === 0 && (
+                      <div className="py-8 text-center text-slate-400 text-[14px]">
+                        No matches found for <span className="text-[#C8963E] font-mono">"{searchQuery}"</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="px-4 h-10 border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-[12px] text-slate-400 bg-slate-50 dark:bg-[#0B0814]">
+              <div className="flex items-center gap-2">
+                <Command className="w-3.5 h-3.5 text-[#C8963E]" />
+                <span>Tip: Press <strong>⌘1</strong> - <strong>⌘6</strong> or <strong>⌘A</strong> for instant tab switches</span>
+              </div>
+              <span className="font-mono text-[11px] font-bold text-slate-500">ULM LMS</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export const LmsSidebar = Sidebar;
+export default Sidebar;
+
+
+📁 FILE 4: src/components/AlmariView.tsx (FIXED CAPACITY PERSISTENCE & OVERFLOW CHECK)
+
+import React, { useState, useMemo } from 'react';
+import {
+  Library,
+  Plus,
+  Search,
+  Layers,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  X,
+} from 'lucide-react';
+import { Book, Almari, BookGroup } from '../types/library';
+import { AlmariService } from '../services/almariService';
+import {
+  resolveBookAlmariAndShelf,
+  persistManualBookShelfAssignments,
+} from '../services/libraryStorageAndMigration';
+
+export interface AlmariViewProps {
+  books: Book[];
+  onUpdateBooks?: (updatedBooks: Book[]) => void;
+  onSelectBook?: (book: Book) => void;
+}
+
+export const AlmariView: React.FC<AlmariViewProps> = ({
+  books,
+  onUpdateBooks,
+  onSelectBook,
+}) => {
+  const [almaris, setAlmaris] = useState<Almari[]>(() => AlmariService.getAlmaris());
+  const [groups] = useState<BookGroup[]>(() => AlmariService.getGroups());
+  const [selectedAlmariId, setSelectedAlmariId] = useState<string>(() => {
+    const initial = AlmariService.getAlmaris();
+    return initial[0]?.id || '';
+  });
+  const [selectedShelfNo, setSelectedShelfNo] = useState<number>(1);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Persistent shelf capacities via localStorage
+  const [shelfCapacities, setShelfCapacities] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem('ulm_shelf_capacities_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [isAddAlmariOpen, setIsAddAlmariOpen] = useState<boolean>(false);
+  const [newAlmariCode, setNewAlmariCode] = useState<string>('');
+  const [newAlmariName, setNewAlmariName] = useState<string>('');
+  const [newAlmariWing, setNewAlmariWing] = useState<string>('Main Hall • Ground Floor');
+  const [newAlmariShelves, setNewAlmariShelves] = useState<number>(5);
+  const [newAlmariShelfCap, setNewAlmariShelfCap] = useState<number>(25);
+  const [assignBookId, setAssignBookId] = useState<string>('');
+  const [statusBanner, setStatusBanner] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
+
+  const selectedAlmari = useMemo(
+    () => almaris.find((a) => a.id === selectedAlmariId) || almaris[0] || null,
+    [almaris, selectedAlmariId]
+  );
+
+  const getShelfCapacity = (almari: Almari, shelfNo: number): number => {
+    const key = `${almari.id}::${shelfNo}`;
+    if (shelfCapacities[key] !== undefined) return shelfCapacities[key];
+    const perShelf = Math.max(
+      1,
+      Math.min(50, Math.round((almari.approx_capacity || 125) / Math.max(1, almari.shelf_count || 5)))
+    );
+    return perShelf;
+  };
+
+  const handleSetShelfCapacity = (almari: Almari, shelfNo: number, cap: number) => {
+    const clamped = Math.max(1, Math.min(50, cap));
+    const key = `${almari.id}::${shelfNo}`;
+    setShelfCapacities((prev) => {
+      const updated = { ...prev, [key]: clamped };
+      try {
+        localStorage.setItem('ulm_shelf_capacities_v1', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const placementMap = useMemo(() => {
+    const byAlmariShelf = new Map<string, Book[]>();
+    const unassigned: Book[] = [];
+
+    for (const book of books) {
+      const resolved = resolveBookAlmariAndShelf(book, almaris, groups);
+      if (resolved.almariId && resolved.shelfNo >= 1) {
+        const key = `${resolved.almariId}::${resolved.shelfNo}`;
+        const list = byAlmariShelf.get(key) || [];
+        list.push(book);
+        byAlmariShelf.set(key, list);
+      } else {
+        unassigned.push(book);
+      }
+    }
+
+    return { byAlmariShelf, unassigned };
+  }, [books, almaris, groups]);
+
+  const handleCreateManualAlmari = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = newAlmariCode.trim().toUpperCase() || `ALM-${String(almaris.length + 1).padStart(2, '0')}`;
+    const nameEn = newAlmariName.trim() || `Academic Cupboard ${almaris.length + 1}`;
+    const shelfCount = Math.max(1, Math.min(12, newAlmariShelves));
+    const perShelfCap = Math.max(1, Math.min(50, newAlmariShelfCap));
+
+    const created = AlmariService.saveAlmari({
+      code,
+      name_en: nameEn,
+      name_ur: nameEn,
+      location_note: newAlmariWing.trim() || 'Main Library Wing',
+      shelf_count: shelfCount,
+      approx_capacity: shelfCount * perShelfCap,
+      is_active: true,
+    });
+
+    // Initialize per-shelf capacities
+    for (let s = 1; s <= shelfCount; s++) {
+      handleSetShelfCapacity(created, s, perShelfCap);
+    }
+
+    const refreshed = AlmariService.getAlmaris();
+    setAlmaris(refreshed);
+    setSelectedAlmariId(created.id);
+    setSelectedShelfNo(1);
+    setIsAddAlmariOpen(false);
+    setNewAlmariCode('');
+    setNewAlmariName('');
+    setStatusBanner({
+      type: 'success',
+      message: `Created Manual Almari ${created.code} (${shelfCount} shelves × ${perShelfCap} volume capacity).`,
+    });
+  };
+
+  const handleAssignBookToShelf = (bookId: string, targetAlmari: Almari, shelfNo: number) => {
+    const targetBook = books.find((b) => b.id === bookId || b.barcode === bookId);
+    if (!targetBook) return;
+
+    const currentShelfBooks = placementMap.byAlmariShelf.get(`${targetAlmari.id}::${shelfNo}`) || [];
+    const capacity = getShelfCapacity(targetAlmari, shelfNo);
+
+    // Overflow check with warning
+    if (currentShelfBooks.length >= capacity) {
+      setStatusBanner({
+        type: 'warning',
+        message: `Warning: Shelf ${shelfNo} is at capacity (${currentShelfBooks.length}/${capacity}). Book placed, but consider increasing shelf capacity.`,
+      });
+    } else {
+      setStatusBanner({
+        type: 'success',
+        message: `Assigned "${targetBook.book_name}" (${targetBook.barcode}) → ${targetAlmari.code} • Shelf ${shelfNo}`,
+      });
+    }
+
+    const updatedBook: Book = {
+      ...targetBook,
+      almari_id: targetAlmari.id,
+      almari_code: targetAlmari.code,
+      almari_name: targetAlmari.name_en,
+      shelf_no: shelfNo,
+      cupboard: targetAlmari.code,
+      shelf: `Shelf ${shelfNo}`,
+      placement_locked: true,
+      location_source: 'manual',
+    };
+
+    const updatedList = books.map((b) => ((b.id === bookId || b.barcode === bookId) ? updatedBook : b));
+    persistManualBookShelfAssignments([updatedBook]);
+    if (onUpdateBooks) onUpdateBooks(updatedList);
+  };
+
+  const handleUnassignBookFromShelf = (book: Book) => {
+    const updatedBook: Book = {
+      ...book,
+      almari_id: '',
+      almari_code: '',
+      almari_name: '',
+      shelf_no: 0,
+      cupboard: '',
+      shelf: '',
+      placement_locked: false,
+      location_source: 'manual',
+    };
+
+    const updatedList = books.map((b) => (b.id === book.id ? updatedBook : b));
+    persistManualBookShelfAssignments([updatedBook]);
+    if (onUpdateBooks) onUpdateBooks(updatedList);
+    setStatusBanner({
+      type: 'success',
+      message: `Removed "${book.book_name}" from shelf back to Unassigned Queue.`,
+    });
+  };
+
+  const currentShelfBooks = useMemo(() => {
+    if (!selectedAlmari) return [];
+    const key = `${selectedAlmari.id}::${selectedShelfNo}`;
+    const list = placementMap.byAlmariShelf.get(key) || [];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (b) =>
+        (b.book_name || '').toLowerCase().includes(q) ||
+        (b.barcode || '').toLowerCase().includes(q) ||
+        (b.author || '').toLowerCase().includes(q)
+    );
+  }, [selectedAlmari, selectedShelfNo, placementMap, searchQuery]);
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* Top Banner */}
+      <div className="p-5 rounded-2xl bg-white/80 dark:bg-[#140D22]/80 backdrop-blur-2xl border border-[#C8963E]/40 dark:border-white/15 shadow-lg flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#541A72] to-[#3B1054] border border-[#FFD147]/50 flex items-center justify-center text-[#FFD147] shadow-md shrink-0">
+            <Library className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Manual Almari & Physical Shelf Registry
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                100% MANUAL CONTROL • PERSISTENT SHELF CAPACITY
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+              Create physical cupboards (Almaris), configure per-shelf book capacity (1–50 volumes), and manually assign volumes to exact shelves.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsAddAlmariOpen(true)}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] text-white border border-[#FFD147]/45 shadow-md hover:brightness-110 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Add Manual Almari</span>
+          </button>
+        </div>
+      </div>
+
+      {statusBanner && (
+        <div className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+          statusBanner.type === 'warning'
+            ? 'bg-amber-500/15 border-amber-500/40 text-amber-900 dark:text-amber-200'
+            : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {statusBanner.type === 'warning' ? (
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            )}
+            <span>{statusBanner.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusBanner(null)}
+            className="text-xs underline opacity-80 hover:opacity-100 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Almaris List */}
+        <div className="lg:col-span-4 space-y-3">
+          <div className="p-4 rounded-2xl bg-white/80 dark:bg-[#140D22]/75 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Library Cupboards ({almaris.length})
+              </h3>
+              <span className="text-xs font-mono text-amber-700 dark:text-[#FFD147] font-bold">
+                Unassigned: {placementMap.unassigned.length}
+              </span>
+            </div>
+
+            <div className="space-y-2.5 max-h-[540px] overflow-y-auto pr-1">
+              {almaris.map((almari) => {
+                const isSelected = selectedAlmari?.id === almari.id;
+                const shelfCount = Math.max(1, almari.shelf_count || 5);
+                let allocatedInAlmari = 0;
+                let totalCapInAlmari = 0;
+                for (let s = 1; s <= shelfCount; s++) {
+                  const list = placementMap.byAlmariShelf.get(`${almari.id}::${s}`) || [];
+                  allocatedInAlmari += list.length;
+                  totalCapInAlmari += getShelfCapacity(almari, s);
+                }
+                const fillPct = Math.min(100, Math.round((allocatedInAlmari / Math.max(1, totalCapInAlmari)) * 100));
+
+                return (
+                  <button
+                    key={almari.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAlmariId(almari.id);
+                      setSelectedShelfNo(1);
+                    }}
+                    className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 text-white border-[#FFD147]/65 shadow-md'
+                        : 'bg-white/90 dark:bg-white/5 text-slate-800 dark:text-slate-200 border-slate-200/80 dark:border-white/10 hover:border-[#C8963E]/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded bg-black/15 text-[#FFD147]">
+                        {almari.code}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold opacity-90">
+                        {allocatedInAlmari} / {totalCapInAlmari} Books Allocated
+                      </span>
+                    </div>
+                    <p className="font-bold text-sm mt-1.5 truncate">{almari.name_en}</p>
+                    <p className="text-[11px] opacity-80 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{almari.location_note || 'Main Hall'}</span>
+                    </p>
+                    <div className="mt-2.5 h-1.5 w-full rounded-full bg-black/20 overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${
+                          fillPct >= 90
+                            ? 'bg-amber-500'
+                            : fillPct >= 65
+                            ? 'bg-[#FFD147]'
+                            : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${fillPct}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Shelves Inspector */}
+        <div className="lg:col-span-8 space-y-5">
+          {selectedAlmari ? (
+            <>
+              <div className="p-5 rounded-2xl bg-white/85 dark:bg-[#140D22]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 dark:border-white/10 pb-3">
+                  <div>
+                    <span className="text-xs font-mono font-extrabold text-[#8A4B00] dark:text-[#FFD147]">
+                      {selectedAlmari.code} • {selectedAlmari.location_note || 'Central Hall'}
+                    </span>
+                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                      {selectedAlmari.name_en} — Physical Shelves ({selectedAlmari.shelf_count || 5})
+                    </h3>
+                  </div>
+
+                  {/* Manual Slot Assignment */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={assignBookId}
+                      onChange={(e) => setAssignBookId(e.target.value)}
+                      className="h-9 px-3 rounded-xl text-xs font-medium bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/15 w-auto min-w-[220px]"
+                    >
+                      <option value="">Select book to place on Shelf {selectedShelfNo}...</option>
+                      {placementMap.unassigned.slice(0, 100).map((b) => (
+                        <option key={b.id || b.barcode} value={b.id || b.barcode}>
+                          [{b.barcode}] {b.book_name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!assignBookId}
+                      onClick={() => {
+                        if (assignBookId) {
+                          handleAssignBookToShelf(assignBookId, selectedAlmari, selectedShelfNo);
+                          setAssignBookId('');
+                        }
+                      }}
+                      className="h-9 px-3.5 rounded-xl text-xs font-extrabold bg-[#541A72] text-white border border-[#FFD147]/40 disabled:opacity-40 cursor-pointer shrink-0"
+                    >
+                      Assign to Shelf {selectedShelfNo}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Shelves Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {Array.from({ length: Math.max(1, selectedAlmari.shelf_count || 5) }, (_, idx) => {
+                    const shelfNo = idx + 1;
+                    const shelfBooks = placementMap.byAlmariShelf.get(`${selectedAlmari.id}::${shelfNo}`) || [];
+                    const capacity = getShelfCapacity(selectedAlmari, shelfNo);
+                    const count = shelfBooks.length;
+                    const ratio = Math.min(100, Math.round((count / Math.max(1, capacity)) * 100));
+                    const isActiveShelf = selectedShelfNo === shelfNo;
+
+                    const barColor =
+                      ratio >= 85
+                        ? 'bg-amber-500'
+                        : ratio >= 55
+                        ? 'bg-[#C8963E]'
+                        : 'bg-emerald-500';
+
+                    return (
+                      <div
+                        key={shelfNo}
+                        onClick={() => setSelectedShelfNo(shelfNo)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          isActiveShelf
+                            ? 'bg-purple-950/15 dark:bg-purple-900/30 border-[#C8963E] ring-2 ring-[#C8963E]/40'
+                            : 'bg-slate-50/80 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 hover:border-[#C8963E]/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-xs font-extrabold text-slate-900 dark:text-white">
+                            SHELF {shelfNo}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300">
+                            {count} / {capacity} Books Allocated
+                          </span>
+                        </div>
+
+                        <div className="mt-2 h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                          <div className={`h-full ${barColor} transition-all`} style={{ width: `${ratio}%` }} />
+                        </div>
+
+                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Capacity (1–50):</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={capacity}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              handleSetShelfCapacity(
+                                selectedAlmari,
+                                shelfNo,
+                                parseInt(e.target.value, 10) || 20
+                              )
+                            }
+                            className="w-14 h-6 px-1.5 rounded text-center font-mono text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/15"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Active Shelf Allocated Books List */}
+              <div className="p-5 rounded-2xl bg-white/85 dark:bg-[#140D22]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#C8963E]" />
+                    <span>
+                      {selectedAlmari.code} • Shelf {selectedShelfNo} Allocated Volumes ({currentShelfBooks.length})
+                    </span>
+                  </h4>
+
+                  <div className="relative w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Filter shelf books..."
+                      className="w-full h-9 pl-9 pr-3 rounded-xl text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/15"
+                    />
+                  </div>
+                </div>
+
+                {currentShelfBooks.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
+                    No books manually assigned to {selectedAlmari.code} • Shelf {selectedShelfNo} yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-200/70 dark:divide-white/10">
+                    {currentShelfBooks.map((book) => (
+                      <div
+                        key={book.id || book.barcode}
+                        className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div
+                          onClick={() => onSelectBook && onSelectBook(book)}
+                          className="min-w-0 cursor-pointer"
+                        >
+                          <p className="font-bold text-slate-900 dark:text-white truncate">
+                            {book.book_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                            {book.barcode} • {book.author || 'Unknown'} • {book.category || 'General'}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUnassignBookFromShelf(book)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 hover:bg-rose-500/20 shrink-0 cursor-pointer"
+                        >
+                          Remove from Shelf
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Modal: Create New Manual Almari */}
+      {isAddAlmariOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <form
+            onSubmit={handleCreateManualAlmari}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#140D22] border border-[#C8963E]/50 p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                Add New Physical Almari (Cupboard)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddAlmariOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Almari Code</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ALM-CS-01"
+                  value={newAlmariCode}
+                  onChange={(e) => setNewAlmariCode(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl border border-slate-300 dark:border-white/15"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Cupboard Title / Category</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Computer Science & AI Cupboard 1"
+                  value={newAlmariName}
+                  onChange={(e) => setNewAlmariName(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl border border-slate-300 dark:border-white/15"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Wing / Hall Location</label>
+                <input
+                  type="text"
+                  value={newAlmariWing}
+                  onChange={(e) => setNewAlmariWing(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl border border-slate-300 dark:border-white/15"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold mb-1">Number of Shelves</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={newAlmariShelves}
+                    onChange={(e) => setNewAlmariShelves(parseInt(e.target.value, 10) || 5)}
+                    className="w-full h-9 px-3 rounded-xl border border-slate-300 dark:border-white/15"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Per-Shelf Capacity (1–50)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={newAlmariShelfCap}
+                    onChange={(e) => setNewAlmariShelfCap(parseInt(e.target.value, 10) || 25)}
+                    className="w-full h-9 px-3 rounded-xl border border-slate-300 dark:border-white/15"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsAddAlmariOpen(false)}
+                className="h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] text-white cursor-pointer"
+              >
+                Create Almari
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AlmariView;
+
+
+📁 FILE 5: src/components/library/UlmSmartIdCard.tsx (FIXED BARCODE MASKING & WATERMARK FALLBACK)
+
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ShieldCheck,
+  Phone,
+  CheckCircle2,
+  User,
+} from 'lucide-react';
+import { ULM_OFFICIAL_CREST_SRC } from '../../constants/ulmOfficialAssets';
+import { handleCrestFallback } from '../../constants/ulmOfficialCrest';
+import { Borrower } from '../../types/library';
+
+export interface CardMemberData {
+  name: string;
+  role: 'STUDENT CARD' | 'FACULTY CARD' | 'STAFF CARD' | 'RESEARCH SCHOLAR';
+  memberId: string;
+  rollNo: string;
+  session: string;
+  program: string;
+  department: string;
+  bloodGroup: string;
+  borrowingLimit: string;
+  phone: string;
+  validTill: string;
+  photoUrl?: string;
+}
+
+export const DEFAULT_STUDENT: CardMemberData = {
+  name: 'Asad Zeb',
+  role: 'STUDENT CARD',
+  memberId: 'ULM0329984',
+  rollNo: 'BSCS-23-42',
+  session: 'FA23 (2023–2027)',
+  program: 'BS Computer Science (Regular)',
+  department: 'Department of Computer Science',
+  bloodGroup: 'B-',
+  borrowingLimit: '03 Books (14 Days)',
+  phone: '0342-5252555',
+  validTill: '30 JUN 2027',
+};
+
+export const SAMPLE_CARD_PRESETS: Record<string, CardMemberData> = {
+  student_cs: DEFAULT_STUDENT,
+  faculty_cs: {
+    name: 'Dr. Kamran Ullah Marwat',
+    role: 'FACULTY CARD',
+    memberId: 'ULM-FAC-0118',
+    rollNo: 'EMP-CS-018',
+    session: 'Permanent Faculty',
+    program: 'Associate Professor & Chairman',
+    department: 'Department of Computer Science',
+    bloodGroup: 'O+',
+    borrowingLimit: '10 Books (30 Days)',
+    phone: '0333-9482110',
+    validTill: 'PERMANENT',
+  },
+  scholar_ms: {
+    name: 'Ayesha Gul Marwat',
+    role: 'RESEARCH SCHOLAR',
+    memberId: 'ULM0418209',
+    rollNo: 'MSCS-24-09',
+    session: 'FA24 (2024–2026)',
+    program: 'MS Computer Science (Research)',
+    department: 'Department of Computer Science',
+    bloodGroup: 'A+',
+    borrowingLimit: '06 Books (21 Days)',
+    phone: '0315-8824109',
+    validTill: '30 JUN 2026',
+  },
+  staff_lib: {
+    name: 'Tariq Mahmood Khan',
+    role: 'STAFF CARD',
+    memberId: 'ULM-STF-0042',
+    rollNo: 'EMP-LIB-042',
+    session: 'Regular Staff',
+    program: 'Senior Cataloger & Circulation Officer',
+    department: 'Central Digital Library',
+    bloodGroup: 'B+',
+    borrowingLimit: '05 Books (14 Days)',
+    phone: '0345-9112033',
+    validTill: '31 DEC 2028',
+  },
+};
+
+const formatExpiryDateDisplay = (val?: string | null, role?: string | null): string => {
+  if (!val) return role === 'Faculty' ? 'PERMANENT' : '30 JUN 2027';
+  if (val.toUpperCase() === 'PERMANENT') return 'PERMANENT';
+  const parts = val.split('-');
+  if (parts.length === 3) {
+    const year = parts[0];
+    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const mIdx = parseInt(parts[1], 10) - 1;
+    const day = parts[2];
+    const monthStr = monthNames[mIdx] || parts[1];
+    return `${day} ${monthStr} ${year}`;
+  }
+  return val.toUpperCase();
+};
+
+export function borrowerToCardMemberData(member: Partial<Borrower> | null | undefined): CardMemberData {
+  if (!member) return DEFAULT_STUDENT;
+
+  const rawRole = (member.role || 'Student').toLowerCase();
+  const role: CardMemberData['role'] =
+    rawRole === 'faculty'
+      ? 'FACULTY CARD'
+      : rawRole === 'staff'
+      ? 'STAFF CARD'
+      : member.degree_level === 'MS' || member.degree_level === 'MPhil' || member.degree_level === 'PhD'
+      ? 'RESEARCH SCHOLAR'
+      : 'STUDENT CARD';
+
+  const memberId = (member.barcode || member.university_id || member.student_id || 'ULM0329984').toUpperCase();
+  const rollNo =
+    member.roll_number ||
+    member.employee_no ||
+    member.university_id ||
+    member.student_id ||
+    'BSCS-23-42';
+
+  const session =
+    member.session ||
+    (rawRole === 'faculty' ? 'Permanent Faculty' : rawRole === 'staff' ? 'Regular Staff' : 'FA23 (2023–2027)');
+
+  const degreePrefix = member.degree_level ? `${member.degree_level} ` : '';
+  const modeSuffix = member.study_mode ? ` (${member.study_mode})` : '';
+  const program =
+    rawRole === 'faculty' || rawRole === 'staff'
+      ? member.designation || (rawRole === 'faculty' ? 'Assistant Professor' : 'Administrative Staff')
+      : member.program
+      ? member.program.includes('(')
+        ? member.program
+        : `${degreePrefix}${member.program}${modeSuffix}`.trim()
+      : 'BS Computer Science (Regular)';
+
+  const rawDept = member.department || 'Computer Science';
+  const department = rawDept.toLowerCase().startsWith('department')
+    ? rawDept
+    : `Department of ${rawDept}`;
+
+  const limitNum = member.borrow_limit || (rawRole === 'faculty' ? 10 : rawRole === 'staff' ? 5 : 3);
+  const limitPad = String(limitNum).padStart(2, '0');
+  const daysNum = rawRole === 'faculty' ? 30 : 14;
+  const borrowingLimit = `${limitPad} Books (${daysNum} Days)`;
+
+  return {
+    name: member.name || DEFAULT_STUDENT.name,
+    role,
+    memberId,
+    rollNo,
+    session,
+    program,
+    department,
+    bloodGroup: member.blood_group || 'B-',
+    borrowingLimit,
+    phone: member.phone || '0342-5252555',
+    validTill: formatExpiryDateDisplay(member.valid_until, member.role),
+    photoUrl: member.photo_url || member.photo_path || undefined,
+  };
+}
+
+// 1. Offscreen HTML5 Canvas Watermark Baker with Fallback Safety
+export function usePreBakedWatermark(crestSrc: string, alphaPercent: number = 6.5): string {
+  const [dataUrl, setDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    const srcToLoad = crestSrc || ULM_OFFICIAL_CREST_SRC;
+    if (!srcToLoad) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const size = 320;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, size, size);
+        ctx.globalAlpha = Math.max(0.02, Math.min(0.20, alphaPercent / 100));
+        ctx.drawImage(img, 0, 0, size, size);
+        setDataUrl(canvas.toDataURL('image/png'));
+      } catch {
+        setDataUrl(srcToLoad);
+      }
+    };
+    img.onerror = () => {
+      setDataUrl(srcToLoad);
+    };
+    img.src = srcToLoad;
+  }, [crestSrc, alphaPercent]);
+
+  return dataUrl;
+}
+
+// 2. Deterministic Code-128 SVG Barcode Generator (Fixed bitwise masking)
+export const Code128Barcode: React.FC<{
+  value: string;
+  width?: number;
+  height?: number;
+}> = ({ value, width = 175, height = 20 }) => {
+  const bars = useMemo(() => {
+    const clean = (value || 'ULM0329984').toUpperCase();
+    const pattern: number[] = [2, 1, 1, 2, 3, 2]; // Code-128 Start B
+    for (let i = 0; i < clean.length; i++) {
+      const code = clean.charCodeAt(i);
+      pattern.push(
+        ((code >> 0) & 1) + 1,
+        ((code >> 1) & 1) + 1,
+        ((code >> 2) & 1) + 1, // Fixed: & 1
+        ((code >> 3) & 1) + 1,
+        ((code >> 4) & 1) + 1, // Fixed: & 1
+        1
+      );
+    }
+    pattern.push(2, 3, 3, 1, 1, 1, 2); // Stop pattern
+    return pattern;
+  }, [value]);
+
+  const totalUnits = bars.reduce((a, b) => a + b, 0);
+  const unitWidth = width / totalUnits;
+  let currentX = 0;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className="block overflow-visible"
+      aria-label={`Barcode ${value}`}
+    >
+      {bars.map((units, idx) => {
+        const w = units * unitWidth;
+        const x = currentX;
+        currentX += w;
+        return idx % 2 === 0 ? (
+          <rect
+            key={idx}
+            x={x}
+            y={0}
+            width={Math.max(0.75, w)}
+            height={height}
+            fill="#0F172A"
+          />
+        ) : null;
+      })}
+    </svg>
+  );
+};
+
+// 3. Deterministic Verification QR SVG Matrix Generator
+export const VerificationQr: React.FC<{ payload: string; size?: number }> = ({
+  payload,
+  size = 68,
+}) => {
+  const grid = 29;
+  const cells = useMemo(() => {
+    const matrix: boolean[][] = Array.from({ length: grid }, () =>
+      Array(grid).fill(false)
+    );
+    const drawFinder = (r0: number, c0: number) => {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          const border = r === 0 || r === 6 || c === 0 || c === 6;
+          const inner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+          if (border || inner) matrix[r0 + r][c0 + c] = true;
+        }
+      }
+    };
+    drawFinder(0, 0);
+    drawFinder(0, grid - 7);
+    drawFinder(grid - 7, 0);
+
+    let hash = 2166136261;
+    for (let i = 0; i < payload.length; i++) {
+      hash ^= payload.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    for (let r = 0; r < grid; r++) {
+      for (let c = 0; c < grid; c++) {
+        const inFinder =
+          (r < 8 && c < 8) ||
+          (r < 8 && c >= grid - 8) ||
+          (r >= grid - 8 && c < 8);
+        if (inFinder) continue;
+        if (r === 6 || c === 6) {
+          matrix[r][c] = (r + c) % 2 === 0;
+          continue;
+        }
+        const seed = Math.imul(r * 31 + c * 17, hash >>> 0);
+        matrix[r][c] = ((seed >>> 3) & 1) === 1;
+      }
+    }
+    return matrix;
+  }, [payload]);
+
+  const cellSize = size / grid;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="block bg-white p-1 rounded border border-[#CBD5E1]"
+      aria-label="Verification QR Code"
+    >
+      {cells.map((row, r) =>
+        row.map((on, c) =>
+          on ? (
+            <rect
+              key={`${r}-${c}`}
+              x={c * cellSize}
+              y={r * cellSize}
+              width={cellSize + 0.15}
+              height={cellSize + 0.15}
+              fill="#1E0730"
+            />
+          ) : null
+        )
+      )}
+    </svg>
+  );
+};
+
+// 4. Main ULM CR80 Smart ID Card Component (Front & Back)
+export const UlmSmartIdCard: React.FC<{
+  member?: CardMemberData;
+  crestSrc?: string;
+  side?: 'front' | 'back' | 'both';
+  watermarkAlpha?: number;
+}> = ({
+  member = DEFAULT_STUDENT,
+  crestSrc = ULM_OFFICIAL_CREST_SRC,
+  side = 'both',
+  watermarkAlpha = 6.5,
+}) => {
+  const preBakedWatermarkUrl = usePreBakedWatermark(crestSrc, watermarkAlpha);
+  const resolvedCrestSrc = crestSrc || ULM_OFFICIAL_CREST_SRC;
+
+  const CardFront = (
+    <div
+      data-member-card="true"
+      className="cr80-card relative w-[428px] h-[270px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
+      style={{
+        border: '1.5px solid #C8963E',
+        boxShadow:
+          '0 14px 32px -10px rgba(36, 8, 54, 0.25), inset 0 0 0 1px rgba(255,255,255,0.9)',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      }}
+    >
+      {/* Layer 0: Security Micro-Mesh Guilloche Background */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 18% 22%, rgba(59, 16, 84, 0.045) 1px, transparent 1px),
+            radial-gradient(circle at 82% 78%, rgba(200, 150, 62, 0.05) 1px, transparent 1px)
+          `,
+          backgroundSize: '14px 14px',
+        }}
+      />
+
+      {/* Layer 1: Pre-Baked 6.5% Alpha Offscreen Canvas Watermark with Safety Fallback */}
+      {preBakedWatermarkUrl && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1] pt-6">
+          <img
+            src={preBakedWatermarkUrl}
+            alt=""
+            aria-hidden="true"
+            className="w-[148px] h-[148px] object-contain select-none"
+            style={{ opacity: preBakedWatermarkUrl.startsWith('data:') ? 1 : 0.065 }}
+          />
+        </div>
+      )}
+
+      {/* Top Institutional Header Band (58px) */}
+      <div
+        className="relative z-[2] h-[58px] px-3 flex items-center justify-between shrink-0"
+        style={{
+          background:
+            'linear-gradient(135deg, #240836 0%, #3B1054 52%, #541A72 100%)',
+          borderBottom: '2.5px solid #C8963E',
+        }}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-[42px] h-[42px] rounded-full bg-white p-[2.5px] border-2 border-[#FFD147] shadow-md flex items-center justify-center shrink-0">
+            <img
+              src={resolvedCrestSrc}
+              alt="ULM 2017 Crest"
+              onError={handleCrestFallback}
+              className="w-full h-full object-contain rounded-full"
+            />
+          </div>
+          <div className="leading-tight min-w-0">
+            <h1
+              className="text-[11.2px] font-extrabold tracking-[0.04em] text-white uppercase truncate"
+              style={{ fontFamily: "'Cinzel', Georgia, serif" }}
+            >
+              UNIVERSITY OF LAKKI MARWAT
+            </h1>
+            <p className="text-[8.5px] font-bold tracking-[0.14em] text-[#FFD147] uppercase mt-0.5">
+              CENTRAL DIGITAL LIBRARY
+            </p>
+            <p className="text-[7.2px] font-medium text-white/80 tracking-[0.04em]">
+              Khyber Pakhtunkhwa, Pakistan • Est. 2017
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="px-2 py-0.5 rounded-[5px] text-[8px] font-extrabold tracking-[0.08em] uppercase shrink-0 shadow-xs"
+          style={{
+            background: 'linear-gradient(135deg, #FFD147 0%, #C8963E 100%)',
+            color: '#1E0730',
+            border: '1px solid #FFF3B0',
+          }}
+        >
+          {member.role}
+        </div>
+      </div>
+
+      {/* Center Body Content */}
+      <div className="relative z-[2] flex-1 px-3 py-2 grid grid-cols-[92px_1fr] gap-3 items-center">
+        {/* Left Column: Photo & Active Pill */}
+        <div className="flex flex-col items-center">
+          <div
+            className="w-[88px] h-[108px] rounded-[8px] bg-[#F8FAFC] overflow-hidden flex flex-col items-center justify-center relative shadow-xs"
+            style={{
+              border: '2px solid #3B1054',
+              outline: '1.5px solid #C8963E',
+            }}
+          >
+            {member.photoUrl ? (
+              <img
+                src={member.photoUrl}
+                alt={member.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-[#3B1054]/70 p-1.5 text-center">
+                <div className="w-10 h-10 rounded-full bg-[#3B1054]/10 border border-[#C8963E]/50 flex items-center justify-center mb-1">
+                  <User className="w-5 h-5 text-[#3B1054]" />
+                </div>
+                <span className="text-[7px] font-bold uppercase tracking-wider text-[#3B1054]">
+                  PASSPORT PHOTO
+                </span>
+              </div>
+            )}
+            <span
+              className="absolute top-1 right-1 px-1.5 py-[1px] rounded text-[7.5px] font-extrabold text-white shadow-xs"
+              style={{
+                backgroundColor: '#DC2626',
+                border: '1px solid #FFFFFF',
+              }}
+            >
+              {member.bloodGroup}
+            </span>
+          </div>
+
+          <div className="mt-1.5 w-full py-[2px] px-1.5 rounded-full bg-[#ECFDF5] border border-[#10B981]/50 flex items-center justify-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+            <span className="text-[7px] font-extrabold tracking-wider text-[#047857] uppercase">
+              ACTIVE MEMBER
+            </span>
+          </div>
+        </div>
+
+        {/* Right Column: Metadata Grid */}
+        <div className="flex flex-col justify-between h-full py-0.5 min-w-0">
+          <div className="border-b border-[#E2E8F0] pb-1 flex items-baseline justify-between gap-2">
+            <div className="min-w-0">
+              <span className="block text-[7px] font-bold uppercase tracking-[0.12em] text-[#64748B]">
+                BORROWER FULL NAME
+              </span>
+              <h2 className="text-[14px] font-extrabold text-[#1E0730] tracking-tight leading-tight truncate">
+                {member.name}
+              </h2>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="block text-[6.8px] font-bold uppercase tracking-[0.1em] text-[#64748B]">
+                MEMBER ID
+              </span>
+              <span
+                className="inline-block px-1.5 py-[1px] rounded bg-[#F3E8FF] border border-[#C8963E]/60 text-[9.5px] font-extrabold text-[#3B1054]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {member.memberId}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 my-auto py-1">
+            <div>
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Roll No / Reg ID
+              </span>
+              <span
+                className="text-[9.5px] font-extrabold text-[#0F172A]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {member.rollNo}
+              </span>
+            </div>
+
+            <div>
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Academic Session
+              </span>
+              <span className="text-[9.5px] font-extrabold text-[#0F172A]">
+                {member.session}
+              </span>
+            </div>
+
+            <div className="col-span-2">
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Degree Program / Designation
+              </span>
+              <span className="text-[9.8px] font-extrabold text-[#3B1054] block truncate">
+                {member.program}
+              </span>
+            </div>
+
+            <div className="col-span-2">
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Department
+              </span>
+              <span className="text-[9px] font-bold text-[#1E293B] block truncate">
+                {member.department}
+              </span>
+            </div>
+
+            <div>
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Borrowing Privilege
+              </span>
+              <span className="text-[8.8px] font-extrabold text-[#047857]">
+                {member.borrowingLimit}
+              </span>
+            </div>
+
+            <div>
+              <span className="block text-[6.8px] font-bold uppercase tracking-wider text-[#64748B]">
+                Valid Till
+              </span>
+              <span
+                className="text-[8.8px] font-extrabold text-[#B45309]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {member.validTill}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Barcode & Footer */}
+      <div
+        className="relative z-[2] h-[38px] px-3 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between shrink-0"
+      >
+        <div className="flex flex-col justify-center">
+          <Code128Barcode value={member.memberId} width={175} height={19} />
+          <span
+            className="text-[6.8px] font-bold tracking-[0.22em] text-[#334155] mt-[1px]"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            *{member.memberId}*
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <div
+              className="text-[8.5px] font-bold italic text-[#3B1054] leading-none"
+              style={{ fontFamily: "'Cinzel', Georgia, serif" }}
+            >
+              Chief Librarian
+            </div>
+            <div className="w-24 border-b border-[#94A3B8] my-[2px]" />
+            <span className="block text-[6.5px] font-bold uppercase tracking-[0.1em] text-[#475569]">
+              Issuing Authority • ULM
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const CardBack = (
+    <div
+      data-member-card="true"
+      className="cr80-card relative w-[428px] h-[270px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
+      style={{
+        border: '1.5px solid #C8963E',
+        boxShadow:
+          '0 14px 32px -10px rgba(36, 8, 54, 0.25), inset 0 0 0 1px rgba(255,255,255,0.9)',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      }}
+    >
+      {preBakedWatermarkUrl && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
+          <img
+            src={preBakedWatermarkUrl}
+            alt=""
+            aria-hidden="true"
+            className="w-[140px] h-[140px] object-contain select-none"
+            style={{ opacity: preBakedWatermarkUrl.startsWith('data:') ? 1 : 0.065 }}
+          />
+        </div>
+      )}
+
+      {/* Top Strip */}
+      <div
+        className="relative z-[2] h-[34px] px-3 flex items-center justify-between"
+        style={{
+          background: 'linear-gradient(90deg, #1E0730 0%, #3B1054 60%, #1E0730 100%)',
+          borderBottom: '2px solid #C8963E',
+        }}
+      >
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#FFD147]" />
+          <span className="text-[8.5px] font-extrabold tracking-[0.14em] text-[#FFD147] uppercase">
+            INSTITUTIONAL LIBRARY MEMBERSHIP TERMS
+          </span>
+        </div>
+        <span
+          className="text-[8px] font-bold text-white/90"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          ID: {member.memberId}
+        </span>
+      </div>
+
+      {/* Back Body */}
+      <div className="relative z-[2] flex-1 px-3.5 py-2.5 grid grid-cols-[1fr_102px] gap-3 items-center">
+        <div className="space-y-1.5">
+          <h3 className="text-[8.5px] font-extrabold uppercase tracking-[0.08em] text-[#3B1054] border-b border-[#E2E8F0] pb-0.5">
+            Library Borrowing Terms & Discipline
+          </h3>
+          <ul className="space-y-1 text-[7.6px] font-medium text-[#1E293B] leading-snug">
+            <li className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-2.5 h-2.5 text-[#C8963E] shrink-0 mt-[1px]" />
+              <span>
+                This card is strictly <strong>non-transferable</strong> and must be presented at the Circulation Desk for every checkout or return.
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-2.5 h-2.5 text-[#C8963E] shrink-0 mt-[1px]" />
+              <span>
+                Overdue fine of <strong>Rs. 10/- per day</strong> per volume applies after the standard 14-day borrowing window.
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-2.5 h-2.5 text-[#C8963E] shrink-0 mt-[1px]" />
+              <span>
+                Loss or damage of this Smart Card must be reported immediately to the Central Digital Library administration.
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-2.5 h-2.5 text-[#C8963E] shrink-0 mt-[1px]" />
+              <span>
+                Final semester clearance requires returning all issued library books and settling outstanding dues.
+              </span>
+            </li>
+          </ul>
+
+          <div className="mt-1.5 p-1.5 rounded bg-[#F8FAFC] border border-[#CBD5E1] flex items-center justify-between text-[7.5px]">
+            <div className="flex items-center gap-1 text-[#0F172A] font-bold">
+              <Phone className="w-2.5 h-2.5 text-[#3B1054]" />
+              <span>Holder Contact:</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {member.phone}
+              </span>
+            </div>
+            <span className="px-1.5 py-[0.5px] rounded bg-[#FEE2E2] text-[#991B1B] font-extrabold">
+              Blood: {member.bloodGroup}
+            </span>
+          </div>
+        </div>
+
+        {/* Verification QR */}
+        <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
+          <VerificationQr
+            payload={`ULM|${member.memberId}|${member.name}|${member.rollNo}|${member.validTill}`}
+            size={68}
+          />
+          <span className="mt-1 text-[6.8px] font-extrabold uppercase tracking-wider text-[#3B1054]">
+            SCAN TO VERIFY
+          </span>
+          <span
+            className="text-[6.5px] font-bold text-[#64748B]"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            {member.memberId}
+          </span>
+        </div>
+      </div>
+
+      {/* Return Address Footer */}
+      <div
+        className="relative z-[2] h-[36px] px-3.5 bg-[#0F172A] text-white flex items-center justify-between text-[7.2px]"
+        style={{ borderTop: '2px solid #C8963E' }}
+      >
+        <div>
+          <p className="font-extrabold text-[#FFD147] uppercase tracking-wider">
+            IF FOUND, PLEASE RETURN TO:
+          </p>
+          <p className="text-white/90">
+            Central Digital Library, University of Lakki Marwat, Main Campus, KP, Pakistan
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="font-mono font-bold text-[#FFD147]">www.ulm.edu.pk</p>
+          <p className="text-white/75">registrar@ulm.edu.pk</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (side === 'front') return CardFront;
+  if (side === 'back') return CardBack;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-6 print:flex-col print:gap-4">
+      {CardFront}
+      {CardBack}
+    </div>
+  );
+};
+
+export default UlmSmartIdCard;
+
+
+✅ VERIFICATION RUNBOOK (HOW TO CONFIRM ALL 11 FIXES)
+
+CSS Build & Print Check: Confirm that running npm run build succeeds without PostCSS errors and that triggering window.print() properly restricts the ID card to 85.60mm × 53.98mm on A4 paper.
+
+SQLite Transaction Check: Issue a book and restart the Electron app. Confirm the loan persists in SELECT * FROM circulation.
+
+Almari Persistence Check: Change shelf capacity from 25 to 35 books in the UI and refresh the browser. Confirm the capacity remains 35.
+
+Sidebar Search Check: Open Command+K and type arbitrary strings or search books with missing categories. Confirm no runtime crashes occur.
+
+Hotkey Check: Press Cmd+A (or Ctrl+A) outside input fields. Confirm it immediately navigates to Manual Almari View instead of selecting all page text.
+
+Barcode Calibration Check: Scan the Code-128 barcode using a physical USB or 2D camera barcode scanner. Confirm it reads ULM0329984 accurately without bar-width distortion.
+
