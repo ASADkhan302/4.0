@@ -13,6 +13,7 @@ import {
   Trash2,
   Settings2,
   AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { Book, Almari } from '../types/library';
 import { AlmariService } from '../services/almariService';
@@ -55,7 +56,10 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   // 1. Persistent Cupboards Registry
   const [almaris, setAlmaris] = useState<Almari[]>(() => AlmariService.getAlmaris());
 
-  // 2. Persistent Selected Almari ID
+  // 2. Search Almari Query State
+  const [almariSearchQuery, setAlmariSearchQuery] = useState<string>('');
+
+  // 3. Persistent Selected Almari ID
   const [selectedAlmariId, setSelectedAlmariId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(ACTIVE_ALMARI_KEY);
@@ -178,6 +182,34 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       return b;
     });
   }, [books, masterPlacements]);
+
+  // Filtered Almaris by Search Query
+  const filteredAlmaris = useMemo(() => {
+    const q = almariSearchQuery.trim().toLowerCase();
+    if (!q) return almaris;
+    return almaris.filter((a) => {
+      const codeMatch = a.code.toLowerCase().includes(q);
+      const nameEnMatch = a.name_en ? a.name_en.toLowerCase().includes(q) : false;
+      const nameUrMatch = a.name_ur ? a.name_ur.toLowerCase().includes(q) : false;
+      const locMatch = (a.location || a.location_note || '').toLowerCase().includes(q);
+
+      const booksInCupboard = localBooks.filter(
+        (b) =>
+          b.almari_id === a.id ||
+          (b.almari_code && b.almari_code.toUpperCase() === a.code.toUpperCase()) ||
+          (b.cupboard && b.cupboard.toUpperCase() === a.code.toUpperCase())
+      );
+      const bookMatch = booksInCupboard.some(
+        (b) =>
+          (b.book_name && b.book_name.toLowerCase().includes(q)) ||
+          ((b as { title?: string }).title && (b as { title?: string }).title!.toLowerCase().includes(q)) ||
+          (b.author && b.author.toLowerCase().includes(q)) ||
+          (b.barcode && b.barcode.toLowerCase().includes(q))
+      );
+
+      return codeMatch || nameEnMatch || nameUrMatch || locMatch || bookMatch;
+    });
+  }, [almaris, almariSearchQuery, localBooks]);
 
   const [dragOverShelfNo, setDragOverShelfNo] = useState<number | null>(null);
   const [hoveredBook, setHoveredBook] = useState<Book | null>(null);
@@ -690,8 +722,30 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               </span>
             </div>
 
+            {/* 🔍 SEARCH ALMARI INPUT */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                value={almariSearchQuery}
+                onChange={(e) => setAlmariSearchQuery(e.target.value)}
+                placeholder="Search almari code, name, location..."
+                className="w-full h-8 pl-8 pr-7 text-xs rounded-xl bg-slate-100/90 dark:bg-white/[0.06] border border-slate-200/80 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#C8963E]/80 focus:ring-1 focus:ring-[#C8963E]/40 transition-all"
+              />
+              {almariSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setAlmariSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
             <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1">
-              {almaris.map((almari) => {
+              {filteredAlmaris.map((almari) => {
                 const isSelected = selectedAlmari?.id === almari.id;
                 const shelfCount = Math.max(1, almari.shelf_count || 5);
                 let allocated = 0;
@@ -767,6 +821,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   </div>
                 );
               })}
+
+              {filteredAlmaris.length === 0 && (
+                <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500 rounded-xl bg-white/40 dark:bg-white/[0.02] border border-dashed border-slate-200 dark:border-white/10">
+                  No cupboards found matching &quot;{almariSearchQuery}&quot;
+                </div>
+              )}
             </div>
           </div>
 

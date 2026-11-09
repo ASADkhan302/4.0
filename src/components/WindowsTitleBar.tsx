@@ -66,21 +66,6 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
         {/* Subtle accent hairline across top */}
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#BC881B]/30 to-transparent pointer-events-none" />
 
-        {/* Left Section: Official ULM 2017 Crest + Workstation Title */}
-        <div className="flex items-center gap-2 shrink-0">
-          <img
-            src={ULM_CREST_URL}
-            alt="ULM 2017 Crest"
-            draggable={false}
-            onError={handleCrestFallback}
-            className="w-4 h-4 object-contain shrink-0 select-none"
-          />
-          <span className="font-sans text-[12px] font-medium text-slate-300 select-none">
-            ULM Library — Central Campus Workstation
-          </span>
-          <span className="text-[11px] text-slate-500 font-mono hidden md:inline">• {stationId}</span>
-        </div>
-
         {/* Center Section: Clean empty spacer (university title is prominently presented in the PrimaryHeader below) */}
         <div className="flex-1 min-w-0" />
 

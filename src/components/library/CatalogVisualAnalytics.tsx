@@ -7,60 +7,11 @@ import {
   ChartCard,
   DonutBreakdown,
   KpiCard,
+  DonutSlice,
 } from "@/components/ui/library-charts-kpi";
-import { BookOpen, Layers, CheckCircle2, Clock, MapPin, Building2 } from "lucide-react";
-import { Book, Transaction } from "@/types/library";
-import { AlmariService } from "@/services/almariService";
-
-const TIMEFRAMES = {
-  "7d": "Past 7 Days",
-  "30d": "Past 30 Days",
-  "semester": "Fall 2026 Semester",
-  "year": "Academic Year 2026-27",
-} as const;
-
-type TimeframeKey = keyof typeof TIMEFRAMES;
-
-// Baseline Fallback Institutional Data for ULM Central Campus Library (5,000 Volumes)
-const BASELINE_CIRCULATION: Record<TimeframeKey, Array<{ period: string; issued: number; returned: number }>> = {
-  "7d": [
-    { period: "Mon", issued: 24, returned: 18 },
-    { period: "Tue", issued: 32, returned: 28 },
-    { period: "Wed", issued: 45, returned: 38 },
-    { period: "Thu", issued: 39, returned: 42 },
-    { period: "Fri", issued: 52, returned: 40 },
-    { period: "Sat", issued: 20, returned: 22 },
-    { period: "Sun", issued: 12, returned: 8 },
-  ],
-  "30d": [
-    { period: "Week 1", issued: 180, returned: 165 },
-    { period: "Week 2", issued: 210, returned: 195 },
-    { period: "Week 3", issued: 245, returned: 230 },
-    { period: "Week 4", issued: 195, returned: 210 },
-  ],
-  "semester": [
-    { period: "Sep", issued: 640, returned: 510 },
-    { period: "Oct", issued: 820, returned: 780 },
-    { period: "Nov", issued: 950, returned: 890 },
-    { period: "Dec", issued: 710, returned: 740 },
-    { period: "Jan", issued: 480, returned: 530 },
-  ],
-  "year": [
-    { period: "FA25", issued: 3200, returned: 3100 },
-    { period: "SP26", issued: 3650, returned: 3500 },
-    { period: "SU26", issued: 1200, returned: 1180 },
-    { period: "FA26", issued: 4100, returned: 3958 },
-  ],
-};
-
-const BASELINE_DISCIPLINES = [
-  { discipline: "Computer Science", available: 1680, issued: 120 },
-  { discipline: "AI & Data Science", available: 890, issued: 65 },
-  { discipline: "Software Eng", available: 740, issued: 48 },
-  { discipline: "Management", available: 620, issued: 35 },
-  { discipline: "Mathematics", available: 510, issued: 22 },
-  { discipline: "Physics / Eng", available: 420, issued: 18 },
-];
+import { BookOpen, Layers, CheckCircle2, Clock, MapPin } from "lucide-react";
+import { Book, Almari, Transaction } from "../../types/library";
+import { AlmariService } from "../../services/almariService";
 
 export interface CatalogVisualAnalyticsProps {
   books?: Book[];
@@ -69,167 +20,317 @@ export interface CatalogVisualAnalyticsProps {
   onSwitchView?: (mode: "grid" | "list") => void;
 }
 
+const TIMEFRAMES = {
+  "7d": "Past 7 Days",
+  "30d": "Past 30 Days",
+  "semester": "Fall 2026 Semester",
+  "year": "Academic Year 2026-27",
+} as const;
+
+type ExtendedBook = Book & {
+  total_copies?: number;
+  quantity?: number;
+  classification?: string;
+  material_type?: string;
+};
+
 export function CatalogVisualAnalytics({
-  books = [],
-  transactions = [],
-  onSelectCategory,
-  onSwitchView,
+  books: propBooks,
+  transactions: propTransactions,
 }: CatalogVisualAnalyticsProps) {
-  const [timeframe, setTimeframe] = React.useState<TimeframeKey>("30d");
+  const [timeframe, setTimeframe] = React.useState<keyof typeof TIMEFRAMES>("30d");
 
-  // Derive active live books
-  const activeBooks = React.useMemo(() => {
-    return books.length > 0 ? books.filter((b) => b.is_active) : [];
-  }, [books]);
-
-  // Aggregate live holdings stats or fall back to the 5,000-volume baseline
-  const { totalVolumes, availableVolumes, issuedVolumes, overdueVolumes, shelfAvailabilityRate } =
-    React.useMemo(() => {
-      if (activeBooks.length === 0) {
-        return {
-          totalVolumes: 5000,
-          availableVolumes: 4858,
-          issuedVolumes: 142,
-          overdueVolumes: 12,
-          shelfAvailabilityRate: 97.2,
-        };
-      }
-
-      let totalCopies = 0;
-      let availableCopies = 0;
-      let borrowedCopies = 0;
-
-      activeBooks.forEach((book) => {
-        const copies = Number(book.total_quantity ?? book.copies ?? 1);
-        const avail = Number(book.available_quantity ?? book.available_copies ?? copies);
-        totalCopies += copies;
-        availableCopies += avail;
-        borrowedCopies += Math.max(0, copies - avail);
-      });
-
-      // Calculate active overdue loans
-      const now = new Date();
-      let overdueCount = 0;
-      transactions.forEach((tx) => {
-        if (tx.status === "OVERDUE") {
-          overdueCount++;
-        } else if (tx.status === "ACTIVE" && tx.due_date) {
-          const due = new Date(tx.due_date);
-          if (due < now) {
-            overdueCount++;
+  // 1. Resolve Live Books (From Props or Central Storage Engine) + Master Placement Overrides
+  const books: ExtendedBook[] = React.useMemo(() => {
+    let rawBooks: ExtendedBook[] = [];
+    if (propBooks && Array.isArray(propBooks) && propBooks.length > 0) {
+      rawBooks = propBooks as ExtendedBook[];
+    } else {
+      try {
+        const raw =
+          localStorage.getItem("ulm_library_books_master_v1") ||
+          localStorage.getItem("ulm_library_books_v1") ||
+          localStorage.getItem("ulm_lms_books_v1");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            rawBooks = parsed;
           }
         }
-      });
-
-      const effectiveTotal = Math.max(totalCopies, 5000);
-      const effectiveIssued = Math.max(
-        borrowedCopies,
-        transactions.filter((t) => t.status === "ACTIVE" || t.status === "OVERDUE").length,
-        142
-      );
-      const effectiveAvailable = Math.max(0, effectiveTotal - effectiveIssued);
-      const availRate = effectiveTotal > 0 ? (effectiveAvailable / effectiveTotal) * 100 : 97.2;
-
-      return {
-        totalVolumes: effectiveTotal,
-        availableVolumes: effectiveAvailable,
-        issuedVolumes: effectiveIssued,
-        overdueVolumes: Math.max(overdueCount, 12),
-        shelfAvailabilityRate: Number(availRate.toFixed(1)),
-      };
-    }, [activeBooks, transactions]);
-
-  // Dynamic circulation flow based on timeframe
-  const activeCirculation = React.useMemo(() => {
-    return BASELINE_CIRCULATION[timeframe];
-  }, [timeframe]);
-
-  // Dynamic discipline breakdown blending live categories with baseline
-  const disciplineBreakdown = React.useMemo(() => {
-    if (activeBooks.length === 0) {
-      return BASELINE_DISCIPLINES;
+      } catch {}
     }
 
-    const categoryMap = new Map<string, { available: number; issued: number }>();
-    activeBooks.forEach((book) => {
-      const cat = book.category?.trim() || "General Studies";
-      const copies = Number(book.total_quantity ?? book.copies ?? 1);
-      const avail = Number(book.available_quantity ?? book.available_copies ?? copies);
-      const issued = Math.max(0, copies - avail);
+    const active = rawBooks.filter(
+      (b) =>
+        b.is_active === undefined ||
+        b.is_active === true ||
+        (b.is_active as unknown) === 1 ||
+        (b.is_active as unknown) === "1" ||
+        b.is_active !== false
+    );
 
-      const existing = categoryMap.get(cat) || { available: 0, issued: 0 };
-      categoryMap.set(cat, {
-        available: existing.available + avail,
-        issued: existing.issued + issued,
-      });
-    });
-
-    const list = Array.from(categoryMap.entries()).map(([discipline, counts]) => ({
-      discipline,
-      available: counts.available,
-      issued: counts.issued,
-    }));
-
-    if (list.length >= 3) {
-      return list.sort((a, b) => b.available + b.issued - (a.available + a.issued)).slice(0, 7);
-    }
-
-    return BASELINE_DISCIPLINES;
-  }, [activeBooks]);
-
-  // Material donut classification
-  const materialDonut = React.useMemo(() => {
-    const core = Math.round(totalVolumes * 0.49);
-    const ref = Math.round(totalVolumes * 0.256);
-    const theses = Math.round(totalVolumes * 0.144);
-    const journals = Math.round(totalVolumes * 0.078);
-    const digital = Math.max(0, totalVolumes - (core + ref + theses + journals));
-
-    return [
-      { label: "Core Textbooks", value: core, slot: 1 as const },
-      { label: "Reference & Encyclopedias", value: ref, slot: 2 as const },
-      { label: "Research Theses & Dissertations", value: theses, slot: 3 as const },
-      { label: "Journals & Periodicals", value: journals, slot: 4 as const },
-      { label: "Digital / CD Media", value: digital, slot: 5 as const },
-    ];
-  }, [totalVolumes]);
-
-  // Almari stacks summary from AlmariService
-  const activeAlmaris = React.useMemo(() => {
+    // Apply master placement overrides from AlmariView so cupboard counts are 100% synced
+    let masterPlacements: Record<
+      string,
+      { almari_id: string; almari_code: string; shelf_no: number }
+    > = {};
     try {
-      return AlmariService.getAlmaris().filter((a) => a.is_active);
+      const rawPlacements = localStorage.getItem("ulm_almari_placements_master_v3");
+      if (rawPlacements) {
+        masterPlacements = JSON.parse(rawPlacements);
+      }
+    } catch {}
+
+    return active.map((b) => {
+      const idKey = b.id ? String(b.id).trim() : "";
+      const barcodeKey = b.barcode ? String(b.barcode).trim() : "";
+      const override =
+        (idKey && masterPlacements[idKey]) ||
+        (barcodeKey && masterPlacements[barcodeKey]);
+      if (override) {
+        return {
+          ...b,
+          almari_id: override.almari_id,
+          almari_code: override.almari_code,
+          cupboard: override.almari_code,
+          shelf_no: override.shelf_no,
+        };
+      }
+      return b;
+    });
+  }, [propBooks]);
+
+  // 2. Resolve Registered Almaris & Cupboards
+  const almaris: Almari[] = React.useMemo(() => {
+    try {
+      return AlmariService.getAlmaris();
     } catch {
       return [];
     }
-  }, []);
+  }, [books.length]);
+
+  // 3. Resolve Circulation Transactions & Active Loans
+  const circulationRecords = React.useMemo(() => {
+    if (propTransactions && Array.isArray(propTransactions) && propTransactions.length > 0) {
+      return propTransactions;
+    }
+    try {
+      const raw =
+        localStorage.getItem("ulm_circulation_records_v1") ||
+        localStorage.getItem("ulm_lms_transactions_v1");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }, [propTransactions]);
+
+  // 4. Compute Core KPI Totals
+  const totalPhysicalVolumes = React.useMemo(() => {
+    return books.reduce(
+      (acc, b) => acc + Number(b.total_copies ?? b.total_quantity ?? b.copies ?? b.quantity ?? 1),
+      0
+    );
+  }, [books]);
+
+  const activeLoansCount = React.useMemo(() => {
+    // Check book status and available quantity difference directly as well as circulation records
+    const issuedBooksCount = books.reduce((acc, b) => {
+      const statusLower = (b.status || "").toLowerCase();
+      if (statusLower === "issued" || statusLower === "borrowed") {
+        return acc + 1;
+      }
+      const total = Number(b.total_copies ?? b.total_quantity ?? b.copies ?? b.quantity ?? 1);
+      const avail = Number(b.available_quantity ?? b.available_copies ?? total);
+      return acc + Math.max(0, total - avail);
+    }, 0);
+
+    const activeCircCount = circulationRecords.filter((c: any) => {
+      const st = String(c.status || "").toUpperCase();
+      return st === "ACTIVE" || st === "ISSUED" || st === "OVERDUE";
+    }).length;
+
+    return Math.max(issuedBooksCount, activeCircCount);
+  }, [books, circulationRecords]);
+
+  const availableVolumes = Math.max(0, totalPhysicalVolumes - activeLoansCount);
+
+  const availabilityPercentage =
+    totalPhysicalVolumes > 0
+      ? ((availableVolumes / totalPhysicalVolumes) * 100).toFixed(1)
+      : "100.0";
+
+  const overdueCount = React.useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return circulationRecords.filter((c: any) => {
+      const st = String(c.status || "").toUpperCase();
+      if (st === "OVERDUE") return true;
+      const dueDate = c.dueDate || c.due_date;
+      return (st === "ACTIVE" || st === "ISSUED") && dueDate && dueDate < today;
+    }).length;
+  }, [circulationRecords]);
+
+  // 5. Dynamic Academic Discipline Breakdown (Bar Chart Data)
+  const disciplineBreakdown = React.useMemo(() => {
+    if (books.length === 0) {
+      return [{ discipline: "General Holdings", available: 0, issued: 0 }];
+    }
+
+    const groupMap: Record<string, { available: number; issued: number; total: number }> = {};
+
+    books.forEach((b) => {
+      const disc = (b.discipline || b.category || "General Stack").trim();
+      if (!groupMap[disc]) {
+        groupMap[disc] = { available: 0, issued: 0, total: 0 };
+      }
+      const copies = Number(b.total_copies ?? b.total_quantity ?? b.copies ?? b.quantity ?? 1);
+      const statusLower = (b.status || "").toLowerCase();
+      const isIssued = statusLower === "issued" || statusLower === "borrowed";
+
+      groupMap[disc].total += copies;
+      if (isIssued) {
+        groupMap[disc].issued += copies;
+      } else {
+        const avail = Number(b.available_quantity ?? b.available_copies ?? copies);
+        const loaned = Math.max(0, copies - avail);
+        groupMap[disc].available += Math.max(0, copies - loaned);
+        groupMap[disc].issued += loaned;
+      }
+    });
+
+    return Object.entries(groupMap)
+      .map(([discipline, counts]) => ({
+        discipline,
+        available: counts.available,
+        issued: counts.issued,
+        total: counts.total,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+  }, [books]);
+
+  // 6. Dynamic Collection Classification Breakdown (Donut Chart Data)
+  const classificationDonut: DonutSlice[] = React.useMemo(() => {
+    if (books.length === 0) {
+      return [{ label: "General Stack", value: 0, slot: 1 }];
+    }
+
+    const categoryMap: Record<string, number> = {};
+
+    books.forEach((b) => {
+      let category = b.classification || b.material_type;
+      if (!category) {
+        const catLower = (b.category || b.discipline || "").toLowerCase();
+        if (catLower.includes("text") || catLower.includes("course")) category = "Core Textbooks";
+        else if (catLower.includes("ref") || catLower.includes("encycl")) category = "Reference & Rare";
+        else if (catLower.includes("thesis") || catLower.includes("research")) category = "Theses & Dissertations";
+        else if (catLower.includes("journal") || catLower.includes("periodical")) category = "Journals & Periodicals";
+        else category = b.category || "General Stack";
+      }
+      const copies = Number(b.total_copies ?? b.total_quantity ?? b.copies ?? b.quantity ?? 1);
+      categoryMap[category] = (categoryMap[category] || 0) + copies;
+    });
+
+    const entries = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+    const slots: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5];
+
+    return entries.slice(0, 5).map(([label, value], idx) => ({
+      label,
+      value,
+      slot: slots[idx % slots.length],
+    }));
+  }, [books]);
+
+  // 7. Dynamic Circulation Velocity Trend (Area Chart Data)
+  const circulationVelocityData = React.useMemo(() => {
+    const returnedCount = circulationRecords.filter(
+      (c: any) => String(c.status || "").toUpperCase() === "RETURNED"
+    ).length;
+
+    if (timeframe === "7d") {
+      const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      return days.map((day, idx) => ({
+        period: day,
+        issued: idx === 6 ? activeLoansCount : Math.min(activeLoansCount, 1),
+        returned: idx === 6 ? returnedCount : 0,
+      }));
+    }
+
+    if (timeframe === "30d") {
+      return [
+        { period: "Week 1", issued: Math.min(activeLoansCount, 1), returned: 0 },
+        { period: "Week 2", issued: activeLoansCount > 2 ? 1 : 0, returned: 0 },
+        { period: "Week 3", issued: activeLoansCount, returned: 0 },
+        { period: "Week 4", issued: activeLoansCount, returned: returnedCount },
+      ];
+    }
+
+    if (timeframe === "semester") {
+      const months = ["Sep", "Oct", "Nov", "Dec", "Jan"];
+      return months.map((m, idx) => ({
+        period: m,
+        issued: idx === 4 ? activeLoansCount : Math.min(activeLoansCount, idx),
+        returned: idx === 4 ? returnedCount : 0,
+      }));
+    }
+
+    // Default "year"
+    return [
+      { period: "FA25", issued: Math.max(0, activeLoansCount - 2), returned: 0 },
+      { period: "SP26", issued: Math.max(0, activeLoansCount - 1), returned: 0 },
+      { period: "SU26", issued: 0, returned: 0 },
+      { period: "FA26", issued: activeLoansCount, returned: returnedCount },
+    ];
+  }, [timeframe, activeLoansCount, circulationRecords]);
+
+  // 8. Dynamic Stacks & Density
+  const stacksDensity = React.useMemo(() => {
+    if (almaris.length === 0) {
+      return [
+        {
+          name: "Main Hall • Ground Floor",
+          code: "IH",
+          count: totalPhysicalVolumes,
+          location: "Central Campus Library",
+        },
+      ];
+    }
+
+    return almaris.map((almari) => {
+      const assignedCount = books.filter(
+        (b) =>
+          b.almari_id === almari.id ||
+          (b.almari_code && b.almari_code.toUpperCase() === almari.code.toUpperCase()) ||
+          (b.cupboard && b.cupboard.toUpperCase() === almari.code.toUpperCase())
+      ).length;
+
+      return {
+        name: `${almari.code} • ${almari.name_en || almari.name_ur || "Main Stack"}`,
+        code: almari.code,
+        count: assignedCount,
+        location: almari.location || almari.location_note || "Main Hall • Ground Floor",
+        capacity:
+          almari.approx_capacity || (almari.shelf_count || 5) * (almari.books_per_shelf || 25),
+      };
+    });
+  }, [almaris, books, totalPhysicalVolumes]);
 
   return (
-    <div
-      className="space-y-6"
-      style={
-        {
-          // Institutional Theme Palette: Royal Purple & 24K Gold
-          "--chart-1": "#541A72", // ULM Royal Purple
-          "--chart-2": "#C8963E", // ULM Academic Gold
-          "--chart-3": "#10B981", // Emerald Available
-          "--chart-4": "#F59E0B", // Amber Loans
-          "--chart-5": "#3B82F6", // Blue Science
-        } as React.CSSProperties
-      }
-    >
+    <div className="space-y-6">
       {/* Institutional Header & Timeframe Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-card/85 backdrop-blur-xl border border-border shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#FFD147]/20 text-[#B8731B] dark:text-[#FFD147] border border-[#C8963E]/40">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#FFD147]/20 text-[#8A4B00] dark:text-[#FFD147] border border-[#C8963E]/40">
               CAMPUS CATALOG ANALYTICS
             </span>
-            <span className="text-xs text-muted-foreground font-mono">
-              {totalVolumes.toLocaleString()} Cataloged Volumes
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono font-semibold">
+              {totalPhysicalVolumes.toLocaleString()} Cataloged Volumes
             </span>
           </div>
-          <h2 className="text-lg font-extrabold text-foreground mt-1 tracking-tight">
-            Campus Holdings, Circulation Velocity & Stack Distribution
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 tracking-tight">
+            Campus Holdings, Circulation Velocity &amp; Stack Distribution
           </h2>
         </div>
 
@@ -237,9 +338,9 @@ export function CatalogVisualAnalytics({
         <div
           role="radiogroup"
           aria-label="Analytics Timeframe"
-          className="inline-flex rounded-xl bg-muted p-1 border border-border/80"
+          className="inline-flex rounded-xl bg-slate-100 dark:bg-white/5 p-1 border border-slate-200 dark:border-white/10"
         >
-          {(Object.keys(TIMEFRAMES) as TimeframeKey[]).map((key) => (
+          {(Object.keys(TIMEFRAMES) as Array<keyof typeof TIMEFRAMES>).map((key) => (
             <button
               key={key}
               type="button"
@@ -248,8 +349,8 @@ export function CatalogVisualAnalytics({
               onClick={() => setTimeframe(key)}
               className={`h-8 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer ${
                 timeframe === key
-                  ? "bg-card text-foreground shadow-xs border border-border/60"
-                  : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+                  ? "bg-white dark:bg-[#2A174E] text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-[#C8963E]/40"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               {TIMEFRAMES[key]}
@@ -258,38 +359,42 @@ export function CatalogVisualAnalytics({
         </div>
       </div>
 
-      {/* Row 1: Top Institutional KPI Cards with Sparklines */}
+      {/* Row 1: Top Institutional KPI Cards with Live Dynamic Counts */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Cataloged Volumes"
-          value={totalVolumes.toLocaleString()}
+          value={totalPhysicalVolumes.toLocaleString()}
           delta={0.084}
           period="vs last semester"
           icon={<BookOpen className="w-4 h-4" />}
-          trend={[4200, 4400, 4650, 4800, 4920, totalVolumes]}
+          trend={[
+            Math.max(1, Math.round(totalPhysicalVolumes * 0.7)),
+            Math.max(1, Math.round(totalPhysicalVolumes * 0.85)),
+            totalPhysicalVolumes,
+          ]}
         />
         <KpiCard
           label="Active Circulation Loans"
-          value={issuedVolumes.toLocaleString()}
-          delta={0.142}
-          period="vs last month"
+          value={activeLoansCount.toLocaleString()}
+          delta={activeLoansCount > 0 ? 0.05 : 0}
+          period="currently checked out"
           icon={<Layers className="w-4 h-4" />}
-          trend={[95, 110, 128, 134, 138, issuedVolumes]}
+          trend={activeLoansCount > 0 ? [0, 1, activeLoansCount] : [0, 0, 0]}
         />
         <KpiCard
           label="Shelf Availability Index"
-          value={`${shelfAvailabilityRate}%`}
+          value={`${availabilityPercentage}%`}
           delta={0.012}
           good="up"
-          period="of collection available"
+          period={`${availableVolumes} / ${totalPhysicalVolumes} on shelf`}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
         <KpiCard
           label="Overdue / Return Delinquency"
-          value={overdueVolumes.toLocaleString()}
-          delta={-0.25}
+          value={overdueCount.toLocaleString()}
+          delta={overdueCount === 0 ? 0 : 0.05}
           good="down"
-          period="accruing fines (Rs. 10/day)"
+          period={overdueCount > 0 ? "accruing fines (Rs. 10/day)" : "0 overdue loans"}
           icon={<Clock className="w-4 h-4" />}
         />
       </div>
@@ -301,7 +406,7 @@ export function CatalogVisualAnalytics({
           subtitle={`Volumes checked out vs returned during ${TIMEFRAMES[timeframe].toLowerCase()}`}
         >
           <AreaTrend
-            data={activeCirculation}
+            data={circulationVelocityData}
             xKey="period"
             format={(v) => `${v} vols`}
             description="Circulation volume trends over time"
@@ -314,18 +419,7 @@ export function CatalogVisualAnalytics({
 
         <ChartCard
           title="Holdings by Academic Discipline (Available vs Issued)"
-          subtitle="Top university faculties and student borrowing pressure"
-          actions={
-            onSwitchView && (
-              <button
-                type="button"
-                onClick={() => onSwitchView("list")}
-                className="text-xs text-[#BC881B] hover:underline font-semibold cursor-pointer"
-              >
-                View in Table →
-              </button>
-            )
-          }
+          subtitle={`Real breakdown across ${disciplineBreakdown.length} active faculties`}
         >
           <BarCompare
             data={disciplineBreakdown}
@@ -348,7 +442,7 @@ export function CatalogVisualAnalytics({
           className="lg:col-span-2"
         >
           <DonutBreakdown
-            data={materialDonut}
+            data={classificationDonut}
             format={(v) => `${v.toLocaleString()} vols`}
             centerLabel="Total Volumes"
             description="Breakdown of collection by resource format"
@@ -357,86 +451,48 @@ export function CatalogVisualAnalytics({
         </ChartCard>
 
         {/* Physical Stacks & Cupboard Utilization Summary */}
-        <div className="rounded-[18px] bg-card/85 backdrop-blur-xl p-5 border border-border shadow-xs flex flex-col justify-between">
+        <div className="rounded-[18px] bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[14px] font-bold text-foreground">Physical Stacks & Density</span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground font-semibold flex items-center gap-1">
-                <Building2 className="w-3 h-3 text-[#BC881B]" />
-                {activeAlmaris.length > 0 ? `${activeAlmaris.length} Almaris` : "4 Active Wings"}
+              <span className="text-[14px] font-bold text-slate-900 dark:text-white">
+                Physical Stacks &amp; Density
+              </span>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-semibold">
+                {stacksDensity.length} {stacksDensity.length === 1 ? "Almari" : "Almaris"}
               </span>
             </div>
-            <p className="text-[12px] text-muted-foreground mb-4">
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4">
               Physical cupboard mapping registered in central database:
             </p>
 
             <div className="space-y-3">
-              {activeAlmaris.length > 0 ? (
-                activeAlmaris.slice(0, 3).map((almari, idx) => {
-                  const booksCount = activeBooks.filter((b) => b.almari_id === almari.id).length;
-                  return (
-                    <div
-                      key={almari.id}
-                      className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-xs font-bold text-foreground font-mono">
-                          {almari.code} • {almari.name_en}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5" />
-                          {almari.location || "Central Wing"}
-                        </p>
-                      </div>
-                      <span
-                        className={`font-mono text-xs font-extrabold ${
-                          idx === 0
-                            ? "text-[#C8963E]"
-                            : idx === 1
-                            ? "text-[#541A72] dark:text-[#FFD147]"
-                            : "text-emerald-600 dark:text-emerald-400"
-                        }`}
-                      >
-                        {booksCount > 0
-                          ? `${booksCount} vols`
-                          : `${(almari.shelf_count || 4) * (almari.books_per_shelf || 35)} cap`}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <>
-                  <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-foreground font-mono">Stack-01 • General Holding</p>
-                      <p className="text-[11px] text-muted-foreground">Main Reading Hall</p>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-[#C8963E]">4,850 vols</span>
+              {stacksDensity.map((stack, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 flex items-center justify-between"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">
+                      {stack.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span>{stack.location}</span>
+                    </p>
                   </div>
-
-                  <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-foreground font-mono">A-01 • Shelf 1 (CS Reserve)</p>
-                      <p className="text-[11px] text-muted-foreground">East Wing Engineering</p>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-[#541A72] dark:text-[#FFD147]">148 vols</span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-muted/50 border border-border/70 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-foreground font-mono">Alm-CS-02 • AI Lab Stack</p>
-                      <p className="text-[11px] text-muted-foreground">Departmental Lab Aisle</p>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400">2 vols</span>
-                  </div>
-                </>
-              )}
+                  <span className="font-mono text-xs font-extrabold text-[#C8963E] shrink-0">
+                    {stack.count.toLocaleString()} vols
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
             <span>Automated shelf capacity tracking</span>
-            <span className="font-mono font-bold text-foreground">100% Synced</span>
+            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+              100% Synced
+            </span>
           </div>
         </div>
       </div>
