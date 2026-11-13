@@ -135,9 +135,38 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalSearchKey);
   }, []);
 
+  // 1. Authoritative Master Placements Sync
+  const masterPlacements = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('ulm_almari_placements_master_v3');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, [books, catalogView]);
+
+  // 2. Resolved Books with Placements Applied
+  const booksWithPlacements = useMemo(() => {
+    return books.map((b) => {
+      const idKey = b.id ? String(b.id).trim() : '';
+      const barcodeKey = b.barcode ? String(b.barcode).trim() : '';
+      const override = (idKey && masterPlacements[idKey]) || (barcodeKey && masterPlacements[barcodeKey]);
+      if (override) {
+        return {
+          ...b,
+          almari_id: override.almari_id,
+          almari_code: override.almari_code,
+          cupboard: override.almari_code,
+          shelf_no: override.shelf_no,
+        };
+      }
+      return b;
+    });
+  }, [books, masterPlacements]);
+
   // Active books and Almari placement resolver
   const activeBooks = useMemo(() => {
-    return books.filter(
+    return booksWithPlacements.filter(
       (b) =>
         b.is_active === undefined ||
         b.is_active === true ||
@@ -145,15 +174,15 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         (b.is_active as unknown) === '1' ||
         b.is_active !== false
     );
-  }, [books]);
+  }, [booksWithPlacements]);
 
   const activeAlmarisList = useMemo(
     () => AlmariService.getAlmaris().filter((a) => a.is_active),
-    [books.length]
+    [books, catalogView]
   );
   const activeGroupsList = useMemo(
     () => AlmariService.getGroups().filter((g) => g.is_active),
-    [books.length]
+    [books, catalogView]
   );
 
   const placementByBookId = useMemo(() => {
@@ -416,7 +445,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               </span>
             </div>
             <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
-              Across 1 academic disciplines
+              Across {new Set(books.map((b) => (b.discipline || b.category || 'General').trim())).size} academic {new Set(books.map((b) => (b.discipline || b.category || 'General').trim())).size === 1 ? 'discipline' : 'disciplines'}
             </div>
           </div>
 

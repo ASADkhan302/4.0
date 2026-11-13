@@ -181,8 +181,46 @@ const DEFAULT_SEED_CIRCULATION: StorageCirculationRecord[] = [
 ];
 
 export class StorageEngine {
+  private static sqliteInitPromise: Promise<boolean> | null = null;
+
   public static isSqliteIpcConnected(): boolean {
     return typeof window !== 'undefined' && typeof window.electronAPI?.sqliteQuery === 'function';
+  }
+
+  public static async initSqliteWasm(): Promise<boolean> {
+    if (this.isSqliteIpcConnected()) {
+      return true; // Electron Native SQLite IPC Active
+    }
+
+    if (this.sqliteInitPromise) {
+      return this.sqliteInitPromise;
+    }
+
+    this.sqliteInitPromise = (async () => {
+      try {
+        if (typeof window === 'undefined') return false;
+
+        // Check for sql.js global or dynamic import
+        const initSqlJs = (window as any).initSqlJs || (await import('sql.js')).default;
+        if (typeof initSqlJs !== 'function') {
+          console.warn('[StorageEngine] sql.js runtime not found; operating in verified LocalStorage mode.');
+          return false;
+        }
+
+        await initSqlJs({
+          locateFile: (file: string) => `/${file}`,
+        });
+
+        console.info('[StorageEngine] SQLite WASM runtime successfully initialized.');
+        return true;
+      } catch (err) {
+        console.warn('[StorageEngine] SQLite WASM initialization note (falling back to LocalStorage):', err);
+        this.sqliteInitPromise = null; // Clean promise reset on failure
+        return false;
+      }
+    })();
+
+    return this.sqliteInitPromise;
   }
 
   public static getActiveEngineLabel(): 'SYSTEM LIVE • SQLITE CONNECTED' | 'SYSTEM LIVE • LOCAL STORAGE SYNCED' {
@@ -564,75 +602,228 @@ export class StorageEngine {
     return updated;
   }
 
-  public static async exportFullBackupJson(): Promise<FullLibraryBackupPayload> {
-    const [books, members, almaris, circulation] = await Promise.all([
+  public static async exportFullBackupJson(): Promise<FullLibraryBackupPayload & {
+    version: string;
+    university: string;
+    books: any[];
+    almaris: any[];
+    masterPlacements: Record<string, any>;
+    circulation: any[];
+  }> {
+    const [engineBooks, members, engineAlmaris, engineCirculation] = await Promise.all([
       this.getBooks(),
       this.getMembers(),
       this.getAlmaris(),
       this.getCirculation(),
     ]);
 
+    let liveBooks: any[] = engineBooks;
+    let liveAlmaris: any[] = engineAlmaris;
+    let livePlacements: Record<string, any> = {};
+    let liveCirculation: any[] = engineCirculation;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const rawBooks =
+          localStorage.getItem('ulm_lms_books_v1') ||
+          localStorage.getItem('ulm_library_books_master_v1') ||
+          localStorage.getItem('ulm_storage_engine_books_v1');
+        if (rawBooks) {
+          const parsed = JSON.parse(rawBooks);
+          if (Array.isArray(parsed) && parsed.length > 0) liveBooks = parsed;
+        }
+      } catch {}
+
+      try {
+        const rawAlmaris =
+          localStorage.getItem('ulm_almaris_registry_v2') ||
+          localStorage.getItem('ulm_lms_almaris_v1');
+        if (rawAlmaris) {
+          const parsed = JSON.parse(rawAlmaris);
+          if (Array.isArray(parsed) && parsed.length > 0) liveAlmaris = parsed;
+        }
+      } catch {}
+
+      try {
+        const rawPlacements = localStorage.getItem('ulm_almari_placements_master_v3');
+        if (rawPlacements) {
+          const parsed = JSON.parse(rawPlacements);
+          if (parsed && typeof parsed === 'object') livePlacements = parsed;
+        }
+      } catch {}
+
+      try {
+        const rawCirc =
+          localStorage.getItem('ulm_lms_transactions_v1') ||
+          localStorage.getItem('ulm_circulation_records_v1');
+        if (rawCirc) {
+          const parsed = JSON.parse(rawCirc);
+          if (Array.isArray(parsed)) liveCirculation = parsed;
+        }
+      } catch {}
+    }
+
+    const exportedAt = new Date().toISOString();
+
     return {
-      schemaVersion: 'ULM-LMS-BACKUP-v2.4',
+      version: '3.0.0',
+      schemaVersion: '3.0.0',
+      university: 'University of Lakki Marwat (ULM)',
       institution: 'University of Lakki Marwat — Central Digital Library',
-      exportedAt: new Date().toISOString(),
+      exportedAt,
       engineMode: this.isSqliteIpcConnected() ? 'SQLITE_IPC' : 'LOCAL_STORAGE',
+      books: liveBooks,
+      almaris: liveAlmaris,
+      masterPlacements: livePlacements,
+      circulation: liveCirculation,
       counts: {
-        books: books.length,
+        books: liveBooks.length,
         members: members.length,
-        almaris: almaris.length,
-        circulation: circulation.length,
+        almaris: liveAlmaris.length,
+        circulation: liveCirculation.length,
       },
       data: {
-        books,
+        books: liveBooks,
         members,
-        almaris,
-        circulation,
+        almaris: liveAlmaris,
+        circulation: liveCirculation,
       },
     };
   }
 
+  // Unified Institutional Backup (Exports 100% of Real Books, Almaris, and Placements)
   public static async triggerOneClickBackupDownload(): Promise<FullLibraryBackupPayload> {
-    const payload = await this.exportFullBackupJson();
-    if (typeof window !== 'undefined') {
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ULM_Library_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const backupPayload = await this.exportFullBackupJson();
+    try {
+      if (typeof window !== 'undefined') {
+        const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ULM_CENTRAL_LIBRARY_BACKUP_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('[StorageEngine] Failed to create unified backup:', err);
     }
-    return payload;
+    return backupPayload;
+  }
+
+  // Unified Restore Routine (Supports both v3.0.0 top-level format and legacy data wrapper)
+  public static async importBackupData(backupJson: string): Promise<boolean> {
+    try {
+      const data = JSON.parse(backupJson);
+      if (!data || typeof data !== 'object') return false;
+
+      const books = Array.isArray(data.books)
+        ? data.books
+        : Array.isArray(data.data?.books)
+          ? data.data.books
+          : null;
+      const almaris = Array.isArray(data.almaris)
+        ? data.almaris
+        : Array.isArray(data.data?.almaris)
+          ? data.data.almaris
+          : null;
+      const masterPlacements =
+        data.masterPlacements && typeof data.masterPlacements === 'object'
+          ? data.masterPlacements
+          : data.data?.masterPlacements && typeof data.data.masterPlacements === 'object'
+            ? data.data.masterPlacements
+            : null;
+      const circulation = Array.isArray(data.circulation)
+        ? data.circulation
+        : Array.isArray(data.data?.circulation)
+          ? data.data.circulation
+          : null;
+      const members = Array.isArray(data.members)
+        ? data.members
+        : Array.isArray(data.data?.members)
+          ? data.data.members
+          : null;
+
+      if (books) {
+        localStorage.setItem('ulm_lms_books_v1', JSON.stringify(books));
+        localStorage.setItem('ulm_library_books_master_v1', JSON.stringify(books));
+        localStorage.setItem('ulm_storage_engine_books_v1', JSON.stringify(books));
+      }
+      if (almaris) {
+        localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify(almaris));
+        localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify(almaris));
+        localStorage.setItem('ulm_storage_engine_almaris_v1', JSON.stringify(almaris));
+      }
+      if (masterPlacements) {
+        localStorage.setItem('ulm_almari_placements_master_v3', JSON.stringify(masterPlacements));
+      }
+      if (circulation) {
+        localStorage.setItem('ulm_lms_transactions_v1', JSON.stringify(circulation));
+        localStorage.setItem('ulm_circulation_records_v1', JSON.stringify(circulation));
+        localStorage.setItem('ulm_storage_engine_circulation_v1', JSON.stringify(circulation));
+      }
+      if (members) {
+        localStorage.setItem('ulm_storage_engine_members_v1', JSON.stringify(members));
+      }
+      return true;
+    } catch (err) {
+      console.error('[StorageEngine] Backup restore failed:', err);
+      return false;
+    }
   }
 
   public static async verifyAndRestoreBackupJson(rawJson: string): Promise<BackupImportVerificationResult> {
     const errors: string[] = [];
     try {
-      const parsed = JSON.parse(rawJson) as Partial<FullLibraryBackupPayload>;
-      if (!parsed || typeof parsed !== 'object' || !parsed.data) {
+      const parsed = JSON.parse(rawJson);
+      if (!parsed || typeof parsed !== 'object') {
         return {
           valid: false,
           schemaVersion: 'UNKNOWN',
           restoredCounts: { books: 0, members: 0, almaris: 0, circulation: 0 },
-          errors: ['Invalid backup payload structure: missing data object.'],
+          errors: ['Invalid backup payload structure.'],
         };
       }
 
-      const books = Array.isArray(parsed.data.books) ? parsed.data.books : [];
-      const members = Array.isArray(parsed.data.members) ? parsed.data.members : [];
-      const almaris = Array.isArray(parsed.data.almaris) ? parsed.data.almaris : [];
-      const circulation = Array.isArray(parsed.data.circulation) ? parsed.data.circulation : [];
+      const hasTopLevel =
+        Array.isArray(parsed.books) ||
+        Array.isArray(parsed.almaris) ||
+        Array.isArray(parsed.circulation);
+      const hasDataWrapper = parsed.data && typeof parsed.data === 'object';
 
-      // Update LocalStorage
-      if (books.length > 0) this.writeLocalList(LS_KEYS.BOOKS, books);
-      if (members.length > 0) this.writeLocalList(LS_KEYS.MEMBERS, members);
-      if (almaris.length > 0) this.writeLocalList(LS_KEYS.ALMARIS, almaris);
-      if (circulation.length > 0) this.writeLocalList(LS_KEYS.CIRCULATION, circulation);
+      if (!hasTopLevel && !hasDataWrapper) {
+        return {
+          valid: false,
+          schemaVersion: 'UNKNOWN',
+          restoredCounts: { books: 0, members: 0, almaris: 0, circulation: 0 },
+          errors: ['Invalid backup payload structure: missing books/almaris or data object.'],
+        };
+      }
 
-      // In SQLite mode, populate SQLite tables
+      const books = Array.isArray(parsed.books)
+        ? parsed.books
+        : Array.isArray(parsed.data?.books)
+          ? parsed.data.books
+          : [];
+      const members = Array.isArray(parsed.members)
+        ? parsed.members
+        : Array.isArray(parsed.data?.members)
+          ? parsed.data.members
+          : [];
+      const almaris = Array.isArray(parsed.almaris)
+        ? parsed.almaris
+        : Array.isArray(parsed.data?.almaris)
+          ? parsed.data.almaris
+          : [];
+      const circulation = Array.isArray(parsed.circulation)
+        ? parsed.circulation
+        : Array.isArray(parsed.data?.circulation)
+          ? parsed.data.circulation
+          : [];
+
+      await this.importBackupData(rawJson);
+
       if (this.isSqliteIpcConnected()) {
         for (const b of books) await this.upsertBook(b);
         for (const m of members) await this.upsertMember(m);
@@ -641,7 +832,7 @@ export class StorageEngine {
 
       return {
         valid: errors.length === 0,
-        schemaVersion: parsed.schemaVersion || 'ULM-LMS-BACKUP-v2.4',
+        schemaVersion: parsed.version || parsed.schemaVersion || '3.0.0',
         restoredCounts: {
           books: books.length,
           members: members.length,
@@ -657,6 +848,49 @@ export class StorageEngine {
         restoredCounts: { books: 0, members: 0, almaris: 0, circulation: 0 },
         errors: [err instanceof Error ? err.message : 'Failed to parse JSON backup file.'],
       };
+    }
+  }
+
+  public static purgeAllDataAndResetFactory(): void {
+    const keysToRemove = [
+      'ulm_lms_books_v1',
+      'ulm_library_books_master_v1',
+      'ulm_storage_engine_books_v1',
+      'ulm_lms_transactions_v1',
+      'ulm_circulation_records_v1',
+      'ulm_storage_engine_circulation_v1',
+      'ulm_almari_placements_master_v3',
+      'ulm_shelf_capacities_v3',
+      'ulm_demo_mode_active_v1',
+    ];
+
+    keysToRemove.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    });
+
+    // Reset Almaris to only Institutional Holdings (IH) default
+    try {
+      const defaultIh = {
+        id: 'alm-ih-01',
+        code: 'IH',
+        name_en: 'Institutional Holdings & Main Stack',
+        name_ur: 'ادارہ جاتی ذخیرہ کتب',
+        shelf_count: 5,
+        books_per_shelf: 25,
+        approx_capacity: 125,
+        location: 'Main Hall • Ground Floor',
+        location_note: 'Main Hall • Ground Floor',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      window.location.reload();
     }
   }
 }

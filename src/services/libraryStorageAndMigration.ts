@@ -785,15 +785,40 @@ export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; c
       'ulm_lms_last_entry_cache',
       'ulm_lms_catalog_sort',
       'ulm_lms_almaris_v1',
+      'ulm_almaris_registry_v2',
       'ulm_lms_almari_groups_v1',
       'ulm_lms_almari_shelves_v1',
       'ulm_lms_location_history_v1',
+      'ulm_lms_books_v1',
+      'ulm_library_books_master_v1',
+      'ulm_storage_engine_books_v1',
+      'ulm_lms_transactions_v1',
+      'ulm_circulation_records_v1',
+      'ulm_storage_engine_circulation_v1',
+      'ulm_almari_placements_master_v3',
+      'ulm_shelf_capacities_v3',
+      'ulm_demo_mode_active_v1',
     ];
     for (const k of keysToRemove) {
       try { localStorage.removeItem(k); } catch (_) {}
     }
     try {
       localStorage.setItem('ulm_database_cleared', 'true');
+      const defaultIh = {
+        id: 'alm-ih-01',
+        code: 'IH',
+        name_en: 'Institutional Holdings & Main Stack',
+        name_ur: 'ادارہ جاتی ذخیرہ کتب',
+        shelf_count: 5,
+        books_per_shelf: 25,
+        approx_capacity: 125,
+        location: 'Main Hall • Ground Floor',
+        location_note: 'Main Hall • Ground Floor',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
     } catch (_) {}
 
     invalidateRamPageCache();

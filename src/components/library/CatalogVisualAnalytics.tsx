@@ -100,14 +100,14 @@ export function CatalogVisualAnalytics({
     });
   }, [propBooks]);
 
-  // 2. Resolve Registered Almaris & Cupboards
+  // 2. Resolve Registered Almaris & Cupboards (Always fresh from AlmariService)
   const almaris: Almari[] = React.useMemo(() => {
     try {
       return AlmariService.getAlmaris();
     } catch {
       return [];
     }
-  }, [books.length]);
+  }, [books]);
 
   // 3. Resolve Circulation Transactions & Active Loans
   const circulationRecords = React.useMemo(() => {

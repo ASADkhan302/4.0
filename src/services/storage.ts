@@ -1508,12 +1508,66 @@ export class LibraryStorage {
     this.notifyMutation();
   }
 
+  // --- Complete Factory Reset & Demo Purge Routine ---
+  public static purgeAllDataAndResetFactory(): void {
+    const keysToRemove = [
+      'ulm_lms_books_v1',
+      'ulm_library_books_master_v1',
+      'ulm_storage_engine_books_v1',
+      'ulm_lms_transactions_v1',
+      'ulm_circulation_records_v1',
+      'ulm_storage_engine_circulation_v1',
+      'ulm_almari_placements_master_v3',
+      'ulm_shelf_capacities_v3',
+      'ulm_demo_mode_active_v1',
+    ];
+
+    keysToRemove.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    });
+
+    // Reset Almaris to only Institutional Holdings (IH) default
+    try {
+      const defaultIh = {
+        id: 'alm-ih-01',
+        code: 'IH',
+        name_en: 'Institutional Holdings & Main Stack',
+        name_ur: 'ادارہ جاتی ذخیرہ کتب',
+        shelf_count: 5,
+        books_per_shelf: 25,
+        approx_capacity: 125,
+        location: 'Main Hall • Ground Floor',
+        location_note: 'Main Hall • Ground Floor',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+    } catch {}
+
+    AlmariService.resetCaches();
+    this.clearBooksCache();
+
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  }
+
   // --- Reset to Complete First-Time App Opening State ---
   static resetToFirstTimeOpen(): void {
     try {
       localStorage.removeItem(STORAGE_KEYS.BOOKS);
+      localStorage.removeItem('ulm_library_books_master_v1');
+      localStorage.removeItem('ulm_storage_engine_books_v1');
       localStorage.removeItem(STORAGE_KEYS.BORROWERS);
       localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
+      localStorage.removeItem('ulm_circulation_records_v1');
+      localStorage.removeItem('ulm_storage_engine_circulation_v1');
+      localStorage.removeItem('ulm_almari_placements_master_v3');
+      localStorage.removeItem('ulm_shelf_capacities_v3');
+      localStorage.removeItem('ulm_demo_mode_active_v1');
       localStorage.removeItem(STORAGE_KEYS.HISTORY);
       localStorage.removeItem(STORAGE_KEYS.SETTINGS);
       localStorage.removeItem(STORAGE_KEYS.LOCATION);
@@ -1531,6 +1585,22 @@ export class LibraryStorage {
       localStorage.removeItem(STORAGE_KEYS.BOOKS);
       localStorage.setItem('ulm_initialized_empty', 'true');
       localStorage.setItem('ulm_database_cleared', 'true');
+      const defaultIh = {
+        id: 'alm-ih-01',
+        code: 'IH',
+        name_en: 'Institutional Holdings & Main Stack',
+        name_ur: 'ادارہ جاتی ذخیرہ کتب',
+        shelf_count: 5,
+        books_per_shelf: 25,
+        approx_capacity: 125,
+        location: 'Main Hall • Ground Floor',
+        location_note: 'Main Hall • Ground Floor',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+      AlmariService.resetCaches();
     } catch {}
     localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(INITIAL_BORROWERS));
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));

@@ -18,33 +18,37 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export async function getSqlJs(): Promise<SqlJsStatic> {
   if (!sqlPromise) {
     sqlPromise = (async () => {
-      const isNode = typeof process !== 'undefined' && Boolean(process.versions?.node);
-      if (isNode) {
-        try {
-          const path = await import('path');
-          const wasmPath = path.resolve(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm');
-          return await initSqlJs({
-            locateFile: () => wasmPath,
-          });
-        } catch {
+      try {
+        const isNode = typeof process !== 'undefined' && Boolean(process.versions?.node);
+        if (isNode) {
+          try {
+            const path = await import('path');
+            const wasmPath = path.resolve(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm');
+            return await initSqlJs({
+              locateFile: () => wasmPath,
+            });
+          } catch {
+            return await initSqlJs();
+          }
+        } else if (typeof window !== 'undefined') {
+          try {
+            return await initSqlJs({
+              locateFile: (file: string) => `/${file}`,
+            });
+          } catch (err) {
+            console.warn('locateFile WASM instantiation fallback to wasmBinary:', err);
+            const wasmBytes = base64ToUint8Array(SQL_WASM_BASE64);
+            const buffer = wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength) as ArrayBuffer;
+            return await initSqlJs({
+              wasmBinary: buffer,
+            });
+          }
+        } else {
           return await initSqlJs();
         }
-      } else if (typeof window !== 'undefined') {
-        try {
-          // Provide direct wasmBinary buffer to avoid any MIME-type or network fetch issues in preview/dev server
-          const wasmBytes = base64ToUint8Array(SQL_WASM_BASE64);
-          const buffer = wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength) as ArrayBuffer;
-          return await initSqlJs({
-            wasmBinary: buffer,
-          });
-        } catch (err) {
-          console.warn('Direct wasmBinary instantiation fallback:', err);
-          return await initSqlJs({
-            locateFile: (file) => `/${file}`,
-          });
-        }
-      } else {
-        return await initSqlJs();
+      } catch (err) {
+        sqlPromise = null;
+        throw err;
       }
     })();
   }
