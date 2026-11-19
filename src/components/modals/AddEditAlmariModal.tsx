@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Building2, 
   X, 
@@ -175,6 +176,15 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
     return AlmariService.fillShelvesByCapacity(candidateBooks, dummyAlmari, shelves, orderBy);
   }, [candidateBooks, almariToEdit?.id, code, nameEn, nameUr, shelfCount, totalCapacityInput, shelfCapacities, orderBy]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleApply = () => {
@@ -254,9 +264,17 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white/95 dark:bg-[#161024]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 dark:text-[#E7E2EC]">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white/95 dark:bg-[#161024]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 dark:text-[#E7E2EC]"
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-white/[0.08] bg-slate-50/90 dark:bg-[#221F26]">
@@ -585,6 +603,7 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   BookOpen,
@@ -39,7 +40,12 @@ export interface IssueBookFlowModalProps {
   borrowers: Borrower[];
   transactions: Transaction[];
   // Issue executor
-  onIssueBook: (bookId: string, borrowerId: string, daysOrDueDate: number | string) => { success: boolean; message: string; transaction?: Transaction } | void;
+  onIssueBook: (
+    bookId: string,
+    borrowerId: string,
+    daysOrDueDate: number | string,
+    options?: { overrideQuota?: boolean; overrideReason?: string }
+  ) => { success: boolean; message: string; transaction?: Transaction } | void;
   // Fallback to open Add Borrower Modal inside flow
   onOpenAddBorrower?: () => void;
   // Newly registered borrower hook
@@ -78,6 +84,17 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
   const [currentStep, setCurrentStep] = useState<FlowStep>('book');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [quotaOverrideConfirmed, setQuotaOverrideConfirmed] = useState(false);
+
+  // Escape key dismissal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
 
   // Search queries
   const [personSearch, setPersonSearch] = useState('');
@@ -105,6 +122,7 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
       setSelectedCopyBarcode(initB?.barcode || '');
       setActionError(null);
       setIsSubmitting(false);
+      setQuotaOverrideConfirmed(false);
 
       if (initB && !initP) {
         // Book already chosen -> select person
@@ -196,45 +214,63 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
     }
   };
 
-  // Helper: check borrower eligibility
+  // Helper: check borrower eligibility (strict block on expired/suspended; audited override on quota limit)
   const checkBorrowerEligibility = (borrower: Borrower): {
     eligible: boolean;
+    quotaExceededOnly?: boolean;
     reason: string | null;
     activeLoansCount?: number;
     limit?: number;
     overdueCount?: number;
     unpaidFineTotal?: number;
   } => {
-    // 1. Status
+    // 1. Status (strict block)
     if (borrower.status !== 'active') {
-      return { eligible: false, reason: `Status: ${borrower.status.toUpperCase()} (Suspended/Inactive)` };
+      return { eligible: false, reason: `Status: ${String(borrower.status || 'inactive').toUpperCase()} (Suspended/Inactive)` };
     }
-    // 2. Expired valid_until
+    // 2. Expired valid_until (strict block)
     if (borrower.valid_until && borrower.valid_until < todayStr) {
       return { eligible: false, reason: `Expired card (Valid until: ${borrower.valid_until})` };
     }
-    // 3. Borrow limit
-    const activeLoans = transactions.filter(t => t.borrower_id === borrower.id && t.status !== 'RETURNED');
-    const limit = borrower.borrow_limit || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3);
-    if (activeLoans.length >= limit) {
-      return { eligible: false, reason: `Borrow limit reached (${activeLoans.length}/${limit} books)` };
-    }
-    // 4. Overdue and fines
-    const fineRate = 50;
-    const maxUnpaidFine = 500;
+    // 3. Overdue and fines (clamped live fine rate)
+    const activeLoans = transactions.filter(
+      t => t.borrower_id === borrower.id && String(t.status || '').toUpperCase() !== 'RETURNED' && !t.return_date
+    );
+    const limit = Math.max(1, Number(borrower.borrow_limit) || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3));
+    const settings = LibraryStorage.getSettings();
+    const rawRate = Number(settings.fine_per_day_pkr);
+    const fineRate = Number.isFinite(rawRate) ? Math.max(0, rawRate) : 50;
+    const rawMaxFine = Number((settings as any).max_unpaid_fine_pkr);
+    const maxUnpaidFine = Number.isFinite(rawMaxFine) ? Math.max(0, rawMaxFine) : 500;
     let unpaidFineTotal = 0;
     let overdueCount = 0;
+    const todayMs = new Date(todayStr).getTime();
     activeLoans.forEach(loan => {
-      if (loan.due_date < todayStr) {
+      if (loan.due_date && loan.due_date < todayStr) {
         overdueCount++;
-        const diffMs = new Date(todayStr).getTime() - new Date(loan.due_date).getTime();
-        const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        if (days > 0) unpaidFineTotal += days * fineRate;
+        const diffMs = todayMs - new Date(loan.due_date).getTime();
+        if (Number.isFinite(diffMs) && diffMs > 0) {
+          const days = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+          unpaidFineTotal += days * fineRate;
+        }
       }
     });
 
     if (unpaidFineTotal > maxUnpaidFine) {
       return { eligible: false, reason: `Unpaid fines Rs ${unpaidFineTotal} exceed limit (Rs ${maxUnpaidFine})` };
+    }
+
+    // 4. Borrow limit (supports Librarian Quota Override with audit log)
+    if (activeLoans.length >= limit) {
+      return {
+        eligible: false,
+        quotaExceededOnly: true,
+        activeLoansCount: activeLoans.length,
+        limit,
+        overdueCount,
+        unpaidFineTotal,
+        reason: `Borrow limit reached (${activeLoans.length}/${limit} books) — Override available`,
+      };
     }
 
     return {
@@ -243,7 +279,7 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
       limit,
       overdueCount,
       unpaidFineTotal,
-      reason: null
+      reason: null,
     };
   };
 
@@ -299,9 +335,10 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
       );
       if (exact) {
         const check = checkBorrowerEligibility(exact);
-        if (check.eligible) {
+        if (check.eligible || check.quotaExceededOnly) {
           playSuccessBarcodeBeep();
           setSelectedBorrower(exact);
+          setQuotaOverrideConfirmed(false);
           if (selectedBook) {
             setCurrentStep('time');
           } else {
@@ -345,6 +382,11 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
     }
   };
 
+  const selectedBorrowerEligibility = selectedBorrower
+    ? checkBorrowerEligibility(selectedBorrower)
+    : null;
+  const needsQuotaOverride = Boolean(selectedBorrowerEligibility?.quotaExceededOnly);
+
   // Execute issue transaction
   const handleConfirmIssue = async () => {
     if (isSubmitting) return;
@@ -358,13 +400,24 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
       setCurrentStep('person');
       return;
     }
+    if (needsQuotaOverride && !quotaOverrideConfirmed) {
+      setActionError('Member has reached borrowing quota. Confirm the Librarian Quota Override checkbox to proceed.');
+      return;
+    }
 
     setIsSubmitting(true);
     setActionError(null);
 
     try {
       const dueParam = isCustomDate && customDueDate ? customDueDate : presetDays;
-      const result = onIssueBook(selectedBook.id, selectedBorrower.id, dueParam);
+      const result = onIssueBook(
+        selectedBook.id,
+        selectedBorrower.id,
+        dueParam,
+        needsQuotaOverride && quotaOverrideConfirmed
+          ? { overrideQuota: true, overrideReason: 'Librarian Issue Flow Override' }
+          : undefined
+      );
 
       if (result && typeof result === 'object' && result.success === false) {
         playErrorBeep();
@@ -382,11 +435,11 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
@@ -765,13 +818,14 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
                       <div
                         key={b.id}
                         onClick={() => {
-                          if (!eligibility.eligible) {
+                          if (!eligibility.eligible && !eligibility.quotaExceededOnly) {
                             playErrorBeep();
                             setActionError(`Member cannot borrow: ${eligibility.reason}`);
                             return;
                           }
                           playClickSound();
                           setSelectedBorrower(b);
+                          setQuotaOverrideConfirmed(false);
                           setActionError(null);
                         }}
                         className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
@@ -779,6 +833,8 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
                             ? 'bg-[#BC881B]/15 border-[#BC881B] shadow-[0_2px_12px_rgba(188,136,27,0.25)]'
                             : eligibility.eligible
                             ? 'bg-[#1A1A1A] border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-[#201D22] cursor-pointer'
+                            : eligibility.quotaExceededOnly
+                            ? 'bg-amber-950/25 border-amber-500/40 hover:border-amber-400 cursor-pointer'
                             : 'bg-[#171517] border-[#252229] opacity-50 cursor-not-allowed'
                         }`}
                       >
@@ -844,6 +900,15 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
                                   <Check className="w-3 h-3" /> Selected
                                 </span>
                               )}
+                            </div>
+                          ) : eligibility.quotaExceededOnly ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40">
+                                <AlertTriangle className="w-3 h-3" /> Quota Full ({eligibility.activeLoansCount}/{eligibility.limit})
+                              </span>
+                              <span className="text-[10px] text-amber-200/90">
+                                Click for Librarian Override
+                              </span>
                             </div>
                           ) : (
                             <div className="flex flex-col items-end gap-1">
@@ -1168,6 +1233,33 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
                   Adjust time
                 </button>
               </div>
+
+              {/* Librarian Quota Override Confirmation (Audited) */}
+              {needsQuotaOverride && selectedBorrowerEligibility && (
+                <div className="p-4 rounded-xl bg-amber-500/12 border border-amber-500/45 space-y-2.5">
+                  <div className="flex items-start gap-2.5 text-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs leading-relaxed">
+                      <strong>Borrowing Quota Reached:</strong> {selectedBorrower?.name} currently holds{' '}
+                      <strong>
+                        {selectedBorrowerEligibility.activeLoansCount} / {selectedBorrowerEligibility.limit}
+                      </strong>{' '}
+                      books. Authorize a supervised override below to proceed.
+                    </div>
+                  </div>
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-lg bg-black/35 border border-amber-500/30 cursor-pointer text-xs text-amber-100">
+                    <input
+                      type="checkbox"
+                      checked={quotaOverrideConfirmed}
+                      onChange={(e) => setQuotaOverrideConfirmed(e.target.checked)}
+                      className="mt-0.5 accent-amber-500 cursor-pointer"
+                    />
+                    <span>
+                      <strong>Confirm Librarian Quota Override:</strong> Approve issuing beyond member limit and record a permanent audit-log entry.
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1231,7 +1323,7 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmIssue}
-                disabled={isSubmitting || !selectedBook || !selectedBorrower}
+                disabled={isSubmitting || !selectedBook || !selectedBorrower || (needsQuotaOverride && !quotaOverrideConfirmed)}
                 className="h-10 px-6 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#1A1A1A] font-bold text-xs shadow-[0_2px_12px_rgba(188,136,27,0.35)] hover:shadow-[0_4px_16px_rgba(188,136,27,0.5)] border border-[#E0B450]/40 transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
@@ -1242,7 +1334,7 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-                    <span>Issue Book</span>
+                    <span>{needsQuotaOverride ? 'Override & Issue Book' : 'Issue Book'}</span>
                   </>
                 )}
               </button>
@@ -1250,6 +1342,7 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

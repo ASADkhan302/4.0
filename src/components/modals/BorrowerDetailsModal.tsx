@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   User, 
@@ -21,6 +22,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { Borrower, Transaction } from '../../types/library';
+import { LibraryStorage } from '../../services/storage';
 import { ULM_OFFICIAL_CREST_SRC } from '../../constants/ulmOfficialAssets';
 
 interface BorrowerDetailsModalProps {
@@ -64,30 +66,37 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
   if (!isOpen || !borrower) return null;
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const todayMs = new Date(todayStr).getTime();
   const uid = borrower.university_id || borrower.student_id;
   const borrowerTxs = transactions.filter(t => t.borrower_id === borrower.id);
-  const activeLoans = borrowerTxs.filter(t => t.status !== 'RETURNED');
-  const pastLoans = borrowerTxs.filter(t => t.status === 'RETURNED');
+  const activeLoans = borrowerTxs.filter(t => String(t.status || '').toUpperCase() !== 'RETURNED' && !t.return_date);
+  const pastLoans = borrowerTxs.filter(t => String(t.status || '').toUpperCase() === 'RETURNED' || Boolean(t.return_date));
 
-  // Fine calculations: Rs 50 / day for overdue
-  const fineRate = 50;
+  // Fine calculations: clamped live fine_per_day_pkr with NaN/negative guard
+  const rawFineRate = Number(LibraryStorage.getSettings().fine_per_day_pkr);
+  const fineRate = Number.isFinite(rawFineRate) ? Math.max(0, rawFineRate) : 50;
   let totalUnpaidFine = 0;
   const activeLoansWithFine = activeLoans.map(loan => {
-    const isOverdue = loan.status === 'OVERDUE' || loan.due_date < todayStr;
+    const isOverdue = loan.status === 'OVERDUE' || (Boolean(loan.due_date) && loan.due_date < todayStr);
     let daysOverdue = 0;
     let fineDue = 0;
-    if (loan.due_date < todayStr) {
-      const diffMs = new Date(todayStr).getTime() - new Date(loan.due_date).getTime();
-      daysOverdue = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      fineDue = daysOverdue * fineRate;
-      totalUnpaidFine += fineDue;
+    if (loan.due_date && loan.due_date < todayStr) {
+      const dueMs = new Date(loan.due_date).getTime();
+      const diffMs = todayMs - dueMs;
+      if (Number.isFinite(diffMs) && diffMs > 0) {
+        daysOverdue = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        fineDue = Math.max(0, daysOverdue * fineRate);
+        totalUnpaidFine += fineDue;
+      }
     }
     return { ...loan, isOverdue, daysOverdue, fineDue };
   });
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
@@ -502,7 +511,8 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   FolderPlus, 
@@ -109,13 +109,31 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
     showToast('New book group added.');
   };
 
+  const [groupToDelete, setGroupToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  useEffect(() => {
+    if (!isAdding && !groupToDelete) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (groupToDelete) setGroupToDelete(null);
+      else if (isAdding) setIsAdding(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isAdding, groupToDelete]);
+
   const handleDelete = (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete book group "${name}"?`)) return;
-    AlmariService.deleteGroup(id);
+    setGroupToDelete({ id, name });
+  };
+
+  const handleConfirmDeleteGroup = () => {
+    if (!groupToDelete) return;
+    AlmariService.deleteGroup(groupToDelete.id);
     const refreshed = AlmariService.getGroups();
     setGroups(refreshed);
     onGroupsChanged?.();
-    showToast(`Deleted group "${name}".`);
+    showToast(`Deleted group "${groupToDelete.name}".`);
+    setGroupToDelete(null);
   };
 
   const handleMoveOrder = (index: number, direction: 'up' | 'down') => {
@@ -171,6 +189,52 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
           <span>Add New Group</span>
         </button>
       </div>
+
+      {/* Delete Group Full-Viewport Portal Confirmation Modal */}
+      {groupToDelete && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 sm:p-6 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl animate-in fade-in duration-150"
+          onClick={() => setGroupToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="ulm-preserve-glass w-full max-w-sm rounded-[24px] p-5 bg-gradient-to-br from-white/92 via-white/82 to-white/70 dark:from-[#1A102E]/95 dark:via-[#140C24]/92 dark:to-[#0F081C]/90 backdrop-blur-2xl border border-rose-400/50 shadow-2xl space-y-4 text-slate-900 dark:text-white"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-white/10 pb-3">
+              <h4 className="text-sm font-extrabold text-rose-700 dark:text-rose-300">
+                Delete Book Group?
+              </h4>
+              <button
+                type="button"
+                onClick={() => setGroupToDelete(null)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              Are you sure you want to delete book group <strong>&quot;{groupToDelete.name}&quot;</strong>? Existing books will remain intact in the catalog.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setGroupToDelete(null)}
+                className="h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteGroup}
+                className="h-9 px-4 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 !text-white cursor-pointer"
+              >
+                Delete Group
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Add Form Full-Viewport Portal Modal */}
       {isAdding && typeof document !== 'undefined' && createPortal(

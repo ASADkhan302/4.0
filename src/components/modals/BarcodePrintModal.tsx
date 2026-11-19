@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Printer, Bookmark, FileDown, Loader2, AlertTriangle, Layers } from 'lucide-react';
 import { Book } from '../../types/library';
 import { PdfGeneratorService } from '../../services/pdfGeneratorService';
@@ -90,9 +91,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     );
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 ulm-modal-backdrop bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 ulm-modal-backdrop bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
@@ -211,7 +214,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 export default BarcodePrintModal;

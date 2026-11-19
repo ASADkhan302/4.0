@@ -39,6 +39,7 @@ import {
   Cell,
 } from 'recharts';
 import { Book, Borrower, Transaction, NavigationTab } from '../types/library';
+import { LibraryStorage } from '../services/storage';
 import { SharedCountService, LibraryCounts } from '../services/sharedCountService';
 import { SharedCsvWriter } from '../utils/csvWriter';
 import { StatusPill } from './shared/StatusPill';
@@ -256,12 +257,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const overdueLoans = counts.overdueLoans;
 
   const availabilityPct = useMemo(() => {
-    if (totalCopies <= 0) return '100.0';
+    if (totalCopies <= 0) return '0.0';
     return ((onShelf / totalCopies) * 100).toFixed(1);
   }, [onShelf, totalCopies]);
 
   const availPct = useMemo(() => {
-    if (totalCopies <= 0) return 100;
+    if (totalCopies <= 0) return 0;
     return Math.round((onShelf / totalCopies) * 100);
   }, [onShelf, totalCopies]);
 
@@ -352,12 +353,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       fineDue: number;
     }[] = [];
 
+    const rawFineRate = Number(LibraryStorage.getSettings().fine_per_day_pkr);
+    const fineRatePerDay = Number.isFinite(rawFineRate) ? Math.max(0, rawFineRate) : 50;
+    const nowTime = new Date(todayStr).getTime();
+
     transactions.forEach((t) => {
       const isReturned = t.status === 'RETURNED' || Boolean(t.return_date);
       if (!isReturned && (t.status === 'OVERDUE' || (t.due_date && t.due_date < todayStr))) {
         const dueTime = new Date(t.due_date).getTime();
-        const nowTime = new Date(todayStr).getTime();
-        const days = Math.max(1, Math.floor((nowTime - dueTime) / (1000 * 3600 * 24)));
+        const diffMs = nowTime - dueTime;
+        const days = Number.isFinite(diffMs) && diffMs > 0
+          ? Math.max(1, Math.floor(diffMs / (1000 * 3600 * 24)))
+          : 0;
         list.push({
           id: t.id,
           transactionId: t.id,
@@ -369,7 +376,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           barcode: t.barcode || '—',
           dueDate: t.due_date,
           daysOverdue: days,
-          fineDue: days * 10,
+          fineDue: Math.max(0, days * fineRatePerDay),
         });
       }
     });
@@ -1390,6 +1397,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     tickLine={false}
                     axisLine={false}
                     allowDecimals={false}
+                    domain={[0, (dataMax: number) => Math.max(4, Math.ceil((Number.isFinite(dataMax) ? dataMax : 0) * 1.15))]}
                   />
                   <Tooltip
                     contentStyle={{

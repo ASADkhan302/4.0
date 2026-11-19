@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FolderOpen, 
   Check, 
@@ -73,6 +74,15 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
   const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isExecuting && !isMigrating) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isExecuting, isMigrating, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -268,8 +278,13 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={() => !isExecuting && !isMigrating && onClose()}
+    >
       <div 
         className="w-full max-w-2xl bg-[#141118] border border-amber-500/30 rounded-[18px] shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden relative flex flex-col max-h-[94vh]"
         onClick={e => e.stopPropagation()}
@@ -764,6 +779,7 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

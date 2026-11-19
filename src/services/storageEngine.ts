@@ -564,8 +564,18 @@ export class StorageEngine {
     const retDate = returnDateStr || new Date().toISOString().slice(0, 10);
     const dueMs = new Date(existing.dueDate).getTime();
     const retMs = new Date(retDate).getTime();
-    const overdueDays = Math.max(0, Math.floor((retMs - dueMs) / 86400000));
-    const fineAmount = overdueDays * 10;
+    const diffMs = retMs - dueMs;
+    const overdueDays = Number.isFinite(diffMs) && diffMs > 0 ? Math.max(0, Math.floor(diffMs / 86400000)) : 0;
+    let fineRate = 50;
+    try {
+      const rawSettings = localStorage.getItem('ulm_library_settings');
+      if (rawSettings) {
+        const parsed = JSON.parse(rawSettings);
+        const r = Number(parsed?.fine_per_day_pkr);
+        if (Number.isFinite(r)) fineRate = Math.max(0, r);
+      }
+    } catch {}
+    const fineAmount = Math.max(0, overdueDays * fineRate);
 
     const updated: StorageCirculationRecord = {
       ...existing,

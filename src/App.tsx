@@ -538,8 +538,12 @@ export default function App() {
     setBookToDelete(book);
   };
 
-  const handleConfirmDeleteBook = (bookId: string, permanent: boolean) => {
-    const res = LibraryStorage.deleteBook(bookId, permanent);
+  const handleConfirmDeleteBook = (
+    bookId: string,
+    permanent: boolean,
+    forceCloseActiveLoan: boolean = false
+  ) => {
+    const res = LibraryStorage.deleteBook(bookId, permanent, forceCloseActiveLoan);
     if (res.success) {
       reloadData();
       playClickSound();
@@ -623,8 +627,13 @@ export default function App() {
   };
 
   // Circulation Actions
-  const handleIssueBook = (bookId: string, borrowerId: string, daysOrDueDate: number | string = 14) => {
-    const res = LibraryStorage.issueBook(bookId, borrowerId, daysOrDueDate);
+  const handleIssueBook = (
+    bookId: string,
+    borrowerId: string,
+    daysOrDueDate: number | string = 14,
+    options?: { overrideQuota?: boolean; overrideReason?: string }
+  ) => {
+    const res = LibraryStorage.issueBook(bookId, borrowerId, daysOrDueDate, options);
     if (res.success) {
       reloadData();
       playSuccessBarcodeBeep();
@@ -953,6 +962,9 @@ export default function App() {
               setBookToEdit(null);
               setInitialBarcodeForAdd(barcode);
               setIsAddEditOpen(true);
+            }}
+            onOpenAddBorrower={() => {
+              setIsAddPersonFromFlowOpen(true);
             }}
             onOpenBookDetails={(bookId) => {
               const b = books.find(item => item.id === bookId);

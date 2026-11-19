@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   FolderSync, 
@@ -32,13 +33,22 @@ export const DataFilesDiffModal: React.FC<DataFilesDiffModalProps> = ({
   const [applyDeletions, setApplyDeletions] = useState(false);
   const [preferredSource, setPreferredSource] = useState<'xlsx' | 'csv'>('xlsx');
 
-  if (!isOpen || !summary || !summary.hasChanges) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !summary || !summary.hasChanges || typeof document === 'undefined') return null;
 
   const { booksDiff, isConflict } = summary;
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
@@ -218,6 +228,7 @@ export const DataFilesDiffModal: React.FC<DataFilesDiffModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

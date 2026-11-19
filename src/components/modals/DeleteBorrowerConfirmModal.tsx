@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   AlertTriangle, 
   Trash2, 
@@ -49,7 +50,7 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
 
   // Active loans check (Cannot delete if borrower still has checked out books)
   const activeLoans = transactions.filter(
-    t => t.borrower_id === borrower.id && t.status !== 'RETURNED'
+    t => t.borrower_id === borrower.id && String(t.status || '').toUpperCase() !== 'RETURNED' && !t.return_date
   );
   const hasActiveLoans = activeLoans.length > 0;
 
@@ -59,9 +60,11 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
     onClose();
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 dark:bg-black/85 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
@@ -111,7 +114,7 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h4 className="font-header text-base font-bold text-[#F1F5F9] truncate">
+                <h4 className="font-header text-base font-bold text-slate-900 dark:text-[#F1F5F9] truncate">
                   {borrower.name}
                 </h4>
                 <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 shrink-0">
@@ -182,7 +185,7 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
                     className="mt-0.5 text-amber-500 focus:ring-amber-500"
                   />
                   <div className="space-y-0.5 flex-1 text-xs">
-                    <div className="flex items-center gap-1.5 font-semibold text-[#F1F5F9]">
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-[#F1F5F9]">
                       <Archive className="w-3.5 h-3.5 text-amber-500" />
                       <span>Deactivate & Archive Profile (Recommended)</span>
                     </div>
@@ -267,6 +270,7 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -684,7 +684,7 @@ export class LibraryStorage {
 
         const resolvedAlmariId = matchedAlmari ? matchedAlmari.id : rawAlmId;
         const resolvedAlmariCode = matchedAlmari ? matchedAlmari.code : (rawAlmCode || rawAlmId);
-        const resolvedShelfNo = Number(b.shelf_no) || 1;
+        const resolvedShelfNo = Number(b.shelf_no) || 0;
 
         if (resolvedAlmariId && resolvedShelfNo >= 1) {
           const entry = {
@@ -1295,6 +1295,11 @@ export class LibraryStorage {
       dewey_call_number: updates.dewey_call_number !== undefined ? updates.dewey_call_number : current.dewey_call_number,
     });
 
+    const preservedAlmariId = updates.almari_id !== undefined ? updates.almari_id : current.almari_id;
+    const preservedAlmariCode = updates.almari_code !== undefined ? updates.almari_code : current.almari_code;
+    const preservedAlmariName = updates.almari_name !== undefined ? updates.almari_name : current.almari_name;
+    const preservedShelfNo = updates.shelf_no !== undefined ? updates.shelf_no : current.shelf_no;
+
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     books[index] = {
       ...current,
@@ -1310,17 +1315,25 @@ export class LibraryStorage {
       title_sort,
       author_sort,
       search_text,
+      almari_id: preservedAlmariId,
+      almari_code: preservedAlmariCode,
+      almari_name: preservedAlmariName,
+      shelf_no: preservedShelfNo,
+      is_checked_out: current.is_checked_out,
+      active_loan_id: current.active_loan_id,
+      status: current.is_checked_out ? 'Issued' : (updates.status ?? current.status),
       total_quantity: total,
-      available_quantity: available,
+      available_quantity: current.is_checked_out ? 0 : available,
       total_copies: total,
-      available_copies: available,
+      available_copies: current.is_checked_out ? 0 : available,
       copies: total,
       quantity: total,
       updated_at: now,
     };
 
+    const isUnassigned = !books[index].almari_id || Number(books[index].shelf_no) < 1;
+    this.syncBookAlmariPlacements([books[index]], isUnassigned);
     this.saveBooks(books);
-    this.syncBookAlmariPlacements([books[index]], updates.almari_id === null || updates.almari_id === '');
     this.syncBookWithStorageEngine(books[index]);
 
     // Track Almari & Shelf location history if moved
@@ -1352,23 +1365,59 @@ export class LibraryStorage {
     return { success: true, message: 'Book record updated successfully.', book: books[index] };
   }
 
-  static deleteBook(id: string, permanent: boolean = false): { success: boolean; message: string } {
+  static deleteBook(
+    id: string,
+    permanent: boolean = false,
+    forceCloseActiveLoan: boolean = false
+  ): { success: boolean; message: string } {
     const books = this.getBooks();
     const index = books.findIndex(b => b.id === id);
     if (index === -1) return { success: false, message: 'Book record not found in repository.' };
 
+    const targetBook = books[index];
+    const bookTitle = targetBook.book_name;
+    const barcode = targetBook.barcode || '';
+
     const transactions = this.getTransactions();
-    const activeLoan = transactions.find(t => t.book_id === id && t.status !== 'RETURNED');
-    if (activeLoan) {
-      return { 
-        success: false, 
-        message: `Cannot delete: Copies of this book are actively issued to "${activeLoan.borrower_name}". Return all loaned copies before deleting.` 
+    const activeLoanIndices: number[] = [];
+    transactions.forEach((t, idx) => {
+      const isReturned = String(t.status || '').toUpperCase() === 'RETURNED' || Boolean(t.return_date);
+      if (isReturned) return;
+      const matchesCopy =
+        t.book_id === id ||
+        (barcode !== '' && t.barcode && String(t.barcode).trim() === String(barcode).trim());
+      if (matchesCopy) activeLoanIndices.push(idx);
+    });
+
+    if (activeLoanIndices.length > 0 && !forceCloseActiveLoan) {
+      const primaryLoan = transactions[activeLoanIndices[0]];
+      return {
+        success: false,
+        message: `This volume is currently issued to ${primaryLoan.borrower_name || 'a borrower'}. Return it first or force-close the active loan to delete.`,
       };
     }
 
-    const targetBook = books[index];
-    const bookTitle = targetBook.book_name;
-    const barcode = targetBook.barcode;
+    // If librarian explicitly confirmed Force-Close Loan & Delete, close the active loan(s) with audit log
+    if (activeLoanIndices.length > 0 && forceCloseActiveLoan) {
+      const todayIso = new Date().toISOString().split('T')[0];
+      for (const txIdx of activeLoanIndices) {
+        const loan = transactions[txIdx];
+        transactions[txIdx] = {
+          ...loan,
+          status: 'RETURNED',
+          return_date: todayIso,
+        };
+        this.logHistory({
+          action: 'LOAN_FORCE_CLOSED',
+          description: `Force-closed active loan for "${bookTitle}" (Borrower: ${loan.borrower_name || loan.borrower_id}) during volume deletion.`,
+          barcode,
+          book_id: id,
+          borrower_id: loan.borrower_id,
+          user: 'Librarian-Admin',
+        });
+      }
+      this.saveTransactions(transactions);
+    }
 
     // Permanently remember accession number in withdrawn registry (numbers are never reused)
     if (targetBook.accession_no) {
@@ -1378,26 +1427,47 @@ export class LibraryStorage {
       if (match) BookSheetService.registerWithdrawnAccession(match[0]);
     }
 
+    // Clean up physical shelf placement keys for this copy
+    try {
+      const placements = AlmariService.getMasterPlacements();
+      let pChanged = false;
+      if (id && id in placements) {
+        delete placements[id];
+        pChanged = true;
+      }
+      if (barcode && barcode in placements) {
+        delete placements[barcode];
+        pChanged = true;
+      }
+      if (pChanged) AlmariService.saveMasterPlacements(placements);
+    } catch {}
+
     if (permanent) {
       books.splice(index, 1);
     } else {
-      books[index].is_active = false;
+      books[index] = {
+        ...books[index],
+        is_active: false,
+        almari_id: '',
+        almari_code: '',
+        shelf_no: 0,
+      };
     }
     this.saveBooks(books);
 
     this.logHistory({
       action: 'BOOK_DELETED',
-      description: `${permanent ? 'Permanently purged' : 'Soft-deleted (archived)'} book "${bookTitle}" (${barcode})`,
+      description: `${permanent ? 'Permanently purged' : 'Soft-deleted (archived)'} book "${bookTitle}" (${barcode})${activeLoanIndices.length > 0 ? ' [Active loan force-closed]' : ''}`,
       barcode,
       book_id: id,
       user: 'Librarian-Admin',
     });
 
-    return { 
-      success: true, 
-      message: permanent 
-        ? `Book "${bookTitle}" permanently removed from SQLite database.` 
-        : `Book "${bookTitle}" removed from active catalog.` 
+    return {
+      success: true,
+      message: permanent
+        ? `Book "${bookTitle}" permanently removed from database${activeLoanIndices.length > 0 ? ' (active loan force-closed).' : '.'}`
+        : `Book "${bookTitle}" removed from active catalog${activeLoanIndices.length > 0 ? ' (active loan force-closed).' : '.'}`,
     };
   }
 
@@ -1741,7 +1811,12 @@ export class LibraryStorage {
     this.notifyMutation();
   }
 
-  static issueBook(bookId: string, borrowerId: string, daysOrDueDate: number | string = 14): { success: boolean; message: string; transaction?: Transaction } {
+  static issueBook(
+    bookId: string,
+    borrowerId: string,
+    daysOrDueDate: number | string = 14,
+    options?: { overrideQuota?: boolean; overrideReason?: string }
+  ): { success: boolean; message: string; transaction?: Transaction; quotaExceeded?: boolean; activeCount?: number; limit?: number } {
     const books = this.getBooks();
     const bookIndex = books.findIndex(b => (b.id === bookId || b.barcode === bookId) && b.is_active);
     if (bookIndex === -1) return { success: false, message: 'Book not found in database.' };
@@ -1768,7 +1843,7 @@ export class LibraryStorage {
     if (!borrower) return { success: false, message: 'Borrower record not found.' };
 
     // CIRCULATION RULES ENFORCEMENT:
-    // 1. Status is not active
+    // 1. Status is not active (STRICT BLOCK — cannot be overridden)
     if (borrower.status !== 'active') {
       return {
         success: false,
@@ -1776,7 +1851,7 @@ export class LibraryStorage {
       };
     }
 
-    // 2. Valid until has passed
+    // 2. Valid until has passed (STRICT BLOCK — cannot be overridden)
     const todayStr = new Date().toISOString().split('T')[0];
     if (borrower.valid_until && borrower.valid_until < todayStr) {
       return {
@@ -1785,26 +1860,36 @@ export class LibraryStorage {
       };
     }
 
-    // 3. Borrow limit reached
-    const activeLoans = transactions.filter(t => t.borrower_id === borrowerId && t.status !== 'RETURNED');
-    const limit = borrower.borrow_limit || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3);
-    if (activeLoans.length >= limit) {
+    // 3. Borrow limit reached (Allow confirmed Librarian Quota Override with mandatory audit log)
+    const activeLoans = transactions.filter(
+      t => t.borrower_id === borrowerId && String(t.status || '').toUpperCase() !== 'RETURNED' && !t.return_date
+    );
+    const limit = Math.max(1, Number(borrower.borrow_limit) || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3));
+    const quotaExceeded = activeLoans.length >= limit;
+    if (quotaExceeded && !options?.overrideQuota) {
       return {
         success: false,
-        message: `Issuing blocked: Borrow limit reached (${activeLoans.length} / ${limit} books). Return an existing borrowed item before issuing new books.`
+        quotaExceeded: true,
+        activeCount: activeLoans.length,
+        limit,
+        message: `Issuing blocked: Borrow limit reached (${activeLoans.length} / ${limit} books). Return an existing borrowed item or confirm Librarian Quota Override.`
       };
     }
 
-    // 4. Unpaid fines exceed settings threshold (default Rs 500)
+    // 4. Unpaid fines exceed settings threshold (clamped >= 0 and finite)
     const settings = this.getSettings();
-    const fineRate = settings.fine_per_day_pkr || 50;
-    const maxUnpaidFine = (settings as any).max_unpaid_fine_pkr || 500;
+    const rawFineRate = Number(settings.fine_per_day_pkr);
+    const fineRate = Number.isFinite(rawFineRate) ? Math.max(0, rawFineRate) : 50;
+    const rawMaxFine = Number((settings as any).max_unpaid_fine_pkr);
+    const maxUnpaidFine = Number.isFinite(rawMaxFine) ? Math.max(0, rawMaxFine) : 500;
+    const todayMs = new Date(todayStr).getTime();
     let unpaidFineTotal = 0;
     activeLoans.forEach(loan => {
-      if (loan.due_date < todayStr) {
-        const diffMs = new Date(todayStr).getTime() - new Date(loan.due_date).getTime();
-        const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        if (days > 0) {
+      if (loan.due_date && loan.due_date < todayStr) {
+        const dueMs = new Date(loan.due_date).getTime();
+        const diffMs = todayMs - dueMs;
+        if (Number.isFinite(diffMs) && diffMs > 0) {
+          const days = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
           unpaidFineTotal += days * fineRate;
         }
       }
@@ -1823,7 +1908,7 @@ export class LibraryStorage {
     if (typeof daysOrDueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(daysOrDueDate)) {
       dueDateStr = daysOrDueDate;
     } else {
-      const daysCount = typeof daysOrDueDate === 'number' ? daysOrDueDate : 14;
+      const daysCount = typeof daysOrDueDate === 'number' && Number.isFinite(daysOrDueDate) ? Math.max(1, Math.round(daysOrDueDate)) : 14;
       const dueDate = new Date(now.getTime() + daysCount * 24 * 60 * 60 * 1000);
       dueDateStr = dueDate.toISOString().split('T')[0];
     }
@@ -1850,16 +1935,34 @@ export class LibraryStorage {
     this.saveTransactions(transactions);
     this.saveBooks(books);
 
+    if (quotaExceeded && options?.overrideQuota) {
+      const reasonText = options.overrideReason?.trim() ? ` — Reason: ${options.overrideReason.trim()}` : '';
+      this.logHistory({
+        action: 'QUOTA_OVERRIDE',
+        description: `Librarian Quota Override for ${borrower.name} (${borrower.university_id || borrower.student_id}): issued "${book.book_name}" at ${activeLoans.length + 1}/${limit} active loans${reasonText}`,
+        barcode: book.barcode,
+        book_id: book.id,
+        borrower_id: borrower.id,
+        user: 'Circulation-Desk-01',
+      });
+    }
+
     this.logHistory({
       action: 'BOOK_ISSUED',
-      description: `Issued "${book.book_name}" to ${borrower.name} (${borrower.university_id || borrower.student_id}) - Due: ${dueDateStr}`,
+      description: `Issued "${book.book_name}" to ${borrower.name} (${borrower.university_id || borrower.student_id}) - Due: ${dueDateStr}${quotaExceeded && options?.overrideQuota ? ' [QUOTA OVERRIDE]' : ''}`,
       barcode: book.barcode,
       book_id: book.id,
       borrower_id: borrower.id,
       user: 'Circulation-Desk-01',
     });
 
-    return { success: true, message: `"${book.book_name}" issued to ${borrower.name}.`, transaction: newTx };
+    return {
+      success: true,
+      message: quotaExceeded && options?.overrideQuota
+        ? `"${book.book_name}" issued to ${borrower.name} (Librarian Quota Override logged).`
+        : `"${book.book_name}" issued to ${borrower.name}.`,
+      transaction: newTx,
+    };
   }
 
   static returnBook(transactionIdOrBookId: string): { success: boolean; message: string } {

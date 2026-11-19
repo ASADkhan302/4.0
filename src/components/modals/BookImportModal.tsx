@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
@@ -55,6 +55,17 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const shouldCancelRef = useRef<{ current: boolean }>({ current: false });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && stage !== 'parsing' && stage !== 'importing') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, stage, onClose]);
 
   if (!isOpen) return null;
 

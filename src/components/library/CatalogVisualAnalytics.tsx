@@ -12,6 +12,7 @@ import {
 import { BookOpen, Layers, CheckCircle2, Clock, MapPin } from "lucide-react";
 import { Book, Almari, Transaction } from "../../types/library";
 import { AlmariService } from "../../services/almariService";
+import { LibraryStorage } from "../../services/storage";
 
 export interface CatalogVisualAnalyticsProps {
   books?: Book[];
@@ -159,7 +160,12 @@ export function CatalogVisualAnalytics({
   const availabilityPercentage =
     totalPhysicalVolumes > 0
       ? ((availableVolumes / totalPhysicalVolumes) * 100).toFixed(1)
-      : "100.0";
+      : "0.0";
+
+  const liveFineRate = React.useMemo(() => {
+    const r = Number(LibraryStorage.getSettings().fine_per_day_pkr);
+    return Number.isFinite(r) ? Math.max(0, r) : 50;
+  }, []);
 
   const overdueCount = React.useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -394,7 +400,7 @@ export function CatalogVisualAnalytics({
         <KpiCard
           label="Overdue / Delinquency"
           value={overdueCount.toLocaleString()}
-          period={overdueCount > 0 ? "Accruing fines (Rs. 10/day)" : "Zero overdue borrower accounts"}
+          period={overdueCount > 0 ? `Accruing fines (Rs. ${liveFineRate}/day)` : "Zero overdue borrower accounts"}
           icon={<Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />}
         />
       </div>
@@ -467,7 +473,7 @@ export function CatalogVisualAnalytics({
 
             <div className="space-y-3">
               {stacksDensity.map((stack, idx) => {
-                const cap = stack.capacity || 125;
+                const cap = Math.max(1, Number(stack.capacity) || 125);
                 const fillPct = Math.min(100, Math.round((stack.count / cap) * 100));
                 return (
                   <div

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Building2, 
   Layers, 
@@ -46,6 +47,15 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
     if (initialAlmariId) setSelectedAlmariId(initialAlmariId);
     if (initialShelfNo) setSelectedShelfNo(initialShelfNo);
   }, [initialAlmariId, initialShelfNo]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   // Capacity left computation for target Almari
   const targetAlmari = useMemo(() => almaris.find(a => a.id === selectedAlmariId), [almaris, selectedAlmariId]);
@@ -215,9 +225,11 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
     onClose();
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
@@ -433,6 +445,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

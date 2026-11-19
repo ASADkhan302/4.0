@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   FileSpreadsheet, 
   Download, 
@@ -23,7 +24,8 @@ import {
   Clock,
   Laptop,
   Sparkles,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { Book, Borrower, Transaction, HistoryEntry } from '../types/library';
 import { LibraryStorage } from '../services/storage';
@@ -84,6 +86,16 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
   // High-Scale +25,000 Test Books & Sync State
   const [isGeneratingTestBooks, setIsGeneratingTestBooks] = useState(false);
   const [testBooksProgress, setTestBooksProgress] = useState<{ inserted: number; total: number; percent: number } | null>(null);
+  const [showResetZeroModal, setShowResetZeroModal] = useState(false);
+
+  useEffect(() => {
+    if (!showResetZeroModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) setShowResetZeroModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showResetZeroModal, isProcessing]);
 
   const handleGenerate25000TestBooks = async () => {
     if (isGeneratingTestBooks) return;
@@ -135,8 +147,12 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
     }
   };
 
-  const handleResetAllBooksToZero = async () => {
-    if (!window.confirm('Are you sure you want to completely clear all books to 0? This will wipe the database and reset the count to 0.')) return;
+  const handleResetAllBooksToZero = () => {
+    setShowResetZeroModal(true);
+  };
+
+  const executeResetAllBooksToZero = async () => {
+    setShowResetZeroModal(false);
     setIsProcessing(true);
     setImportStatus(null);
     setImportError(null);
@@ -296,30 +312,45 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
 
   // Master Ingestion from uploaded file
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const inputEl = e.target;
+    const file = inputEl.files?.[0];
+    if (!file) {
+      inputEl.value = '';
+      return;
+    }
 
     setIsProcessing(true);
     setImportStatus(null);
     setImportError(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) {
-        setImportError('File is empty or could not be read.');
+    try {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          if (!content || !content.trim()) {
+            setImportError('File is empty or could not be read. Live database was not modified.');
+            setIsProcessing(false);
+            return;
+          }
+          setCsvText(content);
+          executeMigration(content);
+        } catch (parseErr: any) {
+          setImportError(`Malformed migration file: ${parseErr?.message || 'Unable to parse file'}. Live database was not modified.`);
+          setIsProcessing(false);
+        }
+      };
+      reader.onerror = () => {
+        setImportError('Failed to read migration file. Live database was not modified.');
         setIsProcessing(false);
-        return;
-      }
-      setCsvText(content);
-      executeMigration(content);
-    };
-    reader.onerror = () => {
-      setImportError('Failed to read migration file.');
+      };
+      reader.readAsText(file);
+    } catch (err: any) {
+      setImportError(`File upload error: ${err?.message || 'Unknown error'}`);
       setIsProcessing(false);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+    } finally {
+      inputEl.value = '';
+    }
   };
 
   // Ingestion Execution
@@ -1042,6 +1073,61 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
           pointerEvents: 'none',
         }}
       />
+
+      {/* Portaled Frosted Crystal Confirmation Dialog for Reset All Books to 0 */}
+      {showResetZeroModal && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl animate-in fade-in duration-150"
+          onClick={() => !isProcessing && setShowResetZeroModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="ulm-preserve-glass ulm-dark-plaque w-full max-w-md rounded-[26px] bg-gradient-to-br from-[#23173D]/95 via-[#18102B]/95 to-[#120B22]/98 backdrop-blur-2xl border border-rose-400/35 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.20),0_32px_90px_rgba(0,0,0,0.65)] overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-white/[0.12] flex items-center justify-between bg-rose-500/12">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-300">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-white">Clear All Books to Zero?</h3>
+                  <p className="text-[11px] text-rose-200/80">Irreversible catalog wipe operation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetZeroModal(false)}
+                className="w-8 h-8 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/[0.12] flex items-center justify-center text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-[13px] text-slate-200 leading-relaxed">
+                This will completely wipe all book volumes from SQLite, IndexedDB, and local storage and reset the catalog count to <strong className="text-white font-mono">0</strong>. Export a Transfer ZIP backup first if you need to preserve your catalog.
+              </p>
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetZeroModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.14] text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeResetAllBooksToZero}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Wipe Catalog to 0</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Upload, 
@@ -41,6 +42,15 @@ export const BorrowerCsvImportModal: React.FC<BorrowerCsvImportModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isImporting) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isImporting, onClose]);
+
   if (!isOpen) return null;
 
   const handleDownloadTemplate = () => {
@@ -56,17 +66,39 @@ export const BorrowerCsvImportModal: React.FC<BorrowerCsvImportModalProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const inputEl = e.target;
+    const file = inputEl.files?.[0];
+    if (!file) {
+      inputEl.value = '';
+      return;
+    }
 
-    setCsvFile(file);
-    setImportResult(null);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      parseCsv(text);
-    };
-    reader.readAsText(file);
+    try {
+      setCsvFile(file);
+      setImportResult(null);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string;
+          if (!text || !text.trim()) {
+            setValidationReports([{ line: 1, message: 'Uploaded CSV file is empty. No member records were modified.', type: 'error' }]);
+            setRows([]);
+            return;
+          }
+          parseCsv(text);
+        } catch (err: any) {
+          setValidationReports([{ line: 1, message: `Malformed CSV file: ${err?.message || 'Unable to parse CSV'}.`, type: 'error' }]);
+          setRows([]);
+        }
+      };
+      reader.onerror = () => {
+        setValidationReports([{ line: 1, message: 'Could not read the selected CSV file.', type: 'error' }]);
+        setRows([]);
+      };
+      reader.readAsText(file);
+    } finally {
+      inputEl.value = '';
+    }
   };
 
   const parseCsv = (text: string) => {
@@ -263,10 +295,12 @@ export const BorrowerCsvImportModal: React.FC<BorrowerCsvImportModalProps> = ({
 
   const hasFatalErrors = validationReports.some(vr => vr.type === 'error');
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
-      onClick={onClose}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
+      onClick={() => !isImporting && onClose()}
     >
       <div 
         className="w-full max-w-3xl bg-[#0B1220] border border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-200"
@@ -516,7 +550,8 @@ export const BorrowerCsvImportModal: React.FC<BorrowerCsvImportModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

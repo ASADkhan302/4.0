@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Printer,
@@ -229,9 +230,11 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0 print:overflow-visible"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0 print:overflow-visible"
       onClick={onClose}
     >
       <div
@@ -675,7 +678,8 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

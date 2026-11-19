@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Sparkles, 
   X, 
@@ -57,7 +58,16 @@ export const AutoArrangeModal: React.FC<AutoArrangeModalProps> = ({
     });
   }, [isOpen, allBooks, scope, freeSpacePercent, order]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const handleApply = () => {
     const res = AlmariService.autoArrangeBooks(allBooks, {
@@ -80,9 +90,15 @@ export const AutoArrangeModal: React.FC<AutoArrangeModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#1A1A1A] border border-[#BC881B]/40 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-[#E7E2EC]">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#1A1A1A] border border-[#BC881B]/40 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-[#E7E2EC]"
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08] bg-[#221F26]">
@@ -244,6 +260,7 @@ export const AutoArrangeModal: React.FC<AutoArrangeModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

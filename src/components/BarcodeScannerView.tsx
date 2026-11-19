@@ -44,10 +44,12 @@ interface BarcodeScannerViewProps {
   onQuickReturn: (transactionId: string) => void;
   onPrintBarcode: (book: Book) => void;
   onOpenAddBookWithBarcode: (barcode: string) => void;
+  onOpenAddBorrower?: () => void;
   onIssueBookToBorrower?: (
     bookId: string,
     borrowerId: string,
-    daysOrDueDate?: number | string
+    daysOrDueDate?: number | string,
+    options?: { overrideQuota?: boolean; overrideReason?: string }
   ) => { success?: boolean; message?: string } | void;
   onUpdateBooks?: (updatedBooks: Book[]) => void;
   onCatalogBooksUpdated?: (updatedBooks: Book[], message: string) => void;
@@ -71,6 +73,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   onQuickReturn,
   onPrintBarcode,
   onOpenAddBookWithBarcode,
+  onOpenAddBorrower,
   onIssueBookToBorrower,
   onUpdateBooks,
   onCatalogBooksUpdated,
@@ -83,6 +86,13 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   const [foundBorrower, setFoundBorrower] = useState<Borrower | null>(null);
   const [scanState, setScanState] = useState<'IDLE' | 'BOOK_FOUND' | 'BORROWER_FOUND' | 'NOT_FOUND'>('IDLE');
   const [isScanSuccessFlash, setIsScanSuccessFlash] = useState(false);
+  const [quotaOverrideChecked, setQuotaOverrideChecked] = useState(false);
+  const [quotaOverrideReason, setQuotaOverrideReason] = useState('');
+
+  const liveFineRate = useMemo(() => {
+    const r = Number(LibraryStorage.getSettings().fine_per_day_pkr);
+    return Number.isFinite(r) ? Math.max(0, r) : 50;
+  }, [transactions]);
 
   // Quick Issue input state for active borrower
   const [issueBookInput, setIssueBookInput] = useState('');
@@ -193,6 +203,18 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       chainedStudentInputRef.current?.focus();
     }
   }, [scanState]);
+
+  // Dismiss Loan Duration Selector modal on Escape
+  useEffect(() => {
+    if (!isDurationSelectorOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmittingLoan) {
+        setIsDurationSelectorOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDurationSelectorOpen, isSubmittingLoan]);
 
   const activeBorrowersList = useMemo(() => {
     return borrowers && borrowers.length > 0 ? borrowers : LibraryStorage.getBorrowers();
@@ -367,32 +389,42 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   const checkBorrowerEligibility = useCallback(
     (borrower: Borrower) => {
       const activeLoans = transactions.filter(
-        t => t.borrower_id === borrower.id && t.status !== 'RETURNED'
+        t => t.borrower_id === borrower.id && String(t.status || '').toUpperCase() !== 'RETURNED' && !t.return_date
       );
       const todayIsoStr = new Date().toISOString().split('T')[0];
+      const todayMs = new Date(todayIsoStr).getTime();
       let overdueCount = 0;
       let totalFine = 0;
       activeLoans.forEach(loan => {
         if (loan.due_date && loan.due_date < todayIsoStr) {
           overdueCount++;
-          const msDiff = new Date(todayIsoStr).getTime() - new Date(loan.due_date).getTime();
-          const daysOverdue = Math.max(0, Math.floor(msDiff / (1000 * 60 * 60 * 24)));
-          totalFine += daysOverdue * 10;
+          const dueMs = new Date(loan.due_date).getTime();
+          const msDiff = todayMs - dueMs;
+          if (Number.isFinite(msDiff) && msDiff > 0) {
+            const daysOverdue = Math.max(0, Math.floor(msDiff / (1000 * 60 * 60 * 24)));
+            totalFine += daysOverdue * liveFineRate;
+          }
         }
       });
-      const quotaLimit =
-        borrower.borrow_limit ||
-        (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3);
+      const quotaLimit = Math.max(
+        1,
+        Number(borrower.borrow_limit) ||
+          (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3)
+      );
+      const isSuspended = borrower.status !== 'active';
+      const isExpired = Boolean(borrower.valid_until && borrower.valid_until < todayIsoStr);
       return {
         activeLoans,
         overdueCount,
-        totalFine,
+        totalFine: Math.max(0, totalFine),
         quotaLimit,
+        isSuspended,
+        isExpired,
         isQuotaReached: activeLoans.length >= quotaLimit,
         isBlockedOverdue: overdueCount > 0 || totalFine > 0,
       };
     },
-    [transactions]
+    [transactions, liveFineRate]
   );
 
   // Helper: Open Loan Duration Selector Modal for a (book, borrower) pair
@@ -408,6 +440,22 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       }
 
       const elig = checkBorrowerEligibility(targetBorrower);
+      if (elig.isSuspended) {
+        setIssueMessage({
+          type: 'error',
+          text: `Issuing strictly blocked: ${targetBorrower.name}'s account status is "${String(targetBorrower.status || 'INACTIVE').toUpperCase()}".`,
+        });
+        if (soundEnabled) playErrorBeep();
+        return;
+      }
+      if (elig.isExpired) {
+        setIssueMessage({
+          type: 'error',
+          text: `Issuing strictly blocked: ${targetBorrower.name}'s membership card expired on ${targetBorrower.valid_until}. Renew membership first.`,
+        });
+        if (soundEnabled) playErrorBeep();
+        return;
+      }
       if (elig.isBlockedOverdue) {
         setIssueMessage({
           type: 'error',
@@ -416,15 +464,9 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
         if (soundEnabled) playErrorBeep();
         return;
       }
-      if (elig.isQuotaReached) {
-        setIssueMessage({
-          type: 'error',
-          text: `Cannot issue book: ${targetBorrower.name} has reached maximum borrowing quota (${elig.activeLoans.length} / ${elig.quotaLimit} Books).`,
-        });
-        if (soundEnabled) playErrorBeep();
-        return;
-      }
 
+      setQuotaOverrideChecked(false);
+      setQuotaOverrideReason('');
       setPendingDurationTarget({ book: targetBook, borrower: targetBorrower });
       setSelectedDurationDays(targetBorrower.role === 'Faculty' ? 30 : 14);
       setCustomDaysInput(String(targetBorrower.role === 'Faculty' ? 30 : 14));
@@ -559,15 +601,6 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     if (!foundBook) return;
 
     const targetShelfNo = overrideShelfNo ?? selectedPlacementShelfNo;
-    let nextPlacements: Record<string, { almari_id: string; almari_code: string; shelf_no: number }> = {
-      ...masterPlacements,
-    };
-    try {
-      const raw = localStorage.getItem(MASTER_PLACEMENTS_KEY);
-      if (raw) {
-        nextPlacements = { ...JSON.parse(raw), ...nextPlacements };
-      }
-    } catch {}
 
     // Determine target books (just foundBook, or foundBook + sibling copies if checked)
     const booksToMove: Book[] = [foundBook];
@@ -579,55 +612,31 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       booksToMove.push(...targetSiblings);
     }
 
-    const moveIdsSet = new Set(booksToMove.map(b => b.id));
     const updatedBooksToPersist: Book[] = [];
 
     if (selectedPlacementAlmariId === '__UNASSIGN__') {
-      // Unassign from Cupboard
+      // Unassign via centralized AlmariService.unassignBookPlacement
+      let workingBooks = books;
+      let latestPlacements = AlmariService.getMasterPlacements();
       for (const b of booksToMove) {
-        const idKey = b.id ? String(b.id).trim() : '';
-        const bcKey = b.barcode ? String(b.barcode).trim() : '';
-        if (idKey) delete nextPlacements[idKey];
-        if (bcKey) delete nextPlacements[bcKey];
-
-        const unassignedBook: Book = {
-          ...b,
-          almari_id: undefined,
-          almari_code: '',
-          almari_name: '',
-          cupboard: '',
-          shelf_no: 0,
-          shelf: 'Unassigned (No Almari)',
-          row: '',
-          placement_locked: false,
-          location_source: 'manual',
-          updated_at: new Date().toISOString(),
-        };
-        updatedBooksToPersist.push(unassignedBook);
+        const res = AlmariService.unassignBookPlacement(b, workingBooks);
+        if (res.success) {
+          workingBooks = res.updatedBooks;
+          latestPlacements = res.masterPlacements;
+          updatedBooksToPersist.push(res.updatedBook);
+        }
       }
 
-      try {
-        localStorage.setItem(MASTER_PLACEMENTS_KEY, JSON.stringify(nextPlacements));
-      } catch {}
-      setMasterPlacements(nextPlacements);
+      if (updatedBooksToPersist.length === 0) return;
+      setMasterPlacements(latestPlacements);
 
       const primaryUpdated = updatedBooksToPersist[0];
       setFoundBook(primaryUpdated);
 
-      for (const ub of updatedBooksToPersist) {
-        try {
-          LibraryStorage.updateBook(ub.id, ub);
-        } catch {}
-      }
-
-      const updatedAllBooks = books.map(b => {
-        const match = updatedBooksToPersist.find(u => u.id === b.id);
-        return match || b;
-      });
-      if (onUpdateBooks) onUpdateBooks(updatedAllBooks);
+      if (onUpdateBooks) onUpdateBooks(workingBooks);
       if (onCatalogBooksUpdated) {
         onCatalogBooksUpdated(
-          updatedAllBooks,
+          workingBooks,
           `Removed "${primaryUpdated.book_name}" from Almari (moved to Unassigned Queue).`
         );
       }
@@ -652,77 +661,37 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     );
     setSelectedPlacementShelfNo(clampedShelfNo);
 
-    const entry = {
-      almari_id: targetAlmari.id,
-      almari_code: targetAlmari.code,
-      shelf_no: clampedShelfNo,
-    };
-
+    // Route every copy placement through centralized AlmariService.assignBookPlacement
+    // (updates ulm_almari_placements_master_v3, master books via async IndexedDB, and dispatches 'ulm-library-sync')
+    let workingBooks = books;
+    let latestPlacements = AlmariService.getMasterPlacements();
     for (const b of booksToMove) {
-      const idKey = b.id ? String(b.id).trim() : '';
-      const bcKey = b.barcode ? String(b.barcode).trim() : '';
-      if (idKey) nextPlacements[idKey] = entry;
-      if (bcKey) nextPlacements[bcKey] = entry;
-
-      const updatedBook: Book = {
-        ...b,
-        almari_id: targetAlmari.id,
-        almari_code: targetAlmari.code,
-        almari_name: targetAlmari.name_en,
-        cupboard: targetAlmari.code,
-        shelf_no: clampedShelfNo,
-        shelf: `${targetAlmari.code} · Shelf ${clampedShelfNo}`,
-        row: `Shelf ${clampedShelfNo}`,
-        section: targetAlmari.name_en,
-        placement_locked: true,
-        location_source: 'manual',
-        updated_at: new Date().toISOString(),
-      };
-      updatedBooksToPersist.push(updatedBook);
+      const res = AlmariService.assignBookPlacement(b, targetAlmari.id, clampedShelfNo, workingBooks);
+      if (res.success && res.updatedBook) {
+        workingBooks = res.updatedBooks;
+        latestPlacements = res.masterPlacements;
+        updatedBooksToPersist.push(res.updatedBook);
+      }
     }
 
-    // 1. Write dual-key override to ulm_almari_placements_master_v3 & active almari ID
+    if (updatedBooksToPersist.length === 0) return;
+
     try {
-      localStorage.setItem(MASTER_PLACEMENTS_KEY, JSON.stringify(nextPlacements));
       localStorage.setItem(ACTIVE_ALMARI_KEY, targetAlmari.id);
+      persistManualBookShelfAssignments(updatedBooksToPersist);
     } catch {}
-    setMasterPlacements(nextPlacements);
+    setMasterPlacements(latestPlacements);
 
     const primaryUpdated = updatedBooksToPersist[0];
     setFoundBook(primaryUpdated);
-
-    // 2. Persist to LibraryStorage & SQLite/IDB migration tables
-    try {
-      for (const ub of updatedBooksToPersist) {
-        LibraryStorage.updateBook(ub.id, ub);
-        StorageEngine.upsertBook({
-          accession: ub.barcode || ub.accession_no || ub.id || '',
-          title: ub.book_name,
-          author: ub.author,
-          isbn: ub.isbn || '',
-          category: ub.category || 'General',
-          almariId: targetAlmari.id,
-          shelfId: String(clampedShelfNo),
-          status: ub.status === 'ISSUED' ? 'ISSUED' : 'AVAILABLE',
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
-      }
-      persistManualBookShelfAssignments(updatedBooksToPersist);
-    } catch {}
-
-    // 3. Update parent App.tsx books list
-    const updatedAllBooks = books.map(b => {
-      if (!moveIdsSet.has(b.id)) return b;
-      return updatedBooksToPersist.find(u => u.id === b.id) || b;
-    });
 
     const confirmationText =
       updatedBooksToPersist.length > 1
         ? `✓ Stored ${updatedBooksToPersist.length} copies of "${primaryUpdated.book_name}" in ${targetAlmari.code} (${targetAlmari.name_en}) • Shelf ${clampedShelfNo}`
         : `✓ Stored "${primaryUpdated.book_name}" (Acc #${primaryUpdated.accession_no || primaryUpdated.barcode}) in ${targetAlmari.code} (${targetAlmari.name_en}) • Shelf ${clampedShelfNo}`;
 
-    if (onUpdateBooks) onUpdateBooks(updatedAllBooks);
-    if (onCatalogBooksUpdated) onCatalogBooksUpdated(updatedAllBooks, confirmationText);
+    if (onUpdateBooks) onUpdateBooks(workingBooks);
+    if (onCatalogBooksUpdated) onCatalogBooksUpdated(workingBooks, confirmationText);
 
     setPlacementSuccessMsg(confirmationText);
     setPostReturnReshelveBanner(null);
@@ -803,6 +772,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   const handleConfirmIssueLoan = () => {
     if (!pendingDurationTarget) return;
     const { book: targetBook, borrower: targetBorrower } = pendingDurationTarget;
+    const elig = checkBorrowerEligibility(targetBorrower);
+
+    if (elig.isQuotaReached && !quotaOverrideChecked) {
+      if (soundEnabled) playErrorBeep();
+      return;
+    }
 
     if (isCopyCheckedOut(targetBook)) {
       setIssueMessage({
@@ -817,18 +792,23 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
     setIsSubmittingLoan(true);
     const duration = selectedDurationDays;
+    const issueOpts = elig.isQuotaReached && quotaOverrideChecked
+      ? { overrideQuota: true, overrideReason: quotaOverrideReason.trim() || 'Confirmed at Barcode Station' }
+      : undefined;
 
     let issueSuccess = true;
-    let issueMsg = `Successfully issued "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) to ${targetBorrower.name} for ${duration} days!`;
+    let issueMsg = elig.isQuotaReached && quotaOverrideChecked
+      ? `Issued "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) to ${targetBorrower.name} for ${duration} days (Librarian Quota Override logged).`
+      : `Successfully issued "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) to ${targetBorrower.name} for ${duration} days!`;
 
     if (onIssueBookToBorrower) {
-      const res = onIssueBookToBorrower(targetBook.id, targetBorrower.id, duration);
+      const res = onIssueBookToBorrower(targetBook.id, targetBorrower.id, duration, issueOpts);
       if (res && typeof res === 'object' && res.success === false) {
         issueSuccess = false;
         issueMsg = res.message || 'Could not issue book.';
       }
     } else {
-      const res = LibraryStorage.issueBook(targetBook.id, targetBorrower.id, duration);
+      const res = LibraryStorage.issueBook(targetBook.id, targetBorrower.id, duration, issueOpts);
       issueSuccess = res.success;
       if (!res.success) issueMsg = res.message;
     }
@@ -861,6 +841,8 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     setIsSubmittingLoan(false);
     setIsDurationSelectorOpen(false);
     setPendingDurationTarget(null);
+    setQuotaOverrideChecked(false);
+    setQuotaOverrideReason('');
   };
 
   // ---------------- STATE 4: POST-RETURN RESHELVING PROMPT ----------------
@@ -2136,14 +2118,16 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-44 overflow-y-auto pr-1">
                         {matchingBorrowersForBook.map(member => {
                           const elig = checkBorrowerEligibility(member);
-                          const disabled = elig.isBlockedOverdue || elig.isQuotaReached;
+                          const strictlyBlocked = elig.isSuspended || elig.isExpired || elig.isBlockedOverdue;
                           return (
                             <div
                               key={member.id}
-                              onClick={() => !disabled && openDurationSelectorModal(foundBook, member)}
+                              onClick={() => !strictlyBlocked && openDurationSelectorModal(foundBook, member)}
                               className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition-all ${
-                                disabled
+                                strictlyBlocked
                                   ? 'opacity-55 cursor-not-allowed bg-white/30 dark:bg-white/[0.02] border-slate-200 dark:border-white/5'
+                                  : elig.isQuotaReached
+                                  ? 'cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40'
                                   : 'cursor-pointer bg-white/70 dark:bg-white/[0.05] hover:bg-amber-50/70 dark:hover:bg-[#C8963E]/15 border-white/80 dark:border-white/10 hover:border-[#C8963E]'
                               }`}
                             >
@@ -2154,10 +2138,11 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                                 <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
                                   {member.barcode || member.university_id} · Quota {elig.activeLoans.length}/
                                   {elig.quotaLimit}
+                                  {elig.isExpired ? ' · EXPIRED' : elig.isSuspended ? ' · SUSPENDED' : elig.isQuotaReached ? ' · OVERRIDE' : ''}
                                 </p>
                               </div>
                               <span className="px-2 py-1 rounded-lg bg-[#C8963E]/20 text-[#9A6B1A] dark:text-[#FFD147] font-bold text-[10.5px] shrink-0">
-                                Issue ↵
+                                {strictlyBlocked ? 'Blocked' : elig.isQuotaReached ? 'Override ↵' : 'Issue ↵'}
                               </span>
                             </div>
                           );
@@ -2260,15 +2245,26 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center justify-center gap-2.5 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => onOpenAddBookWithBarcode(searchedBarcode || '')}
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] !text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5 !text-slate-950" />
-                <span className="!text-slate-950">Register Book with this Barcode</span>
+                <span className="!text-slate-950">+ Register New Book</span>
               </button>
+
+              {onOpenAddBorrower && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAddBorrower()}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 !text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5 !text-white" />
+                  <span className="!text-white">+ Register Member</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2416,16 +2412,57 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                     className="font-mono font-bold text-slate-900 dark:text-white text-sm"
                     style={{ fontFamily: "'Space Grotesk', monospace" }}
                   >
-                    {new Date(Date.now() + selectedDurationDays * 86400000).toISOString().split('T')[0]}
+                    {new Date(Date.now() + Math.max(1, selectedDurationDays) * 86400000).toISOString().split('T')[0]}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 block">
                     Overdue Fine
                   </span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400">Rs. 10 / day</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400">Rs. {liveFineRate} / day</span>
                 </div>
               </div>
+
+              {/* Librarian Quota Override Gate (if member is at or over borrowing limit) */}
+              {(() => {
+                const pendingElig = checkBorrowerEligibility(pendingDurationTarget.borrower);
+                if (!pendingElig.isQuotaReached) return null;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/12 border border-amber-500/40 space-y-2.5 text-xs">
+                    <div className="flex items-start gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-900 dark:text-amber-300">
+                          Borrowing Quota Reached ({pendingElig.activeLoans.length}/{pendingElig.quotaLimit} active loans)
+                        </p>
+                        <p className="text-[11px] text-amber-800/90 dark:text-amber-200/80 mt-0.5">
+                          Confirm a Librarian Quota Override below to issue this volume. A <code className="font-mono font-bold">QUOTA_OVERRIDE</code> entry will be recorded in the audit log.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="flex items-start gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={quotaOverrideChecked}
+                        onChange={(e) => setQuotaOverrideChecked(e.target.checked)}
+                        className="mt-0.5 rounded border-amber-500/60 accent-amber-500 cursor-pointer"
+                      />
+                      <span className="font-semibold text-slate-900 dark:text-white text-[11.5px]">
+                        Confirm Librarian Quota Override (logs audit entry)
+                      </span>
+                    </label>
+                    {quotaOverrideChecked && (
+                      <input
+                        type="text"
+                        value={quotaOverrideReason}
+                        onChange={(e) => setQuotaOverrideReason(e.target.value)}
+                        placeholder="Optional override note (e.g., Thesis research approval)..."
+                        className="w-full h-8 px-2.5 rounded-lg bg-white/85 dark:bg-black/30 border border-amber-500/35 text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                      />
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Modal Footer Actions */}
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-300/60 dark:border-white/10">
@@ -2438,12 +2475,17 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmittingLoan}
+                  disabled={
+                    isSubmittingLoan ||
+                    (checkBorrowerEligibility(pendingDurationTarget.borrower).isQuotaReached && !quotaOverrideChecked)
+                  }
                   onClick={handleConfirmIssueLoan}
-                  className="px-5 h-10 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] !text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                  className="px-5 h-10 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] disabled:opacity-45 disabled:cursor-not-allowed !text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
                 >
                   <Check className="w-4 h-4 !text-slate-950" />
-                  <span className="!text-slate-950">Confirm Issue ↵</span>
+                  <span className="!text-slate-950">
+                    {checkBorrowerEligibility(pendingDurationTarget.borrower).isQuotaReached ? 'Confirm Override Issue ↵' : 'Confirm Issue ↵'}
+                  </span>
                 </button>
               </div>
             </div>

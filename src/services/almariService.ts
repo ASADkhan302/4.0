@@ -1481,4 +1481,593 @@ export class AlmariService {
 
     return { migrated, changesCount };
   }
+
+  // ============================================================================
+  // CENTRALIZED SINGLE-SOURCE-OF-TRUTH PLACEMENT, CAPACITY & RECONCILIATION ENGINE
+  // ============================================================================
+
+  static readonly MASTER_PLACEMENTS_KEY = 'ulm_almari_placements_master_v3';
+  static readonly SHELF_CAPACITIES_KEY = 'ulm_shelf_capacities_v3';
+
+  static getMasterPlacements(): Record<
+    string,
+    {
+      almari_id: string;
+      almari_code: string;
+      almari_name?: string;
+      shelf_no: number;
+      placement_locked?: boolean;
+      updated_at?: string;
+    }
+  > {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(this.MASTER_PLACEMENTS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  static saveMasterPlacements(
+    map: Record<
+      string,
+      {
+        almari_id: string;
+        almari_code: string;
+        almari_name?: string;
+        shelf_no: number;
+        placement_locked?: boolean;
+        updated_at?: string;
+      }
+    >
+  ): void {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(this.MASTER_PLACEMENTS_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.warn('[AlmariService] Failed to persist master placements:', err);
+    }
+  }
+
+  static getShelfCapacities(): Record<string, number> {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(this.SHELF_CAPACITIES_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  static getShelfCapacity(
+    almari: Almari,
+    shelfNo: number,
+    capacitiesMap?: Record<string, number>
+  ): number {
+    const map = capacitiesMap || this.getShelfCapacities();
+    const canonicalKey = `${almari.id}::shelf-${shelfNo}`;
+    const legacyKey = `${almari.id}::${shelfNo}`;
+    const stored = map[canonicalKey] ?? map[legacyKey];
+    if (stored !== undefined && Number.isFinite(Number(stored))) {
+      return Math.max(1, Math.min(200, Math.round(Number(stored))));
+    }
+    if (almari.books_per_shelf && Number.isFinite(Number(almari.books_per_shelf))) {
+      return Math.max(1, Math.min(200, Math.round(Number(almari.books_per_shelf))));
+    }
+    const perShelf = Math.round(
+      (almari.approx_capacity || 120) / Math.max(1, almari.shelf_count || 5)
+    );
+    return Math.max(1, Math.min(200, perShelf || 24));
+  }
+
+  static setShelfCapacity(
+    almari: Almari,
+    shelfNo: number,
+    value: number
+  ): Record<string, number> {
+    const clamped = Math.max(1, Math.min(200, Math.round(Number(value) || 24)));
+    const current = this.getShelfCapacities();
+    const canonicalKey = `${almari.id}::shelf-${shelfNo}`;
+    const legacyKey = `${almari.id}::${shelfNo}`;
+    const updated: Record<string, number> = {
+      ...current,
+      [canonicalKey]: clamped,
+    };
+    if (legacyKey in updated) {
+      delete updated[legacyKey];
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(this.SHELF_CAPACITIES_KEY, JSON.stringify(updated));
+      } catch {}
+    }
+    return updated;
+  }
+
+  /**
+   * Single Source of Truth for assigning ONE physical book copy to an Almari & Shelf.
+   * Strictly isolated per-copy by `book.id` (fallback only to exact unique `book.barcode`).
+   * Persists to `ulm_almari_placements_master_v3`, updates master `books` via async IndexedDB
+   * (`LibraryStorage.saveBooks` -> `idbSet('books_catalog')`), and broadcasts `'ulm-library-sync'`.
+   */
+  static assignBookPlacement(
+    book: Book,
+    almariId: string,
+    shelfNo: number,
+    allBooks?: Book[]
+  ): {
+    success: boolean;
+    message: string;
+    updatedBook?: Book;
+    updatedBooks: Book[];
+    targetAlmari?: Almari;
+    shelfNo: number;
+    masterPlacements: Record<string, any>;
+  } {
+    const almaris = this.getAlmaris();
+    const cleanTargetId = String(almariId || '').trim();
+    const targetAlmari = almaris.find(
+      (a) =>
+        a.id === cleanTargetId ||
+        a.code.toUpperCase() === cleanTargetId.toUpperCase()
+    );
+
+    const sourceBooks =
+      Array.isArray(allBooks) && allBooks.length > 0 ? allBooks : LibraryStorage.getBooks();
+
+    if (!targetAlmari) {
+      return {
+        success: false,
+        message: 'Target Almari cupboard not found.',
+        updatedBooks: sourceBooks,
+        shelfNo: 0,
+        masterPlacements: this.getMasterPlacements(),
+      };
+    }
+
+    const maxShelves = Math.max(1, targetAlmari.shelf_count || 5);
+    const clampedShelfNo = Math.max(1, Math.min(maxShelves, Math.round(Number(shelfNo) || 1)));
+    const nowIso = new Date().toISOString();
+
+    const bookId = book.id ? String(book.id).trim() : '';
+    const bookBarcode = book.barcode ? String(book.barcode).trim() : '';
+
+    // 1. Update ulm_almari_placements_master_v3 strictly keyed by this individual copy's id & barcode
+    const nextPlacements = { ...this.getMasterPlacements() };
+    const entry = {
+      almari_id: targetAlmari.id,
+      almari_code: targetAlmari.code,
+      almari_name: targetAlmari.name_en,
+      shelf_no: clampedShelfNo,
+      placement_locked: true,
+      updated_at: nowIso,
+    };
+    if (bookId) nextPlacements[bookId] = entry;
+    if (bookBarcode) nextPlacements[bookBarcode] = entry;
+    this.saveMasterPlacements(nextPlacements);
+
+    // 2. Build updated single-copy record
+    const updatedBook: Book = {
+      ...book,
+      almari_id: targetAlmari.id,
+      almari_code: targetAlmari.code,
+      almari_name: targetAlmari.name_en,
+      cupboard: targetAlmari.code,
+      shelf_no: clampedShelfNo,
+      shelf: `${targetAlmari.code} · Shelf ${clampedShelfNo}`,
+      row: `Shelf ${clampedShelfNo}`,
+      section: targetAlmari.name_en,
+      placement_locked: true,
+      location_source: 'manual',
+      updated_at: nowIso,
+    };
+
+    // 3. Mutate ONLY this exact copy in master books array (never sibling copies)
+    let matched = false;
+    const updatedBooks = sourceBooks.map((b) => {
+      if (matched) return b;
+      const bId = b.id ? String(b.id).trim() : '';
+      const bBc = b.barcode ? String(b.barcode).trim() : '';
+      const isExactCopy = bookId
+        ? bId === bookId
+        : bookBarcode !== '' && bBc === bookBarcode;
+      if (isExactCopy) {
+        matched = true;
+        return {
+          ...b,
+          almari_id: targetAlmari.id,
+          almari_code: targetAlmari.code,
+          almari_name: targetAlmari.name_en,
+          cupboard: targetAlmari.code,
+          shelf_no: clampedShelfNo,
+          shelf: `${targetAlmari.code} · Shelf ${clampedShelfNo}`,
+          row: `Shelf ${clampedShelfNo}`,
+          section: targetAlmari.name_en,
+          placement_locked: true,
+          location_source: 'manual' as const,
+          updated_at: nowIso,
+        };
+      }
+      return b;
+    });
+
+    // 4. Record location history
+    const prevAlm = book.almari_id ? almaris.find((a) => a.id === book.almari_id) : null;
+    this.recordMove({
+      book_id: bookId || bookBarcode,
+      from: prevAlm && book.shelf_no ? `${prevAlm.code}, Shelf ${book.shelf_no}` : 'Unassigned',
+      to: `${targetAlmari.code}, Shelf ${clampedShelfNo}`,
+      reason: 'Manual shelf placement',
+    });
+
+    // 5. Persist asynchronously to IndexedDB (mirroring localStorage only when <= 1500) & dispatch 'ulm-library-sync'
+    LibraryStorage.saveBooks(updatedBooks);
+    LibraryStorage.syncBookWithStorageEngine(updatedBook);
+
+    return {
+      success: true,
+      message: `Placed "${book.book_name}" in ${targetAlmari.code} (${targetAlmari.name_en}) • Shelf ${clampedShelfNo}`,
+      updatedBook,
+      updatedBooks,
+      targetAlmari,
+      shelfNo: clampedShelfNo,
+      masterPlacements: nextPlacements,
+    };
+  }
+
+  /**
+   * Single Source of Truth for unassigning ONE physical book copy back to the Unassigned Queue.
+   * Strictly isolated per-copy by `book.id` (fallback only to exact unique `book.barcode`).
+   */
+  static unassignBookPlacement(
+    book: Book,
+    allBooks?: Book[]
+  ): {
+    success: boolean;
+    message: string;
+    updatedBook: Book;
+    updatedBooks: Book[];
+    masterPlacements: Record<string, any>;
+  } {
+    const sourceBooks =
+      Array.isArray(allBooks) && allBooks.length > 0 ? allBooks : LibraryStorage.getBooks();
+    const nowIso = new Date().toISOString();
+    const bookId = book.id ? String(book.id).trim() : '';
+    const bookBarcode = book.barcode ? String(book.barcode).trim() : '';
+
+    // 1. Remove strictly this copy's keys from ulm_almari_placements_master_v3
+    const nextPlacements = { ...this.getMasterPlacements() };
+    if (bookId && bookId in nextPlacements) delete nextPlacements[bookId];
+    if (bookBarcode && bookBarcode in nextPlacements) delete nextPlacements[bookBarcode];
+    this.saveMasterPlacements(nextPlacements);
+
+    const updatedBook: Book = {
+      ...book,
+      almari_id: '',
+      almari_code: '',
+      almari_name: '',
+      cupboard: '',
+      shelf_no: 0,
+      shelf: 'Unassigned (No Almari)',
+      row: '',
+      placement_locked: false,
+      location_source: 'manual',
+      updated_at: nowIso,
+    };
+
+    // 2. Update ONLY this exact copy in master books array
+    let matched = false;
+    const updatedBooks = sourceBooks.map((b) => {
+      if (matched) return b;
+      const bId = b.id ? String(b.id).trim() : '';
+      const bBc = b.barcode ? String(b.barcode).trim() : '';
+      const isExactCopy = bookId
+        ? bId === bookId
+        : bookBarcode !== '' && bBc === bookBarcode;
+      if (isExactCopy) {
+        matched = true;
+        return {
+          ...b,
+          almari_id: '',
+          almari_code: '',
+          almari_name: '',
+          cupboard: '',
+          shelf_no: 0,
+          shelf: 'Unassigned (No Almari)',
+          row: '',
+          placement_locked: false,
+          location_source: 'manual' as const,
+          updated_at: nowIso,
+        };
+      }
+      return b;
+    });
+
+    // 3. Persist asynchronously via LibraryStorage.saveBooks & broadcast 'ulm-library-sync'
+    LibraryStorage.saveBooks(updatedBooks);
+    LibraryStorage.syncBookWithStorageEngine(updatedBook);
+
+    return {
+      success: true,
+      message: `Unassigned "${book.book_name}" back to Unassigned Queue.`,
+      updatedBook,
+      updatedBooks,
+      masterPlacements: nextPlacements,
+    };
+  }
+
+  /**
+   * Deterministic O(N) reconciler run on load and after every Cupboard Edit or Delete.
+   * - Unassigns any book pointing to a non-existent Almari (`almari_id = ''`, `shelf_no = 0`)
+   * - Clamps or unassigns any book whose `shelf_no > almari.shelf_count` so zero books become orphaned/invisible
+   * - Syncs `ulm_almari_placements_master_v3` strictly by `book.id` / `book.barcode`
+   */
+  static reconcileAlmariPlacements(
+    books: Book[],
+    almarisInput?: Almari[],
+    options?: { persist?: boolean; outOfBoundsMode?: 'clamp' | 'unassign' }
+  ): {
+    books: Book[];
+    changedCount: number;
+    orphanedCount: number;
+    outOfBoundsCount: number;
+    masterPlacements: Record<string, any>;
+  } {
+    const almaris = almarisInput || this.getAlmaris();
+    const outOfBoundsMode = options?.outOfBoundsMode || 'clamp';
+
+    const almariById = new Map<string, Almari>();
+    const almariByCode = new Map<string, Almari>();
+    for (const a of almaris) {
+      if (a.id) almariById.set(a.id, a);
+      if (a.code) almariByCode.set(a.code.toUpperCase(), a);
+    }
+
+    const nextPlacements = { ...this.getMasterPlacements() };
+    let placementsDirty = false;
+    let changedCount = 0;
+    let orphanedCount = 0;
+    let outOfBoundsCount = 0;
+
+    // 1. Prune stale placement keys pointing to deleted almaris or out-of-bounds shelves
+    for (const key of Object.keys(nextPlacements)) {
+      const entry = nextPlacements[key];
+      if (!entry) {
+        delete nextPlacements[key];
+        placementsDirty = true;
+        continue;
+      }
+      const matched =
+        (entry.almari_id && almariById.get(entry.almari_id)) ||
+        (entry.almari_code && almariByCode.get(String(entry.almari_code).toUpperCase()));
+      if (!matched) {
+        delete nextPlacements[key];
+        placementsDirty = true;
+        continue;
+      }
+      const maxShelves = Math.max(1, matched.shelf_count || 5);
+      const sNo = Number(entry.shelf_no) || 0;
+      if (sNo < 1) {
+        delete nextPlacements[key];
+        placementsDirty = true;
+      } else if (sNo > maxShelves) {
+        if (outOfBoundsMode === 'unassign') {
+          delete nextPlacements[key];
+        } else {
+          nextPlacements[key] = {
+            ...entry,
+            almari_id: matched.id,
+            almari_code: matched.code,
+            almari_name: matched.name_en,
+            shelf_no: maxShelves,
+          };
+        }
+        placementsDirty = true;
+      } else if (entry.almari_id !== matched.id || entry.almari_code !== matched.code) {
+        nextPlacements[key] = {
+          ...entry,
+          almari_id: matched.id,
+          almari_code: matched.code,
+          almari_name: matched.name_en,
+          shelf_no: sNo,
+        };
+        placementsDirty = true;
+      }
+    }
+
+    // 2. Reconcile every book copy in O(N)
+    const reconciledBooks: Book[] = new Array(books.length);
+    for (let i = 0; i < books.length; i++) {
+      const b = books[i];
+      const idKey = b.id ? String(b.id).trim() : '';
+      const bcKey = b.barcode ? String(b.barcode).trim() : '';
+
+      const override =
+        (idKey && nextPlacements[idKey]) ||
+        (bcKey && nextPlacements[bcKey]) ||
+        null;
+
+      const rawAlmariId = override?.almari_id ?? (b.almari_id ? String(b.almari_id).trim() : '');
+      const rawAlmariCode =
+        override?.almari_code ??
+        (b.almari_code ? String(b.almari_code).trim() : '') ??
+        (b.cupboard ? String(b.cupboard).trim() : '');
+      const rawShelfNo = override ? Number(override.shelf_no) || 0 : Number(b.shelf_no) || 0;
+
+      const hasAnyPlacementRef = Boolean(rawAlmariId || rawAlmariCode || rawShelfNo >= 1);
+
+      const matchedAlmari =
+        (rawAlmariId && almariById.get(rawAlmariId)) ||
+        (rawAlmariCode && almariByCode.get(rawAlmariCode.toUpperCase())) ||
+        (b.cupboard && almariByCode.get(String(b.cupboard).toUpperCase())) ||
+        null;
+
+      // Case A: Book points to a deleted / non-existent Almari -> unassign cleanly
+      if (!matchedAlmari) {
+        if (hasAnyPlacementRef || b.almari_id || b.almari_code || (Number(b.shelf_no) || 0) >= 1) {
+          orphanedCount++;
+          changedCount++;
+          if (idKey && idKey in nextPlacements) {
+            delete nextPlacements[idKey];
+            placementsDirty = true;
+          }
+          if (bcKey && bcKey in nextPlacements) {
+            delete nextPlacements[bcKey];
+            placementsDirty = true;
+          }
+          reconciledBooks[i] = {
+            ...b,
+            almari_id: '',
+            almari_code: '',
+            almari_name: '',
+            cupboard: '',
+            shelf_no: 0,
+            shelf: '',
+            placement_locked: false,
+          };
+        } else {
+          reconciledBooks[i] = b;
+        }
+        continue;
+      }
+
+      // Case B: Valid Almari, check shelf_no bounds
+      const maxShelves = Math.max(1, matchedAlmari.shelf_count || 5);
+      if (rawShelfNo < 1) {
+        // Book has almari reference but no shelf -> treat as unassigned
+        if (b.almari_id || b.almari_code || b.shelf_no) {
+          changedCount++;
+          reconciledBooks[i] = {
+            ...b,
+            almari_id: '',
+            almari_code: '',
+            almari_name: '',
+            cupboard: '',
+            shelf_no: 0,
+            shelf: '',
+            placement_locked: false,
+          };
+        } else {
+          reconciledBooks[i] = b;
+        }
+        continue;
+      }
+
+      if (rawShelfNo > maxShelves) {
+        outOfBoundsCount++;
+        changedCount++;
+        if (outOfBoundsMode === 'unassign') {
+          if (idKey && idKey in nextPlacements) {
+            delete nextPlacements[idKey];
+            placementsDirty = true;
+          }
+          if (bcKey && bcKey in nextPlacements) {
+            delete nextPlacements[bcKey];
+            placementsDirty = true;
+          }
+          reconciledBooks[i] = {
+            ...b,
+            almari_id: '',
+            almari_code: '',
+            almari_name: '',
+            cupboard: '',
+            shelf_no: 0,
+            shelf: '',
+            placement_locked: false,
+          };
+          continue;
+        } else {
+          const clampedShelf = maxShelves;
+          const clampedEntry = {
+            almari_id: matchedAlmari.id,
+            almari_code: matchedAlmari.code,
+            almari_name: matchedAlmari.name_en,
+            shelf_no: clampedShelf,
+            placement_locked: true,
+          };
+          if (idKey) nextPlacements[idKey] = clampedEntry;
+          if (bcKey) nextPlacements[bcKey] = clampedEntry;
+          placementsDirty = true;
+          reconciledBooks[i] = {
+            ...b,
+            almari_id: matchedAlmari.id,
+            almari_code: matchedAlmari.code,
+            almari_name: matchedAlmari.name_en,
+            cupboard: matchedAlmari.code,
+            shelf_no: clampedShelf,
+            shelf: `${matchedAlmari.code} · Shelf ${clampedShelf}`,
+            row: `Shelf ${clampedShelf}`,
+            section: matchedAlmari.name_en,
+            placement_locked: true,
+          };
+          continue;
+        }
+      }
+
+      // Case C: Valid Almari & in-bounds shelf_no -> ensure fields and masterPlacements are synced
+      if (!override) {
+        const seedEntry = {
+          almari_id: matchedAlmari.id,
+          almari_code: matchedAlmari.code,
+          almari_name: matchedAlmari.name_en,
+          shelf_no: rawShelfNo,
+          placement_locked: true,
+        };
+        if (idKey) {
+          nextPlacements[idKey] = seedEntry;
+          placementsDirty = true;
+        }
+        if (bcKey) {
+          nextPlacements[bcKey] = seedEntry;
+          placementsDirty = true;
+        }
+      }
+
+      const needsBookFieldSync =
+        b.almari_id !== matchedAlmari.id ||
+        b.almari_code !== matchedAlmari.code ||
+        b.almari_name !== matchedAlmari.name_en ||
+        Number(b.shelf_no) !== rawShelfNo ||
+        b.cupboard !== matchedAlmari.code;
+
+      if (needsBookFieldSync) {
+        changedCount++;
+        reconciledBooks[i] = {
+          ...b,
+          almari_id: matchedAlmari.id,
+          almari_code: matchedAlmari.code,
+          almari_name: matchedAlmari.name_en,
+          cupboard: matchedAlmari.code,
+          shelf_no: rawShelfNo,
+          shelf: `${matchedAlmari.code} · Shelf ${rawShelfNo}`,
+          row: `Shelf ${rawShelfNo}`,
+          section: matchedAlmari.name_en,
+          placement_locked: true,
+        };
+      } else {
+        reconciledBooks[i] = b;
+      }
+    }
+
+    if (placementsDirty) {
+      this.saveMasterPlacements(nextPlacements);
+    }
+    if (options?.persist && changedCount > 0 && reconciledBooks.length > 0) {
+      LibraryStorage.saveBooks(reconciledBooks);
+    }
+
+    return {
+      books: reconciledBooks,
+      changedCount,
+      orphanedCount,
+      outOfBoundsCount,
+      masterPlacements: nextPlacements,
+    };
+  }
 }
+

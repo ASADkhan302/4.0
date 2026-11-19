@@ -208,6 +208,7 @@ export function AreaTrend<T extends Record<string, unknown>>({
                 tickFormatter={format}
                 width={62}
                 allowDecimals={false}
+                domain={[0, (dataMax: number) => Math.max(4, Math.ceil((Number.isFinite(dataMax) ? dataMax : 0) * 1.15))]}
               />
               <RTooltip
                 cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
@@ -264,6 +265,7 @@ export function BarCompare<T extends Record<string, unknown>>({
                 tickFormatter={format}
                 width={62}
                 allowDecimals={false}
+                domain={[0, (dataMax: number) => Math.max(4, Math.ceil((Number.isFinite(dataMax) ? dataMax : 0) * 1.15))]}
               />
               <RTooltip
                 cursor={{ fill: "var(--muted)", opacity: 0.25 }}

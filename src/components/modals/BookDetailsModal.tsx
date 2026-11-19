@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   BookOpen, 
@@ -83,9 +84,11 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
     );
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/15 dark:bg-slate-950/60 backdrop-blur-[8px] backdrop-saturate-150 transition-all overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/70 backdrop-blur-[10px] backdrop-saturate-150 transition-all overflow-y-auto animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
@@ -344,7 +347,8 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
