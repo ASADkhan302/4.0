@@ -707,7 +707,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150"
         onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
@@ -715,10 +715,10 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       >
         {/* Dynamic Modal Container (Adapts from single column up to 2-column wide layout) */}
         <div 
-          className="w-full max-w-[1140px] bg-white dark:bg-[#0B1220] border border-slate-300 dark:border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-all text-slate-900 dark:text-slate-200"
+          className="ulm-preserve-glass w-full max-w-5xl max-h-[90vh] flex flex-col rounded-[26px] bg-white/90 dark:bg-[#140D22]/90 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/15 shadow-2xl overflow-hidden transition-all text-slate-900 dark:text-slate-200"
         >
           {/* Header */}
-          <div className="px-5 sm:px-6 py-3.5 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-[#334155] flex items-center justify-between">
+          <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-white/60 dark:bg-[#020617]/80 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
                 <UserPlus className="w-4 h-4 text-amber-600 dark:text-amber-500" />
@@ -738,7 +738,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowMobilePreview(!showMobilePreview)}
-                className="lg:hidden px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="lg:hidden px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 <span>Card Preview</span>
@@ -748,7 +748,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-[#F1F5F9] hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-[#F1F5F9] hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 aria-label="Close dialog"
               >
                 <X className="w-4 h-4 stroke-[2.5]" />
@@ -757,7 +757,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
           </div>
 
           {/* Main Content Area: Form on Left + Live Preview on Right (Wide Windows) */}
-          <div className="flex-1 overflow-y-auto flex flex-col lg:flex-row">
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col lg:flex-row">
             
             {/* LEFT / FORM COLUMN */}
             <div className="flex-1 p-5 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
@@ -1279,22 +1279,22 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               </div>
 
               {/* 8. Photo Upload with Drag & Zoom 4:5 Crop */}
-              <div className="p-3.5 rounded-xl bg-[#020617] border border-[#334155] flex items-center justify-between gap-4">
+              <div className="p-3.5 rounded-xl bg-slate-100/80 dark:bg-[#020617] border border-slate-200 dark:border-[#334155] flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-[70px] rounded-lg overflow-hidden bg-slate-900 border-2 border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-14 h-[70px] rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-900 border-2 border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
                     {photoUrl ? (
                       <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="text-[9px] font-mono text-slate-500 text-center p-1 leading-tight">
+                      <div className="text-[9px] font-mono text-slate-600 dark:text-slate-400 text-center p-1 leading-tight">
                         4:5 Portrait (300×375)
                       </div>
                     )}
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-[#F1F5F9] block">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
                       Member Portrait Photo (4:5 Crop, 300 × 375 px)
                     </span>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
                       Drag-and-zoom crop ready for CR80 Smart Card printing
                     </p>
                   </div>
@@ -1311,7 +1311,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   />
                   <label
                     htmlFor="borrower-modal-photo-input"
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-[#334155] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-[#334155] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Upload className="w-3.5 h-3.5 text-amber-500" />
                     <span>{photoUrl ? 'Change...' : 'Browse...'}</span>
@@ -1320,7 +1320,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setPhotoUrl('')}
-                      className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 border border-rose-900/40 cursor-pointer"
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/15 border border-rose-500/30 cursor-pointer"
                       title="Remove photo"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1524,8 +1524,8 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="px-5 sm:px-6 py-3.5 bg-[#020617] border-t border-[#334155] flex flex-wrap items-center justify-between gap-3">
-            <span className="text-[11px] font-mono text-slate-500">
+          <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-white/75 dark:bg-[#020617] border-t border-slate-200/80 dark:border-[#334155] flex flex-wrap items-center justify-between gap-3">
+            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
               {isEditMode ? 'Editing Borrower Profile' : 'Tip: Press [Enter] for rapid "Save & Next"'}
             </span>
 
@@ -1533,7 +1533,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1543,7 +1543,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   type="button"
                   onClick={() => handleSave(true)}
                   disabled={Boolean(duplicateError)}
-                  className="px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/40 font-bold text-xs transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
                   title="Save this record and keep role, department and class context ready for the next person"
                 >
                   <span>Save &amp; Next</span>

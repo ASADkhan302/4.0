@@ -24,7 +24,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     <div
       onClick={onClick}
       style={style}
-      className={`relative rounded-[14px] ulm-liquid-glass p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:border-[#BC881B]/50 hover:-translate-y-[2px] overflow-hidden ${
+      className={`ulm-preserve-glass relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:border-[#FFD147]/60 hover:-translate-y-0.5 overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       } ${className}`}
     >
@@ -35,7 +35,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
 /**
  * 2. PANEL CARD (Reports, Migration)
- * Ultra-Transparent Crystal Liquid Glass, radius 14, specular crystal rim, padding 20.
+ * Ultra-Transparent Crystal Liquid Glass, radius 22px, specular crystal rim, padding 20.
  */
 export interface PanelCardProps {
   children: React.ReactNode;
@@ -59,9 +59,9 @@ export const PanelCard: React.FC<PanelCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`relative rounded-[14px] ulm-liquid-glass p-5 overflow-hidden flex flex-col ${
+      className={`ulm-preserve-glass relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)] p-5 overflow-hidden flex flex-col ${
         onClick
-          ? 'cursor-pointer transition-all duration-[180ms] ease-out hover:border-[#BC881B]/50 hover:-translate-y-[2px]'
+          ? 'cursor-pointer transition-all duration-[180ms] ease-out hover:border-[#FFD147]/65 hover:-translate-y-0.5'
           : ''
       } ${className}`}
     >
@@ -73,17 +73,17 @@ export const PanelCard: React.FC<PanelCardProps> = ({
       )}
 
       {(title || headerAction) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-200/80 dark:border-[var(--border-subtle)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-200/80 dark:border-white/10">
           <div>
             {typeof title === 'string' ? (
-              <h3 className="text-[15px] font-bold text-slate-900 dark:text-[var(--text-strong)] tracking-tight leading-snug">
+              <h3 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
                 {title}
               </h3>
             ) : (
               title
             )}
             {subtitle && (
-              <p className="text-[12px] text-slate-600 dark:text-[var(--text-muted)] mt-0.5 font-sans">
+              <p className="text-[12px] text-slate-600 dark:text-slate-400 mt-0.5 font-sans">
                 {subtitle}
               </p>
             )}
@@ -103,7 +103,7 @@ export const PanelCard: React.FC<PanelCardProps> = ({
 
 /**
  * 3. KPI CARD (Reports Overview, Catalog Metrics, Circulation KPIs)
- * Clean liquid glass, high-contrast typography, no muddy gradient washes
+ * Frosted Crystal Liquid-Glass with Space Grotesk numerals & Plus Jakarta Sans labels
  */
 export interface KpiCardProps {
   label: string;
@@ -143,41 +143,42 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-xl ulm-liquid-glass p-4 flex flex-col justify-between transition-all ${
+      className={`ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)] p-4 flex flex-col justify-between transition-all hover:border-[#FFD147]/65 ${
         isDanger ? 'border-rose-500/40' : ''
       } ${className}`}
     >
-      {/* Top row: Clean uppercase label + small muted 16px icon */}
+      {/* Top row: Plus Jakarta Sans uppercase label + 28x28px frosted icon badge */}
       <div className="flex items-center justify-between gap-3">
-        <span className="font-sans text-[11px] font-semibold text-slate-600 dark:text-[var(--text-muted)] uppercase tracking-[0.06em] truncate">
+        <span className="ulm-kpi-label font-['Plus_Jakarta_Sans',sans-serif] text-[10.5px] font-bold text-slate-600 dark:text-slate-300/90 uppercase tracking-[0.13em] truncate">
           {label}
         </span>
         {Icon && (
-          <Icon className="w-4 h-4 text-slate-400 dark:text-[var(--text-muted)] shrink-0" strokeWidth={1.75} />
+          <div className="w-7 h-7 rounded-xl bg-white/45 dark:bg-white/[0.08] border border-white/60 dark:border-white/15 flex items-center justify-center shrink-0">
+            <Icon className="w-3.5 h-3.5 text-[#541A72] dark:text-[#FFD147] shrink-0" strokeWidth={2} />
+          </div>
         )}
       </div>
 
-      {/* Value: Playfair Display / serif with high contrast */}
-      <div className="my-2.5 flex items-baseline gap-2.5 flex-wrap">
+      {/* Value: Space Grotesk 26px tabular numeral + italic unit note */}
+      <div className="my-2.5 flex items-baseline gap-2 flex-wrap">
         <div 
-          className={`text-2xl sm:text-3xl font-bold font-serif tabular-nums leading-none ${
-            isDanger ? 'text-rose-600 dark:text-rose-400' : isGoldNumber ? 'text-amber-700 dark:text-royal-gold' : 'text-slate-900 dark:text-[var(--text-strong)]'
+          className={`font-['Space_Grotesk',sans-serif] text-[26px] font-bold tabular-nums tracking-[-0.02em] leading-none ${
+            isDanger ? 'text-rose-600 dark:text-rose-400' : isGoldNumber ? 'text-amber-700 dark:text-[#FFD147]' : 'text-slate-900 dark:text-white'
           }`}
-          style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
         >
           {value.toLocaleString()}
         </div>
 
         {note && (
-          <span className="text-[12px] text-slate-500 dark:text-[var(--text-muted)] font-normal leading-normal select-none">
+          <span className="font-['Plus_Jakarta_Sans',sans-serif] text-[11px] font-medium italic text-slate-500 dark:text-slate-400 leading-normal select-none">
             {note}
           </span>
         )}
       </div>
 
       {/* Subtext */}
-      <div className="text-[12px] text-slate-600 dark:text-[var(--text-muted)] leading-snug font-sans truncate">
-        {subLabel || fractionTooltip || (isDanger ? <span className="text-rose-600 dark:text-rose-400 font-medium">Items require attention</span> : <span>Active catalog inventory</span>)}
+      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug font-sans truncate">
+        {subLabel || fractionTooltip || (isDanger ? <span className="text-rose-600 dark:text-rose-400 font-semibold">Items require attention</span> : <span>Active catalog inventory</span>)}
       </div>
     </div>
   );

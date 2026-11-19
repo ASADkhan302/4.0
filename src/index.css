@@ -279,16 +279,8 @@ small {
   line-height: 1.4;
 }
 
-/* Enforce no text below 12px across legacy Tailwind utility classes */
-.text-\[7px\],
-.text-\[8px\],
-.text-\[8\.5px\],
-.text-\[9px\],
-.text-\[9\.5px\],
-.text-\[10px\],
-.text-\[10\.5px\],
-.text-\[11px\],
-.text-\[11\.5px\] {
+/* Enforce no text below 12px across legacy Tailwind utility classes (excluding CR80 cards and KPI micro-labels) */
+:is(.text-\[7px\], .text-\[8px\], .text-\[8\.5px\], .text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\], .text-\[11px\], .text-\[11\.5px\]):not(.cr80-card *):not(.ulm-kpi-label) {
   font-size: 12px !important;
 }
 
@@ -463,7 +455,7 @@ button::after {
 
 /* Size Variants */
 .btn-sm,
-button.h-8 {
+button.h-8:not(.w-8):not(.p-0) {
   height: 32px !important;
   min-height: 32px !important;
   padding: 0 12px;
@@ -472,7 +464,7 @@ button.h-8 {
 }
 
 .btn-md,
-button.h-9 {
+button.h-9:not(.w-9):not(.p-0) {
   height: 36px !important;
   min-height: 36px !important;
   padding: 0 14px;
@@ -481,8 +473,8 @@ button.h-9 {
 }
 
 .btn-lg,
-button.h-10,
-button.h-11 {
+button.h-10:not(.w-10):not(.p-0),
+button.h-11:not(.w-11):not(.p-0) {
   height: 40px !important;
   min-height: 40px !important;
   padding: 0 16px;
@@ -765,7 +757,15 @@ option,
 optgroup {
   background-color: var(--surface-2) !important;
   color: var(--text-strong) !important;
-  color-scheme: dark !important;
+  color-scheme: dark;
+}
+
+html.light-theme select,
+html.light-theme option,
+html.light-theme optgroup {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  color-scheme: light !important;
 }
 
 option:hover,
@@ -776,7 +776,7 @@ option:focus {
 
 option:checked {
   background-color: var(--purple) !important;
-  color: var(--text-strong) !important;
+  color: #FFFFFF !important;
 }
 
 * {
@@ -830,14 +830,30 @@ input[type="time"]::-webkit-calendar-picker-indicator {
    ========================================================================== */
 
 .modal-backdrop,
+.ulm-modal-backdrop,
 .fixed.inset-0.z-50:has([class*="max-w-"]) {
-  background-color: rgba(20, 18, 20, 0.75) !important;
-  backdrop-filter: blur(4px) !important;
+  background-color: rgba(2, 6, 23, 0.60) !important;
+  backdrop-filter: blur(8px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(150%) !important;
   animation: modalBackdropFadeIn 150ms var(--ease-out) forwards;
 }
 
+html:not(.dark) .modal-backdrop,
+html:not(.dark) .ulm-modal-backdrop,
+html.light-theme .modal-backdrop,
+html.light-theme .ulm-modal-backdrop,
+body.light-mode .modal-backdrop,
+body.light-mode .ulm-modal-backdrop,
+html.light-theme .fixed.inset-0:has([class*="max-w-"]) {
+  background: rgba(15, 23, 42, 0.16) !important;
+  background-image: none !important;
+  backdrop-filter: blur(8px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(150%) !important;
+  box-shadow: none !important;
+}
+
 .modal-dialog,
-.fixed.inset-0.z-50 > div[class*="max-w-"] {
+.fixed.inset-0.z-50 > div[class*="max-w-"]:not(.ulm-preserve-glass) {
   border-radius: 16px;
   border: 1px solid var(--border-subtle);
   background-color: var(--ulm-card-bg, #150E22);
@@ -2058,20 +2074,20 @@ html.light-theme {
 }
 
 html.light-theme body {
-  background: linear-gradient(135deg, #F1F5F9 0%, #E6EDF5 50%, #F5F2EB 100%) !important;
+  background: linear-gradient(135deg, #FCFBF7 0%, #F7F2FA 50%, #F3EDE0 100%) !important;
   color: #0F172A !important;
 }
 
 /* 1A. Convert ALL hardcoded dark backgrounds to crisp White Glass in Light Mode —
-       EXCEPT intentional dark previews marked .ulm-preserve-dark and official .cr80-card */
-html.light-theme [class*="bg-[#0"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-[#1"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-[#2"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-slate-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-zinc-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-neutral-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-gray-9"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *) {
+       EXCEPT intentional dark previews marked .ulm-preserve-dark, .ulm-preserve-glass, .ulm-dark-plaque and official .cr80-card */
+html.light-theme [class*="bg-[#0"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-[#1"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-[#2"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-slate-9"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-zinc-9"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-neutral-9"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-gray-9"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-black/"]:not(.fixed.inset-0):not(.modal-backdrop):not(.ulm-modal-backdrop):not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *) {
   background-color: var(--ulm-card-bg) !important;
   background-image: linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.88) 100%) !important;
   border-color: var(--ulm-border-subtle) !important;
@@ -2080,32 +2096,32 @@ html.light-theme [class*="bg-black/"]:not(.ulm-modal-backdrop):not(.ulm-preserve
 }
 
 /* Inner panels, Shelf Rack Inspector boxes, and table headers in Light Mode */
-html.light-theme [class*="bg-slate-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *),
-html.light-theme [class*="bg-zinc-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.cr80-card):not(.cr80-card *) {
+html.light-theme [class*="bg-slate-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *),
+html.light-theme [class*="bg-zinc-8"]:not(.ulm-preserve-dark):not(.ulm-preserve-dark *):not(.ulm-preserve-glass):not(.ulm-preserve-glass *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card):not(.cr80-card *) {
   background-color: #F1F5F9 !important;
   border-color: rgba(15, 23, 42, 0.14) !important;
   color: #0F172A !important;
 }
 
 /* 1B. Fix ALL white/light text classes on White Glass surfaces */
-html.light-theme .text-white:not(.ulm-preserve-dark *):not(.cr80-card *):not([class*="bg-purple-"]):not([class*="bg-[#541A72]"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-7"]):not([class*="bg-rose-6"]):not([class*="bg-amber-6"]):not([class*="from-[#B8731B]"]):not([class*="from-[#541A72]"]):not([class*="from-[#2D124D]"]),
-html.light-theme .text-slate-50:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-slate-100:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-slate-200:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-zinc-100:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-zinc-200:not(.ulm-preserve-dark *):not(.cr80-card *) {
+html.light-theme .text-white:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *):not([class*="bg-purple-"]):not([class*="bg-[#541A72]"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-7"]):not([class*="bg-rose-6"]):not([class*="bg-amber-6"]):not([class*="from-[#B8731B]"]):not([class*="from-[#541A72]"]):not([class*="from-[#1C0F2B]"]):not([class*="from-[#2D124D]"]),
+html.light-theme .text-slate-50:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-slate-100:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-slate-200:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-zinc-100:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-zinc-200:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *) {
   color: #0F172A !important;
 }
 
-html.light-theme .text-slate-300:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-zinc-300:not(.ulm-preserve-dark *):not(.cr80-card *) {
+html.light-theme .text-slate-300:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-zinc-300:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *) {
   color: #1E293B !important;
 }
 
-html.light-theme .text-slate-400:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-slate-500:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-zinc-400:not(.ulm-preserve-dark *):not(.cr80-card *),
-html.light-theme .text-zinc-500:not(.ulm-preserve-dark *):not(.cr80-card *) {
+html.light-theme .text-slate-400:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-slate-500:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-zinc-400:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *),
+html.light-theme .text-zinc-500:not(.ulm-preserve-dark *):not(.ulm-dark-plaque):not(.ulm-dark-plaque *):not(.cr80-card *) {
   color: #475569 !important;
 }
 
@@ -2113,7 +2129,7 @@ html.light-theme .text-zinc-500:not(.ulm-preserve-dark *):not(.cr80-card *) {
 html.light-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.ulm-scanner-bare-input),
 html.light-theme select,
 html.light-theme textarea {
-  background-color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
   color: #0F172A !important;
   border: 1.5px solid #CBD5E1 !important;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
@@ -2138,7 +2154,7 @@ html.light-theme input::placeholder,
 html.light-theme textarea::placeholder {
   color: #64748B !important;
 }
-html.light-theme label {
+html.light-theme label:not(.cr80-card *) {
   color: #1E293B !important;
   font-weight: 700 !important;
 }
@@ -2149,13 +2165,13 @@ html.light-theme label {
   color: #F8FAFC !important;
   border-color: rgba(188, 136, 27, 0.55) !important;
 }
-html.light-theme .ulm-preserve-dark h1:not(.ulm-barcode-safepad *),
-html.light-theme .ulm-preserve-dark h2:not(.ulm-barcode-safepad *),
-html.light-theme .ulm-preserve-dark h3:not(.ulm-barcode-safepad *),
-html.light-theme .ulm-preserve-dark h4:not(.ulm-preserve-dark .ulm-barcode-safepad *),
-html.light-theme .ulm-preserve-dark p:not(.ulm-barcode-safepad *),
-html.light-theme .ulm-preserve-dark span:not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad *),
-html.light-theme .ulm-preserve-dark div:not(.ulm-barcode-safepad):not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad):not(.ulm-barcode-safe-pad *) {
+html.light-theme .ulm-preserve-dark h1:not(.ulm-barcode-safepad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark h2:not(.ulm-barcode-safepad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark h3:not(.ulm-barcode-safepad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark h4:not(.ulm-preserve-dark .ulm-barcode-safepad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark p:not(.ulm-barcode-safepad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark span:not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad *):not(.cr80-card *),
+html.light-theme .ulm-preserve-dark div:not(.ulm-barcode-safepad):not(.ulm-barcode-safepad *):not(.ulm-barcode-safe-pad):not(.ulm-barcode-safe-pad *):not(.cr80-card):not(.cr80-card *) {
   color: #F8FAFC !important;
 }
 html.light-theme .ulm-preserve-dark .ulm-cover-gold {

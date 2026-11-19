@@ -19,6 +19,8 @@
  */
 
 import * as XLSX from 'xlsx';
+import { startHeavyTask, updateHeavyTaskProgress, finishHeavyTask } from '../utils/heavyTaskRunner';
+import { idbGet, idbClearAll } from './indexedDbStorage';
 
 export type BookStatus = 'AVAILABLE' | 'ISSUED' | 'RESERVED' | 'LOST' | 'DAMAGED';
 
@@ -373,14 +375,27 @@ export async function getCurrentMaxSeriesNumber(): Promise<number> {
     try {
       const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 1_000_000, exportAll: true });
       for (const b of res.items) {
+        if ((b as any).is_active === false || (b as any).is_active === 0) continue;
         const s = Number((b as any).serial_no) || parseInt(String(b.accession_number || b.accessionNumber || '').replace(/\D/g, ''), 10) || 0;
         if (Number.isFinite(s) && s > maxSeries) maxSeries = s;
       }
     } catch (_) {}
   }
-  if (typeof window !== 'undefined' && window.localStorage) {
-    const stored = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
-    if (stored > maxSeries) maxSeries = stored;
+  if (maxSeries === 0 && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = localStorage.getItem('ulm_lms_books_v1') || localStorage.getItem('ulm_library_books_master_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const b of parsed) {
+            if (!b || b.is_active === false || b.is_active === 0) continue;
+            const s = parseInt(String(b.accession_no || b.accession_number || '').replace(/\D/g, ''), 10) || 0;
+            if (s > maxSeries) maxSeries = s;
+          }
+        }
+      }
+      localStorage.setItem('ulm_highest_serial_number_v1', String(maxSeries));
+    } catch (_) {}
   }
   return maxSeries;
 }
@@ -423,27 +438,41 @@ export async function prepareSheetRowsInContinuousSeries(
       continue;
     }
 
-    runningSeries++;
-    const seriesStr = String(runningSeries);
-    const uniqueBarcode = '0092' + seriesStr.padStart(9, '0');
-    const finalTitle = (!rawTitle || rawTitle === 'Volume #1') ? `Volume #${seriesStr}` : rawTitle;
+    const rawCopies =
+      Number(row.copies ?? row.total_copies ?? row.total_quantity ?? row.quantity ?? 1) || 1;
+    const copyCount = Math.max(1, Math.min(500, Math.floor(rawCopies)));
 
-    sequencedRows.push({
-      ...row,
-      id: `book_${seriesStr}`,
-      serial_no: runningSeries,
-      accession_number: seriesStr,
-      accessionNumber: seriesStr,
-      original_sheet_acc: rawAcc || seriesStr,
-      barcode: uniqueBarcode,
-      title: finalTitle,
-      author: (!rawAuthor || rawAuthor === 'Unknown Author') ? 'ULM Library Collection' : rawAuthor,
-      date_of_entry: stamp.formattedSystemDateTime,
-      dateOfEntry: stamp.formattedSystemDateTime,
-      system_timestamp: stamp.isoTimestamp,
-      entry_source: `Excel Import: ${fileName}`,
-      is_active: 1,
-    });
+    for (let c = 0; c < copyCount; c++) {
+      runningSeries++;
+      const seriesStr = String(runningSeries);
+      const uniqueBarcode = '0092' + seriesStr.padStart(9, '0');
+      const finalTitle = (!rawTitle || rawTitle === 'Volume #1') ? `Volume #${seriesStr}` : rawTitle;
+
+      sequencedRows.push({
+        ...row,
+        id: `book_${seriesStr}`,
+        serial_no: runningSeries,
+        accession_number: seriesStr,
+        accessionNumber: seriesStr,
+        original_sheet_acc: rawAcc || seriesStr,
+        barcode: uniqueBarcode,
+        title: finalTitle,
+        author: (!rawAuthor || rawAuthor === 'Unknown Author') ? 'ULM Library Collection' : rawAuthor,
+        copy_number: c + 1,
+        copy_total_in_batch: copyCount,
+        total_copies: 1,
+        available_copies: 1,
+        total_quantity: 1,
+        available_quantity: 1,
+        copies: 1,
+        quantity: 1,
+        date_of_entry: stamp.formattedSystemDateTime,
+        dateOfEntry: stamp.formattedSystemDateTime,
+        system_timestamp: stamp.isoTimestamp,
+        entry_source: `Excel Import: ${fileName}`,
+        is_active: 1,
+      });
+    }
   }
 
   if (typeof window !== 'undefined' && window.localStorage && sequencedRows.length > 0) {
@@ -467,7 +496,7 @@ export async function prepareSheetRowsInContinuousSeries(
  * Monotonic formula: MAX(numeric_serial) + 1. If empty, starts at 1.
  */
 export function computeNextSerial(
-  existingBooks: Array<{ accession_number?: string; accessionNumber?: string; accession_no?: string; barcode?: string | null }>
+  existingBooks: Array<{ accession_number?: string; accessionNumber?: string; accession_no?: string; barcode?: string | null; is_active?: boolean | number }>
 ): {
   maxSerial: number;
   nextSerial: number;
@@ -475,12 +504,20 @@ export function computeNextSerial(
   nextBarcode: string;
 } {
   let maxSerial = 0;
-  if (typeof window !== 'undefined' && window.localStorage) {
-    maxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
-  }
-  for (const b of existingBooks) {
+  for (const b of existingBooks || []) {
+    if (!b || b.is_active === false || b.is_active === 0) continue;
     const n = parseSerialNumber(b.accession_number || b.accessionNumber || b.accession_no);
     if (n > maxSerial) maxSerial = n;
+    const cleanBc = String(b.barcode || '').trim().toUpperCase();
+    if (/^0092\d{9}$/.test(cleanBc)) {
+      const bcSeq = parseInt(cleanBc.slice(4), 10);
+      if (!isNaN(bcSeq) && bcSeq > maxSerial) maxSerial = bcSeq;
+    }
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('ulm_highest_serial_number_v1', String(maxSerial));
+    } catch (_) {}
   }
   const nextSerial = maxSerial > 0 ? maxSerial + 1 : 1;
   const nextAccession = String(nextSerial);
@@ -648,42 +685,51 @@ export async function syncMasterExcelRegister(booksInput?: UlmBookRecord[]): Pro
   totalBooks: number;
   syncedAt: string;
 }> {
-  let books = booksInput;
-  if (!books && typeof window !== 'undefined' && window.ulmLibraryApi) {
-    try {
-      const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 1_000_000, exportAll: true });
-      books = res.items;
-    } catch (_) {
-      books = [];
-    }
-  }
-  books = books || [];
-
-  const wb = generateMasterExcelWorkbook(books);
   const syncedAt = new Date().toISOString();
+  const rootHandle = typeof window !== 'undefined' ? (window as any)?.__ulm_data_dir_handle || null : null;
 
-  // Try writing to folder handle if present in runtime
-  try {
-    const rootHandle = (window as any)?.__ulm_data_dir_handle || null;
-    if (rootHandle && typeof rootHandle.getFileHandle === 'function') {
+  let totalCount = booksInput ? booksInput.length : 0;
+
+  if (rootHandle && typeof rootHandle.getFileHandle === 'function') {
+    let books = booksInput;
+    if (!books && typeof window !== 'undefined' && window.ulmLibraryApi) {
+      try {
+        const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: 1_000_000, exportAll: true });
+        books = res.items;
+      } catch (_) {
+        books = [];
+      }
+    }
+    books = books || [];
+    totalCount = books.length;
+
+    try {
+      const wb = generateMasterExcelWorkbook(books);
       const fileHandle = await rootHandle.getFileHandle(MASTER_EXCEL_FILENAME, { create: true });
       const writable = await fileHandle.createWritable();
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       await writable.write(wbout);
       await writable.close();
+    } catch (err) {
+      console.warn('[ULM-MasterExcel] Directory handle sync note:', err);
     }
-  } catch (err) {
-    console.warn('[ULM-MasterExcel] Directory handle sync note:', err);
+  } else if (!booksInput && typeof window !== 'undefined' && window.ulmLibraryApi) {
+    try {
+      const stats = await window.ulmLibraryApi.getDashboardStats();
+      totalCount = Number(stats?.totalBooks || 0);
+    } catch (_) {}
   }
 
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       localStorage.setItem('ulm_master_excel_synced_at', syncedAt);
-      localStorage.setItem('ulm_master_excel_book_count', String(books.length));
+      if (totalCount > 0) {
+        localStorage.setItem('ulm_master_excel_book_count', String(totalCount));
+      }
     } catch (_) {}
   }
 
-  return { success: true, totalBooks: books.length, syncedAt };
+  return { success: true, totalBooks: totalCount, syncedAt };
 }
 
 /**
@@ -706,11 +752,16 @@ export const SETUP_COMPLETED_KEY = 'ulm_workstation_setup_completed_v1';
 
 export function isWorkstationAlreadyInstalledAndConfigured(existingBookCount = 0): boolean {
   if (typeof window === 'undefined' || !window.localStorage) return false;
+  if (localStorage.getItem('ulm_setup_completed_v1') === 'false') {
+    return false;
+  }
   if (existingBookCount > 0) {
     localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+    localStorage.setItem('ulm_setup_completed_v1', 'true');
     return true;
   }
   return Boolean(
+    localStorage.getItem('ulm_setup_completed_v1') === 'true' ||
     localStorage.getItem(SETUP_COMPLETED_KEY) === 'true' ||
     localStorage.getItem('ulm_setup_complete') === 'true' ||
     localStorage.getItem('ulm_onboarding_complete') === 'true' ||
@@ -725,13 +776,16 @@ export function isWorkstationAlreadyInstalledAndConfigured(existingBookCount = 0
 export function markWorkstationSetupCompleted(mode = 'configured'): void {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
+    localStorage.setItem('ulm_setup_completed_v1', 'true');
     localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
     localStorage.setItem('ulm_library_initialized', 'true');
     localStorage.setItem('ulm_storage_location_configured_v1', 'true');
+    const currentRepoPath = localStorage.getItem('ulm_library_repo_path_v1') || 'Documents\\ULM Library Data';
+    localStorage.setItem('ulm_library_repo_path_v1', currentRepoPath);
     if (!localStorage.getItem('ulm_data_folder_config_v1')) {
       localStorage.setItem('ulm_data_folder_config_v1', JSON.stringify({
         mode,
-        folderPath: 'Documents\\ULM Library Data',
+        folderPath: currentRepoPath,
         configuredAt: new Date().toISOString(),
         isConfigured: true,
       }));
@@ -746,6 +800,9 @@ export function markWorkstationSetupCompleted(mode = 'configured'): void {
 export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; clearedCount: number }> {
   let clearedCount = 0;
   if (typeof window !== 'undefined') {
+    try {
+      await idbClearAll();
+    } catch (_) {}
     try {
       const db = await getIndexedDb();
       clearedCount = await new Promise<number>((resolve) => {
@@ -803,6 +860,7 @@ export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; c
       try { localStorage.removeItem(k); } catch (_) {}
     }
     try {
+      localStorage.setItem('ulm_setup_completed_v1', 'false');
       localStorage.setItem('ulm_database_cleared', 'true');
       const defaultIh = {
         id: 'alm-ih-01',
@@ -919,6 +977,16 @@ function getIndexedDb(): Promise<IDBDatabase> {
 
 export async function getTrueDatabaseBookCount(): Promise<number> {
   if (typeof window !== 'undefined') {
+    if (localStorage.getItem('ulm_database_cleared') === 'true') {
+      return 0;
+    }
+    try {
+      const primaryCatalog = await idbGet<unknown[]>('books_catalog');
+      if (Array.isArray(primaryCatalog) && primaryCatalog.length > 0) {
+        return primaryCatalog.length;
+      }
+    } catch (_) {}
+
     if (window.ulmLibraryApi && typeof window.ulmLibraryApi.getDashboardStats === 'function') {
       try {
         const stats = await window.ulmLibraryApi.getDashboardStats();
@@ -1226,6 +1294,17 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
       const { formattedSystemDateTime, isoTimestamp } = getCurrentSystemDateTimeStamp();
       const usedBarcodes = new Set<string>();
 
+      let placements: Record<string, any> = {};
+      let placementsChanged = false;
+      if (typeof window !== 'undefined') {
+        try {
+          const rawPlacements = localStorage.getItem('ulm_almari_placements_master_v3');
+          placements = rawPlacements ? JSON.parse(rawPlacements) : {};
+        } catch (_) {
+          placements = {};
+        }
+      }
+
       for (let i = 0; i < chunk.length; i++) {
         const item = chunk[i];
         const preAssignedSerial = Number(item.serial_no);
@@ -1246,14 +1325,37 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
         usedBarcodes.add(barcode);
 
         const uniqueId = String(item.id || `book_${seriesStr}`);
+        const copyCount = Math.max(
+          1,
+          Math.min(
+            500,
+            Number(item.total_copies ?? item.copies ?? item.total_quantity ?? item.quantity ?? 1) || 1
+          )
+        );
+        const availCount = Math.max(
+          0,
+          Math.min(
+            copyCount,
+            Number(item.available_copies ?? item.available_quantity ?? copyCount) || copyCount
+          )
+        );
         const record = {
           ...item,
           id: uniqueId,
           serial_no: serialNo,
           accession_number: String(acc),
           accessionNumber: String(acc),
+          accession_no: String(acc),
           original_sheet_acc: item.original_sheet_acc || rawItemAcc || seriesStr,
           barcode,
+          book_name: String(item.title || item.book_name || `Volume #${acc}`),
+          title: String(item.title || item.book_name || `Volume #${acc}`),
+          copies: copyCount,
+          total_copies: copyCount,
+          total_quantity: copyCount,
+          quantity: copyCount,
+          available_copies: availCount,
+          available_quantity: availCount,
           date_of_entry: item.date_of_entry || item.dateOfEntry || formattedSystemDateTime,
           dateOfEntry: item.date_of_entry || item.dateOfEntry || formattedSystemDateTime,
           system_timestamp: item.system_timestamp || isoTimestamp,
@@ -1261,6 +1363,23 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
           is_active: 1,
           isActive: true,
         };
+
+        // Accumulate placement in memory; write once per chunk outside the loop
+        const rowAlmariId = String(item.almari_id || item.almariId || item.almari_code || item.cupboard || '').trim();
+        const rowShelfNo = Number(item.shelf_no || item.shelf_id || item.shelfId || 1) || 1;
+        if (rowAlmariId) {
+          const entry = {
+            almari_id: rowAlmariId,
+            almari_code: String(item.almari_code || item.cupboard || rowAlmariId).trim(),
+            cupboard: String(item.almari_code || item.cupboard || rowAlmariId).trim(),
+            shelf_no: rowShelfNo,
+            placement_locked: true,
+            updated_at: isoTimestamp,
+          };
+          placements[uniqueId] = entry;
+          placements[barcode] = entry;
+          placementsChanged = true;
+        }
 
         const putReq = store.put(record);
         putReq.onerror = (evt) => {
@@ -1289,6 +1408,12 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
           } catch (_) {}
         };
         inserted++;
+      }
+
+      if (placementsChanged && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('ulm_almari_placements_master_v3', JSON.stringify(placements));
+        } catch (_) {}
       }
 
       // Wait for IndexedDB transaction to commit to disk before resolving (Rule 2)
@@ -1690,9 +1815,13 @@ export async function importExcelOrCsvToSqlite(
   rendererCancelRequested = false;
   const startTime = Date.now();
 
-  try {
-    await yieldToUiThread();
+  await startHeavyTask(
+    'Importing Library Catalog Batch',
+    `Reading ${options.fileName || 'spreadsheet'} and preparing continuous Accession & Barcode series...`,
+    100
+  );
 
+  try {
     const workbook = XLSX.read(fileBuffer, {
       type: 'array',
       cellText: true,
@@ -1753,6 +1882,11 @@ export async function importExcelOrCsvToSqlite(
       }
     }
 
+    updateHeavyTaskProgress(
+      0,
+      Math.max(1, rawRows.length),
+      `Normalized ${rawRows.length.toLocaleString()} spreadsheet rows — allocating 0092... barcodes...`
+    );
     await yieldToUiThread();
 
     // Normalize rows on a background CPU worker thread
@@ -1810,6 +1944,12 @@ export async function importExcelOrCsvToSqlite(
         if (batchReport.errors.length > 0 && summary.errors.length < 1000) {
           summary.errors.push(...batchReport.errors.slice(0, 1000 - summary.errors.length));
         }
+
+        updateHeavyTaskProgress(
+          summary.processed,
+          total,
+          `Committed ${summary.inserted.toLocaleString()} of ${total.toLocaleString()} volumes to database...`
+        );
 
         if (options.onProgress) {
           options.onProgress({
@@ -1875,6 +2015,7 @@ export async function importExcelOrCsvToSqlite(
     }
   } finally {
     isRendererImportActive = false;
+    finishHeavyTask();
   }
 }
 
@@ -2440,4 +2581,7 @@ export function autoOrganizeAllBooksIntoAlmaris<T extends Record<string, any>>(
 ): T[] {
   return booksInput;
 }
+
+export { AccessionSeriesEngine, importRowsWithSequentialBarcodes } from './accessionSeriesEngine';
+
 

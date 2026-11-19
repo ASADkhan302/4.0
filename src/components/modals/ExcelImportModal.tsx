@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   FileSpreadsheet,
@@ -145,9 +146,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#0B1120] dark:via-[#0F172A] dark:to-[#0B1120] border-2 border-[#D4B475]/65 dark:border-white/15 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[88dvh]">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#140D22] dark:via-[#140D22]/95 dark:to-[#0B1120] border border-[#C8963E]/45 rounded-[26px] max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
         {/* Header */}
         <div className="px-6 py-4 bg-white/80 dark:bg-[#131B2E] border-b border-[#DCCB9E] dark:border-white/[0.08] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -437,5 +438,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 export default ExcelImportModal;

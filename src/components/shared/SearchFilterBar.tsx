@@ -31,24 +31,24 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
 }) => {
   return (
     <div 
-      className={`bg-[#1E1B22]/90 backdrop-blur-md border border-[#2E2A33] rounded-[14px] p-3 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)] space-y-3 ${className}`}
+      className={`ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] p-3 sm:p-3.5 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)] space-y-3 ${className}`}
     >
       {/* Row 1: 44px Full-width Search Bar */}
       <div className="relative w-full">
-        <Search className="w-4 h-4 text-[#B3AABD] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full h-11 bg-[#141214] border border-[#2E2A33] rounded-[10px] pl-10 pr-24 py-2 text-[13px] text-white placeholder:text-[#B3AABD] focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 transition-all font-sans"
+          className="w-full h-11 bg-white/55 dark:bg-[#1B1130]/75 backdrop-blur-xl border border-white/60 dark:border-white/15 rounded-xl pl-10 pr-24 py-2 text-[13px] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 transition-all font-sans"
           dir="auto"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => onSearchChange('')}
-            className="w-8 h-8 min-w-[32px] min-h-[32px] flex items-center justify-center absolute right-20 top-1/2 -translate-y-1/2 text-[#B3AABD] hover:text-white transition-colors cursor-pointer rounded-[6px]"
+            className="w-8 h-8 min-w-[32px] min-h-[32px] flex items-center justify-center absolute right-20 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer rounded-[6px] z-10"
             title="Clear search query"
             aria-label="Clear search"
           >
@@ -56,7 +56,7 @@ export const SearchFilterBar: React.FC<SearchFilterBarProps> = ({
           </button>
         )}
         {searchShortcutLabel && (
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-[6px] bg-white/[0.06] border border-white/[0.1] text-[11px] font-mono text-[#B3AABD] select-none shadow-2xs pointer-events-none">
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-[6px] bg-black/5 dark:bg-white/[0.06] border border-slate-300/70 dark:border-white/[0.1] text-[11px] font-mono text-slate-500 dark:text-[#B3AABD] select-none shadow-2xs pointer-events-none z-10">
             <span>{searchShortcutLabel}</span>
           </div>
         )}

@@ -26,12 +26,11 @@ import { BarcodePrintModal } from './components/modals/BarcodePrintModal';
 import { DeleteBookConfirmModal } from './components/modals/DeleteBookConfirmModal';
 import { DeleteBorrowerConfirmModal } from './components/modals/DeleteBorrowerConfirmModal';
 import { StorageLocationModal } from './components/modals/StorageLocationModal';
-import { StorageSetupModal } from './components/modals/StorageSetupModal';
+import { WorkstationSetupModal } from './components/modals/WorkstationSetupModal';
 import { BookImportModal } from './components/modals/BookImportModal';
 import { ExcelImportModal } from './components/modals/ExcelImportModal';
 import { BatchLabelPrintModal } from './components/modals/BatchLabelPrintModal';
 import { DataFilesDiffModal } from './components/modals/DataFilesDiffModal';
-import { WelcomeLibraryModal } from './components/modals/WelcomeLibraryModal';
 import { IssueBookFlowModal } from './components/modals/IssueBookFlowModal';
 import { AddEditBorrowerModal } from './components/modals/AddEditBorrowerModal';
 
@@ -55,8 +54,16 @@ import {
 import { initDisplayAndThemeSystem } from './services/displayResolutionManager';
 import { ULM_OFFICIAL_CREST_SRC, syncAppDesktopAndFaviconIcon } from './constants/ulmOfficialAssets';
 import { ULM_OFFICIAL_CREST_DATA_URI } from './constants/ulmOfficialCrest';
+import { useInstitutionalIdentity } from './utils/themeTransition';
+import {
+  GlobalHeavyTaskOverlay,
+  startHeavyTask,
+  updateHeavyTaskProgress,
+  finishHeavyTask,
+} from './utils/heavyTaskRunner';
 
 export default function App() {
+  const identity = useInstitutionalIdentity();
   // Valid navigation tabs (developer screens removed)
   const VALID_TABS: NavigationTab[] = ['catalog', 'circulation', 'borrowers', 'reports', 'scanner', 'excel', 'settings', 'almaris'];
 
@@ -226,13 +233,14 @@ export default function App() {
     });
   }, [refreshTrueCount]);
 
-  // Sync document.title and Desktop/Favicon Icon with official ULM 2017 Crest
+  // Sync document.title and Desktop/Favicon Icon with official ULM 2017 Crest or Custom Crest
   useEffect(() => {
-    syncAppDesktopAndFaviconIcon(settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC);
-    if (settings.university_name) {
-      document.title = `${settings.university_name} — ${settings.library_name || 'ULM Central Library Management System'}`;
-    }
-  }, [settings.university_name, settings.library_name, settings.customLogoDataUri]);
+    const activeCrest = identity.customCrestUrl || settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC;
+    syncAppDesktopAndFaviconIcon(activeCrest);
+    const activeUniv = identity.universityName || settings.university_name || 'University of Lakki Marwat';
+    const activeLib = identity.libraryDepartmentName || settings.library_name || 'Central Campus Library';
+    document.title = `${activeUniv} — ${activeLib}`;
+  }, [identity, settings.university_name, settings.library_name, settings.customLogoDataUri]);
 
   const handleSplashComplete = useCallback(async () => {
     setShowSplash(false);
@@ -336,8 +344,15 @@ export default function App() {
     }, toastRemainingRef.current);
   };
 
-  // Reload all data from local repository & persistent DB directly (Rule 2-4)
-  const reloadData = useCallback(async () => {
+  // Reload all data from local repository & persistent IndexedDB directly
+  const reloadData = useCallback(async (showLoadingOverlay = false) => {
+    if (showLoadingOverlay) {
+      await startHeavyTask(
+        'Loading Library Database',
+        'Hydrating catalog & circulation records from IndexedDB...',
+        0
+      );
+    }
     try {
       const isCleared = typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true';
       if (isCleared) {
@@ -345,16 +360,38 @@ export default function App() {
         setDbTotalBooksCount(0);
       } else {
         const dbBooks = await LibraryStorage.loadAllBooksFromDb();
+        if (showLoadingOverlay) {
+          updateHeavyTaskProgress(
+            dbBooks.length,
+            Math.max(1, dbBooks.length),
+            `Loaded ${dbBooks.length.toLocaleString()} volumes from IndexedDB...`
+          );
+        }
         setBooks(dbBooks);
+        setDbTotalBooksCount(dbBooks.length);
         if (dbBooks && dbBooks.length > 0) {
           const serialInfo = computeNextSerial(dbBooks);
           try {
             localStorage.setItem('ulm_highest_serial_number_v1', String(serialInfo.maxSerial));
+            localStorage.setItem('ulm_catalog_total_count_v1', String(dbBooks.length));
           } catch (_) {}
+          // Mirror to localStorage ONLY when <= 1500 books to prevent synchronous JSON.stringify hangs
+          if (dbBooks.length <= 1500) {
+            try {
+              const json = JSON.stringify(dbBooks);
+              localStorage.setItem('ulm_lms_books_v1', json);
+              localStorage.setItem('ulm_library_books_master_v1', json);
+            } catch (_) {}
+            LibraryStorage.syncBookAlmariPlacements(dbBooks);
+          }
         }
       }
     } catch (_) {
       setBooks([]);
+    } finally {
+      if (showLoadingOverlay) {
+        finishHeavyTask();
+      }
     }
     setBorrowers(LibraryStorage.getBorrowers());
     setTransactions(LibraryStorage.getTransactions());
@@ -364,22 +401,7 @@ export default function App() {
   }, [refreshTrueCount]);
 
   useEffect(() => {
-    // Purge any stuck test volume or invalid 9789694151053 accession if found in storage
-    try {
-      const stored = LibraryStorage.getBooks();
-      const hasStuckTest = stored.some(b => 
-        (b.accession_no && b.accession_no.includes('9789694151053')) || 
-        (b.book_name && b.book_name.includes('Verification Test Volume'))
-      );
-      if (hasStuckTest) {
-        const cleaned = stored.filter(b => 
-          !(b.accession_no && b.accession_no.includes('9789694151053')) && 
-          !(b.book_name && b.book_name.includes('Verification Test Volume'))
-        );
-        LibraryStorage.saveBooks(cleaned);
-      }
-    } catch (_) {}
-    reloadData();
+    void reloadData(true);
   }, [reloadData]);
 
   // Rule #5 & User Choice: Automatically repair legacy duplicate barcodes on launch
@@ -387,7 +409,7 @@ export default function App() {
     repairAllBookSeriesAndBarcodes().then(res => {
       if (res.repairedCount > 0) {
         console.log(`[ULM-Barcode] Auto-repaired ${res.repairedCount} books with unique sequential 13-digit barcodes`);
-        void reloadData();
+        void reloadData(false);
       }
     }).catch(err => {
       console.warn('[ULM-Barcode] Auto-repair note:', err);
@@ -396,12 +418,41 @@ export default function App() {
 
   // Real-time reactive data sync: whenever books, loans, or imports change, refresh app state instantly
   useEffect(() => {
-    const handleDataChanged = () => {
+    const handleDataChanged = (e: Event) => {
+      const custom = e as CustomEvent<{ reason?: string }>;
+      // 'mutation' events already broadcast fresh reconciled state via 'ulm-library-sync'
+      if (custom?.detail?.reason === 'mutation') return;
+      void reloadData(false);
+    };
+    const handleSyncEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ books?: Book[]; loans?: Transaction[] }>;
+      if (custom.detail?.books && Array.isArray(custom.detail.books)) {
+        setBooks(custom.detail.books);
+        setDbTotalBooksCount(custom.detail.books.length);
+      }
+      if (custom.detail?.loans && Array.isArray(custom.detail.loans)) {
+        setTransactions(custom.detail.loans);
+      }
+      setBorrowers(LibraryStorage.getBorrowers());
+      setHistory(LibraryStorage.getHistory());
+    };
+    const handleStorageEvent = () => {
+      LibraryStorage.clearBooksCache();
       void reloadData();
     };
+    const handleBrandingSync = () => {
+      setSettings(LibraryStorage.getSettings());
+    };
+
     window.addEventListener('ulm-library-data-changed', handleDataChanged);
+    window.addEventListener('ulm-library-sync', handleSyncEvent);
+    window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('ulm-branding-sync', handleBrandingSync);
     return () => {
       window.removeEventListener('ulm-library-data-changed', handleDataChanged);
+      window.removeEventListener('ulm-library-sync', handleSyncEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('ulm-branding-sync', handleBrandingSync);
     };
   }, [reloadData]);
 
@@ -436,9 +487,33 @@ export default function App() {
   }, [activeTab]);
 
   // Book CRUD actions
-  const handleSaveBook = (bookData: Omit<Book, 'id' | 'created_at' | 'updated_at' | 'is_active'>) => {
+  const handleSaveBook = (bookData: Omit<Book, 'id' | 'created_at' | 'updated_at' | 'is_active'> & Partial<Book>) => {
+    const freshCatalog = LibraryStorage.getBooks();
+    const alreadyPersistedBySeriesEngine = freshCatalog.some(
+      (b) =>
+        (bookData.id && b.id === bookData.id) ||
+        (bookData.barcode && b.barcode.trim().toUpperCase() === bookData.barcode.trim().toUpperCase())
+    );
+
+    if (alreadyPersistedBySeriesEngine) {
+      setBooks([...freshCatalog]);
+      reloadData();
+      playSuccessBarcodeBeep();
+      const batchTotal = Number(bookData.copy_total_in_batch) || 1;
+      showToast(
+        batchTotal > 1
+          ? `Book "${bookData.book_name}" (${batchTotal} total copies in series) saved to database.`
+          : `Book "${bookData.book_name}" saved to SQLite database.`
+      );
+      return { success: true, message: 'Saved via AccessionSeriesEngine.' };
+    }
+
     const res = LibraryStorage.addBook(bookData);
     if (res.success) {
+      const updatedCatalog = LibraryStorage.getBooks();
+      if (Array.isArray(updatedCatalog) && updatedCatalog.length > 0) {
+        setBooks([...updatedCatalog]);
+      }
       reloadData();
       playSuccessBarcodeBeep();
       showToast(`Book "${bookData.book_name}" saved to SQLite database.`);
@@ -612,11 +687,16 @@ export default function App() {
   const handleClearDemoData = async () => {
     await LibraryStorage.clearAllDatabaseStores();
     const res = LibraryStorage.clearDemoData();
+    try {
+      localStorage.setItem('ulm_setup_completed_v1', 'false');
+    } catch (_) {}
     setBooks([]);
     setDbTotalBooksCount(0);
     await reloadData();
     playClickSound();
     showToast(res.message);
+    setIsStorageSetupResetMode(true);
+    setIsStorageSetupModalOpen(true);
   };
 
   // Shared aggregate counts
@@ -642,7 +722,7 @@ export default function App() {
   }, [activeTab]);
 
   return (
-    <div className="w-full h-dvh max-h-dvh flex flex-col overflow-hidden relative bg-[var(--background)] text-[var(--text-primary)] select-none">
+    <div className="w-full h-dvh max-h-dvh flex flex-col overflow-hidden relative bg-gradient-to-br from-[#FCFBF7] via-[#F7F2FA] to-[#F3EDE0] dark:from-[#1C1233] dark:via-[#17112B] dark:to-[#1E1836] text-[var(--text-primary)] select-none">
       {/* Thin 2px accent progress bar during screen changes and async operations */}
       {isNavigating && (
         <div className="top-route-progress" />
@@ -653,9 +733,9 @@ export default function App() {
         {/* WINDOWS 11 TITLE BAR (Slides down on app entry) */}
         <div className={isAppEntered ? 'animate-slide-down' : ''}>
           <WindowsTitleBar
-            stationId={settings.station_id}
-            universityName={settings.university_name}
-            libraryName={settings.library_name}
+            stationId={identity.workstationNodeId || settings.station_id}
+            universityName={identity.universityName || settings.university_name}
+            libraryName={identity.libraryDepartmentName || settings.library_name}
             onReplayOpeningAnimation={handleReplaySplash}
           />
         </div>
@@ -678,16 +758,16 @@ export default function App() {
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           onOpenSearch={() => setIsSearchOpen(true)}
-          universityName={settings.university_name}
-          libraryName={settings.library_name}
-          customLogoDataUri={settings.customLogoDataUri}
+          universityName={identity.universityName || settings.university_name}
+          libraryName={identity.libraryDepartmentName || settings.library_name}
+          customLogoDataUri={identity.customCrestUrl || settings.customLogoDataUri}
           waitingBooksCount={waitingSheetCount}
           onRetrySheetSync={handleRetrySheetSync}
         />
       </div>
 
       {/* 2. MAIN WORKSPACE ROW: LOCKED LEFT SIDEBAR + SCROLLABLE RIGHT VIEW */}
-      <div className="flex-1 min-h-0 w-full flex flex-row overflow-hidden relative">
+      <div className="flex-1 min-h-0 w-full flex flex-row overflow-hidden relative gap-3 pt-2.5 pb-2.5 pr-2.5 sm:pt-3 sm:pb-3.5 sm:pr-3.5">
         {/* 2A. LOCKED LEFT SIDEBAR (Never scrolls with page, never moves, collapsible icon rail) */}
         <div className={`shrink-0 h-full min-h-0 flex flex-col overflow-hidden z-30 ${isAppEntered ? 'animate-slide-right' : ''}`}>
           <LmsSidebar
@@ -702,13 +782,13 @@ export default function App() {
             onToggleSearch={setIsSearchOpen}
             catalogBooks={books}
             onSelectBook={(book) => setSelectedBookForDetails(book)}
-            universityName={settings.university_name}
-            libraryName={settings.library_name}
+            universityName={identity.universityName || settings.university_name}
+            libraryName={identity.libraryDepartmentName || settings.library_name}
           />
         </div>
 
         {/* 2B. SCROLLABLE PAGE WORKSPACE (All 8 pages scroll smoothly here) */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 h-full relative overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 h-full relative overflow-hidden rounded-[26px]">
           {/* Ambient Refractive Background Orbs + Official ULM Crest Watermark */}
           <div id="ulm-liquid-orbs" className="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden print:hidden" aria-hidden="true">
             {/* Subtle Liquid-Glass Header/Sidebar Junction Glow Orbs */}
@@ -733,8 +813,8 @@ export default function App() {
               style={{ left: '15rem', top: '3.75rem' }}
             >
               <img
-                src={settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC}
-                alt="ULM 2017 Official Crest Watermark"
+                src={identity.customCrestUrl || settings.customLogoDataUri || ULM_OFFICIAL_CREST_SRC}
+                alt={`${identity.universityName} Watermark`}
                 draggable={false}
                 onError={(e) => {
                   e.currentTarget.onerror = null;
@@ -768,6 +848,7 @@ export default function App() {
             onQuickLoan={(book) => {
               handleOpenIssueFlow(book, null);
             }}
+            onReturnBook={handleReturnBook}
             onOpenAddBook={() => {
               setBookToEdit(null);
               setInitialBarcodeForAdd('');
@@ -866,6 +947,7 @@ export default function App() {
         {activeTab === 'scanner' && (
           <BarcodeScannerView
             books={books}
+            borrowers={borrowers}
             transactions={transactions}
             onOpenAddBookWithBarcode={(barcode) => {
               setBookToEdit(null);
@@ -881,6 +963,14 @@ export default function App() {
             }}
             onQuickReturn={handleReturnBook}
             onPrintBarcode={(book) => setBookForPrint(book)}
+            onIssueBookToBorrower={handleIssueBook}
+            onUpdateBooks={(updatedBooks) => {
+              setBooks(updatedBooks);
+            }}
+            onCatalogBooksUpdated={(updatedBooks, msg) => {
+              setBooks(updatedBooks);
+              showToast(msg);
+            }}
           />
         )}
 
@@ -892,7 +982,10 @@ export default function App() {
             history={history}
             onRefreshData={reloadData}
             onOpenImportEntrySheet={() => setIsBookImportOpen(true)}
-            onOpenTransferZipModal={() => setIsWelcomeModalOpen(true)}
+            onOpenTransferZipModal={() => {
+              setIsStorageSetupResetMode(false);
+              setIsStorageSetupModalOpen(true);
+            }}
           />
         )}
 
@@ -901,21 +994,32 @@ export default function App() {
             settings={settings}
             onUpdateSettings={(newSettings) => {
               setSettings(newSettings);
-              showToast('System configuration saved.');
+              showToast('✓ App Name, Header & Splash Branding Synchronized!');
             }}
             onResetDemoData={handleResetDemoData}
             onClearDemoData={handleClearDemoData}
             onResetToZeroComplete={async () => {
               await resetEntireDatabaseToZero();
+              try {
+                localStorage.setItem('ulm_setup_completed_v1', 'false');
+              } catch (_) {}
               setBooks([]);
+              setBorrowers([]);
+              setTransactions([]);
+              setHistory([]);
               setDbTotalBooksCount(0);
+              setIsWelcomeModalOpen(false);
               setIsStorageSetupResetMode(true);
               setIsStorageSetupModalOpen(true);
-              showToast('Library reset to zero. Please configure Library Data Folder.');
+              showToast('Library database reset to zero (0 books, 0 members, 0 loans).');
             }}
             onPlayBootAnimation={handleReplaySplash}
             onOpenStorageModal={() => setIsStorageModalOpen(true)}
-            onOpenWelcomeModal={() => setIsWelcomeModalOpen(true)}
+            onOpenWelcomeModal={() => {
+              setIsWelcomeModalOpen(false);
+              setIsStorageSetupResetMode(true);
+              setIsStorageSetupModalOpen(true);
+            }}
           />
         )}
         </main>
@@ -1059,29 +1163,29 @@ export default function App() {
         }}
       />
 
-      {/* Mandatory First-Install & Post-Reset Storage Setup Gate (Rule 1 — Shows ONLY ONCE) */}
-      <StorageSetupModal
-        isOpen={isStorageSetupModalOpen}
+      {/* Single Unified Authoritative Workstation Setup & Post-Reset Initialization Modal */}
+      <WorkstationSetupModal
+        isOpen={isStorageSetupModalOpen || isWelcomeModalOpen}
         isResetMode={isStorageSetupResetMode}
         onClose={() => {
           markWorkstationSetupCompleted('dismissed');
           setIsStorageSetupModalOpen(false);
+          setIsWelcomeModalOpen(false);
+        }}
+        onNavigateToCatalog={() => {
+          handleTabChange('catalog');
+        }}
+        onCompleteMessage={(msg) => {
+          reloadData();
+          void refreshTrueCount();
+          showToast(msg);
         }}
         onConfigured={(_path, action) => {
           markWorkstationSetupCompleted(action || 'configured');
           setIsStorageSetupModalOpen(false);
+          setIsWelcomeModalOpen(false);
           reloadData();
-          showToast('Library workstation configured & Master Excel initialized.');
-          if (action === 'add_manual') {
-            setBookToEdit(null);
-            setInitialBarcodeForAdd('');
-            setIsAddEditOpen(true);
-          } else if (action === 'import_excel') {
-            setIsExcelImportModalOpen(true);
-          } else if (action === 'restore_package') {
-            setIsMissingLibrary(false);
-            setIsWelcomeModalOpen(true);
-          }
+          void refreshTrueCount();
         }}
       />
 
@@ -1153,26 +1257,7 @@ export default function App() {
         />
       )}
 
-      {/* First-Time Welcome & Start Screen Modal */}
-      <WelcomeLibraryModal
-        isOpen={isWelcomeModalOpen}
-        isMissingPath={isMissingLibrary}
-        missingPath={missingLibraryPath}
-        onOpenStorageModal={(opt) => {
-          setIsWelcomeModalOpen(false);
-          setIsMissingLibrary(false);
-          setStorageModalOption(opt || 'create_new');
-          setIsStorageModalOpen(true);
-        }}
-        onClose={() => {
-          setIsWelcomeModalOpen(false);
-          setIsMissingLibrary(false);
-        }}
-        onComplete={(msg) => {
-          reloadData();
-          showToast(msg);
-        }}
-      />
+      {/* Note: Duplicate WelcomeLibraryModal removed — unified into WorkstationSetupModal above */}
 
       {/* Floating System Toast with Countdown Bar (Slide in from bottom right 200ms, pause on hover, slide out right 150ms) */}
       {toastMessage && (
@@ -1200,8 +1285,14 @@ export default function App() {
 
       {/* App Opening / Boot Animation Ceremony */}
       {showSplash && (
-        <AppOpeningSplash onComplete={handleSplashComplete} />
+        <AppOpeningSplash
+          onComplete={handleSplashComplete}
+          booksCount={totalBooksCount}
+        />
       )}
+
+      {/* Full-Viewport BackgroundGradientAnimation Heavy Task Processing Overlay */}
+      <GlobalHeavyTaskOverlay />
 
     </div>
   );

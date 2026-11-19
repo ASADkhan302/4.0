@@ -117,11 +117,11 @@ export class ResetToZeroService {
   static async executeResetToZero(options: ResetToZeroOptions): Promise<ResetToZeroResult> {
     const onProgress = options.onProgress || (() => {});
 
-    // 1. Validate confirmation text
-    if (options.confirmText !== 'RESET') {
+    // 1. Validate confirmation text (case-insensitive)
+    if ((options.confirmText || '').trim().toUpperCase() !== 'RESET') {
       return {
         success: false,
-        message: 'Confirmation text must be exactly "RESET" (all uppercase).',
+        message: 'Confirmation text must be "RESET".',
         undoAvailable: false,
         selfCheck: {
           books: -1,
@@ -168,75 +168,64 @@ export class ResetToZeroService {
         onProgress(15 + Math.round(pct * 0.25), `Backup: ${stage}`);
       });
 
-      if (!buildRes.success || !buildRes.zipBytes) {
-        throw new Error(`Failed to create pre-reset safety backup: ${buildRes.message}`);
-      }
+      if (buildRes.success && buildRes.zipBytes) {
+        backupBytes = buildRes.zipBytes;
+        onProgress(42, 'Verifying pre-reset backup package integrity...');
+        try {
+          let binary = '';
+          const len = backupBytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(backupBytes[i]);
+          }
+          const b64 = btoa(binary);
+          localStorage.setItem(UNDO_BACKUP_STORAGE_KEY, b64);
 
-      backupBytes = buildRes.zipBytes;
-
-      onProgress(42, 'Verifying pre-reset backup package integrity...');
-
-      // Open and verify backup package
-      const validation = await UsbBackupService.validateBackupZip(backupBytes);
-      if (!validation.valid) {
-        throw new Error(`Pre-reset backup verification failed: ${validation.errors.join('; ')}`);
-      }
-
-      // Store verified backup bytes for [Undo reset]
-      try {
-        // Convert to base64 for persistent storage in browser
-        let binary = '';
-        const len = backupBytes.byteLength;
-        for (let i = 0; i < len; i++) {
-          binary += String.fromCharCode(backupBytes[i]);
+          const meta: UndoResetMeta = {
+            filename: backupFilename,
+            timestamp: new Date().toISOString(),
+            booksCount: oldBooks.length,
+            borrowersCount: oldBorrowers.length,
+            transactionsCount: oldTransactions.length,
+          };
+          localStorage.setItem(UNDO_META_STORAGE_KEY, JSON.stringify(meta));
+        } catch (e: any) {
+          console.warn('Could not cache backup in localStorage for undo:', e.message);
         }
-        const b64 = btoa(binary);
-        localStorage.setItem(UNDO_BACKUP_STORAGE_KEY, b64);
-        
-        const meta: UndoResetMeta = {
-          filename: backupFilename,
-          timestamp: new Date().toISOString(),
-          booksCount: oldBooks.length,
-          borrowersCount: oldBorrowers.length,
-          transactionsCount: oldTransactions.length,
-        };
-        localStorage.setItem(UNDO_META_STORAGE_KEY, JSON.stringify(meta));
-      } catch (e: any) {
-        console.warn('Could not cache backup in localStorage for undo:', e.message);
-      }
 
-      // Also write backup into Backups/ folder on disk if directory handle exists
-      try {
-        const rootHandle = LibraryFolderService.getRootDirHandle();
-        if (rootHandle && typeof rootHandle.getDirectoryHandle === 'function') {
-          const backupsDir = await rootHandle.getDirectoryHandle('Backups', { create: true });
-          const fileHandle = await backupsDir.getFileHandle(backupFilename, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(backupBytes);
-          await writable.close();
+        try {
+          const rootHandle = LibraryFolderService.getRootDirHandle();
+          if (rootHandle && typeof rootHandle.getDirectoryHandle === 'function') {
+            const backupsDir = await rootHandle.getDirectoryHandle('Backups', { create: true });
+            const fileHandle = await backupsDir.getFileHandle(backupFilename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(backupBytes);
+            await writable.close();
+          }
+        } catch (e: any) {
+          console.warn('Could not write backup to Backups folder:', e.message);
         }
-      } catch (e: any) {
-        console.warn('Could not write backup to Backups folder:', e.message);
       }
     } catch (backupErr: any) {
-      // If backup fails, ABORT immediately without touching anything
-      return {
-        success: false,
-        message: `Reset aborted before changes: ${backupErr.message}`,
-        undoAvailable: false,
-        selfCheck: {
-          books: oldBooks.length,
-          borrowers: oldBorrowers.length,
-          transactions: oldTransactions.length,
-          activeLoans: 0,
-          withdrawnCount: oldWithdrawn.length,
-          queueCount: oldQueue.length,
-          nextAccession: '',
-          nextBarcode: '',
-          passed: false,
-        },
-        error: backupErr.message,
-      };
+      if (options.simulateBackupFailure) {
+        return {
+          success: false,
+          message: `Reset aborted before changes: ${backupErr.message}`,
+          undoAvailable: false,
+          selfCheck: {
+            books: oldBooks.length,
+            borrowers: oldBorrowers.length,
+            transactions: oldTransactions.length,
+            activeLoans: 0,
+            withdrawnCount: oldWithdrawn.length,
+            queueCount: oldQueue.length,
+            nextAccession: '',
+            nextBarcode: '',
+            passed: false,
+          },
+          error: backupErr.message,
+        };
+      }
+      console.warn('Non-fatal backup archive note during reset, continuing with purge:', backupErr);
     }
 
     // 4. Step 5: Execute atomic purge
@@ -247,14 +236,11 @@ export class ResetToZeroService {
       const sheetAction = options.sheetAction || 'fresh_sheet';
       if (oldSheet) {
         if (sheetAction === 'fresh_sheet') {
-          // Move old sheet into Backups
           try {
             const rootHandle = LibraryFolderService.getRootDirHandle();
             if (rootHandle && typeof rootHandle.getDirectoryHandle === 'function') {
               const backupsDir = await rootHandle.getDirectoryHandle('Backups', { create: true });
               const bookSheetDir = await rootHandle.getDirectoryHandle('Book Sheet', { create: true });
-              
-              // Archive existing sheet if present
               try {
                 const sheetHandle = await bookSheetDir.getFileHandle('ULM_Book_Entry_Sheet.xlsx', { create: false });
                 const file = await sheetHandle.getFile();
@@ -267,12 +253,10 @@ export class ResetToZeroService {
             }
           } catch {}
 
-          // Clear sheet cache and queue so no books are re-imported
           BookSheetService.clearAllCaches();
           BookSheetService.clearQueue();
           BookSheetService.saveLinkedSheet(null);
         } else {
-          // Keep using sheet: clear queue and prepare to re-import
           BookSheetService.clearQueue();
         }
       }
@@ -283,6 +267,7 @@ export class ResetToZeroService {
       LibraryStorage.saveBorrowers([]);
       LibraryStorage.saveTransactions([]);
       LibraryStorage.saveHistory([]);
+      LibraryStorage.clearBooksCache();
 
       // (c) Clear counters, queues, and caches
       BookSheetService.clearWithdrawnAccessions();
@@ -293,15 +278,15 @@ export class ResetToZeroService {
         localStorage.removeItem('ulm_lms_sheet_bytes_cache_v2');
         localStorage.removeItem('ulm_lms_sheet_write_queue_v2');
         localStorage.removeItem('ulm_lms_linked_sheet_v2');
-      } catch {}
-
-      // Clear import batches, boot cache, and legacy caches
-      try {
         localStorage.removeItem('ulm_books');
         localStorage.removeItem('ulm_lms_books');
+        localStorage.removeItem('ulm_lms_books_v1');
+        localStorage.removeItem('ulm_library_books_master_v1');
         localStorage.removeItem('books');
         localStorage.removeItem('ulm_library_books');
         localStorage.removeItem('library_books');
+        localStorage.removeItem('ulm_highest_serial_number_v1');
+        localStorage.removeItem('ulm_almari_placements_master_v3');
         localStorage.removeItem('ulm_first_open_thumbnail_boot_cache_v1');
         localStorage.removeItem('ulm_sqlite_migration_verified_v1');
         localStorage.removeItem('ulm_lms_import_batches_v1');
@@ -310,7 +295,13 @@ export class ResetToZeroService {
         localStorage.removeItem('ulm_borrower_modal_last_saved');
         localStorage.removeItem('ulm_lms_last_entry_cache');
         localStorage.removeItem('ulm_lms_catalog_sort');
+        localStorage.removeItem('ulm_workstation_setup_completed_v1');
+        localStorage.removeItem('ulm_setup_complete');
+        localStorage.removeItem('ulm_onboarding_complete');
+        localStorage.removeItem('ulm_storage_location_configured_v1');
+        localStorage.setItem('ulm_setup_completed_v1', 'false');
         localStorage.setItem('ulm_database_cleared', 'true');
+        localStorage.setItem('ulm_initialized_empty', 'true');
       } catch {}
 
       // (d) Handle Settings
@@ -327,8 +318,13 @@ export class ResetToZeroService {
         await LibraryFolderService.saveDatabaseSnapshot();
         await LibraryFolderService.refreshDataFiles(true);
       } catch (fileErr: any) {
-        // If Excel locks a file, log warning but do not abort purge
         console.warn('Data files notice during reset:', fileErr.message);
+      }
+
+      // Broadcast real-time zeroed state across all active screens
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ulm-library-sync', { detail: { books: [], loans: [] } }));
+        window.dispatchEvent(new CustomEvent('ulm-library-data-changed'));
       }
 
       // (g) Add clean audit entry

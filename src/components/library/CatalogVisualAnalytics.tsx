@@ -293,17 +293,23 @@ export function CatalogVisualAnalytics({
           code: "IH",
           count: totalPhysicalVolumes,
           location: "Central Campus Library",
+          capacity: Math.max(125, totalPhysicalVolumes),
         },
       ];
     }
 
     return almaris.map((almari) => {
-      const assignedCount = books.filter(
-        (b) =>
-          b.almari_id === almari.id ||
-          (b.almari_code && b.almari_code.toUpperCase() === almari.code.toUpperCase()) ||
-          (b.cupboard && b.cupboard.toUpperCase() === almari.code.toUpperCase())
-      ).length;
+      const assignedCount = books
+        .filter(
+          (b) =>
+            b.almari_id === almari.id ||
+            (b.almari_code && b.almari_code.toUpperCase() === almari.code.toUpperCase()) ||
+            (b.cupboard && b.cupboard.toUpperCase() === almari.code.toUpperCase())
+        )
+        .reduce(
+          (sum, b) => sum + Number(b.total_copies ?? b.total_quantity ?? b.copies ?? b.quantity ?? 1),
+          0
+        );
 
       return {
         name: `${almari.code} • ${almari.name_en || almari.name_ur || "Main Stack"}`,
@@ -316,10 +322,16 @@ export function CatalogVisualAnalytics({
     });
   }, [almaris, books, totalPhysicalVolumes]);
 
+  const assignedTotal = React.useMemo(
+    () => stacksDensity.reduce((s, a) => s + a.count, 0),
+    [stacksDensity]
+  );
+  const unassignedCount = Math.max(0, totalPhysicalVolumes - assignedTotal);
+
   return (
     <div className="space-y-6">
       {/* Institutional Header & Timeframe Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm">
+      <div className="rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-4 border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#FFD147]/20 text-[#8A4B00] dark:text-[#FFD147] border border-[#C8963E]/40">
@@ -329,7 +341,7 @@ export function CatalogVisualAnalytics({
               {totalPhysicalVolumes.toLocaleString()} Cataloged Volumes
             </span>
           </div>
-          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 tracking-tight">
+          <h2 className="font-['Playfair_Display',Georgia,serif] text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white mt-1 tracking-tight">
             Campus Holdings, Circulation Velocity &amp; Stack Distribution
           </h2>
         </div>
@@ -338,7 +350,7 @@ export function CatalogVisualAnalytics({
         <div
           role="radiogroup"
           aria-label="Analytics Timeframe"
-          className="inline-flex rounded-xl bg-slate-100 dark:bg-white/5 p-1 border border-slate-200 dark:border-white/10"
+          className="inline-flex rounded-xl bg-white/45 dark:bg-white/[0.05] p-1 border border-white/60 dark:border-white/10"
         >
           {(Object.keys(TIMEFRAMES) as Array<keyof typeof TIMEFRAMES>).map((key) => (
             <button
@@ -350,7 +362,7 @@ export function CatalogVisualAnalytics({
               className={`h-8 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer ${
                 timeframe === key
                   ? "bg-white dark:bg-[#2A174E] text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-[#C8963E]/40"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               {TIMEFRAMES[key]}
@@ -360,42 +372,30 @@ export function CatalogVisualAnalytics({
       </div>
 
       {/* Row 1: Top Institutional KPI Cards with Live Dynamic Counts */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Cataloged Volumes"
           value={totalPhysicalVolumes.toLocaleString()}
-          delta={0.084}
-          period="vs last semester"
-          icon={<BookOpen className="w-4 h-4" />}
-          trend={[
-            Math.max(1, Math.round(totalPhysicalVolumes * 0.7)),
-            Math.max(1, Math.round(totalPhysicalVolumes * 0.85)),
-            totalPhysicalVolumes,
-          ]}
+          period={`Across ${disciplineBreakdown.length} active ${disciplineBreakdown.length === 1 ? "discipline" : "disciplines"}`}
+          icon={<BookOpen className="w-3.5 h-3.5" />}
         />
         <KpiCard
           label="Active Circulation Loans"
           value={activeLoansCount.toLocaleString()}
-          delta={activeLoansCount > 0 ? 0.05 : 0}
-          period="currently checked out"
-          icon={<Layers className="w-4 h-4" />}
-          trend={activeLoansCount > 0 ? [0, 1, activeLoansCount] : [0, 0, 0]}
+          period={activeLoansCount === 0 ? "All volumes currently in stack" : `${activeLoansCount} volumes checked out`}
+          icon={<Layers className="w-3.5 h-3.5" />}
         />
         <KpiCard
           label="Shelf Availability Index"
           value={`${availabilityPercentage}%`}
-          delta={0.012}
-          good="up"
-          period={`${availableVolumes} / ${totalPhysicalVolumes} on shelf`}
-          icon={<CheckCircle2 className="w-4 h-4" />}
+          period={`${availableVolumes.toLocaleString()} of ${totalPhysicalVolumes.toLocaleString()} volumes on shelf`}
+          icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />}
         />
         <KpiCard
-          label="Overdue / Return Delinquency"
+          label="Overdue / Delinquency"
           value={overdueCount.toLocaleString()}
-          delta={overdueCount === 0 ? 0 : 0.05}
-          good="down"
-          period={overdueCount > 0 ? "accruing fines (Rs. 10/day)" : "0 overdue loans"}
-          icon={<Clock className="w-4 h-4" />}
+          period={overdueCount > 0 ? "Accruing fines (Rs. 10/day)" : "Zero overdue borrower accounts"}
+          icon={<Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />}
         />
       </div>
 
@@ -451,13 +451,13 @@ export function CatalogVisualAnalytics({
         </ChartCard>
 
         {/* Physical Stacks & Cupboard Utilization Summary */}
-        <div className="rounded-[18px] bg-white/70 dark:bg-[#140D22]/70 backdrop-blur-xl p-5 border border-slate-200/80 dark:border-white/10 shadow-sm flex flex-col justify-between">
+        <div className="rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-5 border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[14px] font-bold text-slate-900 dark:text-white">
                 Physical Stacks &amp; Density
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-semibold">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/50 dark:bg-white/10 border border-white/60 dark:border-white/15 text-slate-700 dark:text-slate-300 font-semibold">
                 {stacksDensity.length} {stacksDensity.length === 1 ? "Almari" : "Almaris"}
               </span>
             </div>
@@ -466,29 +466,62 @@ export function CatalogVisualAnalytics({
             </p>
 
             <div className="space-y-3">
-              {stacksDensity.map((stack, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 flex items-center justify-between"
-                >
+              {stacksDensity.map((stack, idx) => {
+                const cap = stack.capacity || 125;
+                const fillPct = Math.min(100, Math.round((stack.count / cap) * 100));
+                return (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-xl bg-white/40 dark:bg-white/[0.04] border border-white/55 dark:border-white/10"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 pr-2">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">
+                          {stack.name}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                          <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
+                          <span>{stack.location}</span>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-xs font-extrabold text-[#C8963E] block">
+                          {stack.count.toLocaleString()} vols
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                          {stack.count} / {cap} cap
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#541A72] to-[#C8963E] transition-all"
+                        style={{ width: `${stack.count > 0 ? Math.max(6, fillPct) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {unassignedCount > 0 && (
+                <div className="p-3 rounded-xl bg-amber-500/[0.07] border border-amber-500/25 flex items-center justify-between">
                   <div className="min-w-0 pr-2">
                     <p className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">
-                      {stack.name}
+                      UNASSIGNED • Catalog Queue
                     </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                      <MapPin className="w-3 h-3 shrink-0" />
-                      <span>{stack.location}</span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                      Ready for 3D Almari shelf placement
                     </p>
                   </div>
-                  <span className="font-mono text-xs font-extrabold text-[#C8963E] shrink-0">
-                    {stack.count.toLocaleString()} vols
+                  <span className="font-mono text-xs font-extrabold text-amber-600 dark:text-[#FFD147] shrink-0">
+                    {unassignedCount.toLocaleString()} vols
                   </span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-4 pt-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
             <span>Automated shelf capacity tracking</span>
             <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
               100% Synced

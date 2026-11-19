@@ -22,6 +22,7 @@ import {
   subscribeResolutionConfig, 
   calculateAutoFitScale 
 } from '../../services/displayResolutionManager';
+import { triggerCircularThemeTransition } from '../../utils/themeTransition';
 
 export const AppearanceSettingsTab: React.FC = () => {
   const [themeConfig, setThemeConfig] = useState<UlmThemeConfig>(getStoredThemeConfig);
@@ -36,10 +37,12 @@ export const AppearanceSettingsTab: React.FC = () => {
     };
   }, []);
 
-  const handleToggleTheme = (mode: 'light' | 'dark') => {
-    const updated: UlmThemeConfig = { ...themeConfig, themeMode: mode };
-    setThemeConfig(updated);
-    saveThemeConfig(updated);
+  const handleToggleTheme = (mode: 'light' | 'dark', triggerEl?: HTMLElement | null) => {
+    void triggerCircularThemeTransition(triggerEl || null, () => {
+      const updated: UlmThemeConfig = { ...themeConfig, themeMode: mode };
+      setThemeConfig(updated);
+      saveThemeConfig(updated);
+    });
   };
 
   const handleSelectWhiteTone = (tone: WhiteTone) => {
@@ -83,80 +86,81 @@ export const AppearanceSettingsTab: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-white/10 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+    <div className="space-y-4">
       {/* Section Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-slate-200/80 dark:border-white/[0.10]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-[#BC881B]/15 border border-[#BC881B]/30 flex items-center justify-center text-[#BC881B] shrink-0 shadow-2xs">
-            <Palette className="w-5 h-5 stroke-[2]" />
+          <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+            <Palette className="w-4 h-4 stroke-[2]" />
           </div>
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight tracking-tight">
-              Card 1 — Appearance &amp; Display Scaling
+            <h3 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight tracking-tight font-['Plus_Jakarta_Sans']">
+              Card 1 — Appearance, Display Scaling &amp; Official ULM 2017 Crest
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Workstation visual style, low-glare surface tone, and fluid resolution scaling.
+            <p className="text-[11.5px] text-slate-500 dark:text-slate-300/80 mt-0.5">
+              Workstation visual style, low-glare surface tone, fluid resolution scaling, and institutional crest.
             </p>
           </div>
         </div>
 
-        <span className="px-3 py-1 rounded-[8px] text-[11px] font-mono font-semibold uppercase tracking-wider bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10">
-          Dual-Theme Engine
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
+          <span>DUAL-THEME ENGINE</span>
         </span>
       </div>
 
       {/* 2-Column Consolidated Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
         {/* Left Column: Theme Mode & Surface Tones */}
-        <div className="space-y-4">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+        <div className="space-y-3.5">
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 block">
             Color Theme (روشن یا تاریک موڈ)
           </span>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
-              onClick={() => handleToggleTheme('light')}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+              onClick={(e) => handleToggleTheme('light', e.currentTarget)}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
                 themeConfig.themeMode === 'light'
-                  ? 'border-[#BC881B] bg-amber-50/70 dark:bg-[#BC881B]/15 shadow-sm ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 shadow-xs ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
-              <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
-                <Sun className="w-5 h-5" />
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+                <Sun className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-900 dark:text-white">☀️ White Mode</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">Eye-Comfort Alabaster</div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">White Mode</div>
+                <div className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">Eye-Comfort Alabaster</div>
               </div>
             </button>
 
             <button
               type="button"
-              onClick={() => handleToggleTheme('dark')}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+              onClick={(e) => handleToggleTheme('dark', e.currentTarget)}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
                 themeConfig.themeMode === 'dark'
-                  ? 'border-[#BC881B] bg-slate-900 text-white shadow-sm ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-purple-950/50 dark:bg-amber-500/15 shadow-xs ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
-              <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-blue-400 shrink-0">
-                <Moon className="w-5 h-5" />
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-600 dark:text-purple-300 shrink-0">
+                <Moon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-900 dark:text-white">🌙 Dark Mode</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">Deep Obsidian Night</div>
+                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">Dark Mode</div>
+                <div className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">Deep Obsidian Night</div>
               </div>
             </button>
           </div>
 
           {/* 3 Clean Surface Tones */}
-          <div className="pt-2 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+          <div className="pt-1 space-y-2">
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 block">
               Surface Tones (سطحی شیڈز)
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               {(Object.keys(WHITE_TONES) as WhiteTone[]).map((tKey) => {
                 const tone = WHITE_TONES[tKey];
                 const isSelected = themeConfig.whiteTone === tKey;
@@ -165,17 +169,17 @@ export const AppearanceSettingsTab: React.FC = () => {
                     key={tKey}
                     type="button"
                     onClick={() => handleSelectWhiteTone(tKey)}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
                       isSelected
-                        ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                        ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                        : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">{tone.name}</span>
-                      <div className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: tone.primary }} />
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate">{tone.name}</span>
+                      <div className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs shrink-0" style={{ backgroundColor: tone.primary }} />
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-['JetBrains_Mono']">
                       {tone.primary}
                     </span>
                   </button>
@@ -186,12 +190,12 @@ export const AppearanceSettingsTab: React.FC = () => {
         </div>
 
         {/* Right Column: Display Scaling Presets */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-              Display Scaling Presets (اسکرین زوم اور ریزولوشن)
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 block">
+              Display Scaling Presets (اسکرین زوم)
             </span>
-            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#BC881B]/15 text-[#BC881B] border border-[#BC881B]/30">
+            <span className="font-['JetBrains_Mono'] text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/30">
               {Math.round(resolutionConfig.scale * 100)}% ({resolutionConfig.mode === 'auto' ? 'Auto-Fit' : 'Manual'})
             </span>
           </div>
@@ -202,12 +206,12 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleSelectResolutionPreset('auto')}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'auto'
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Maximize2 className="w-3.5 h-3.5 text-[#BC881B]" />
+                <Maximize2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
                 <span>Auto-Fit</span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Auto calculate</div>
@@ -218,8 +222,8 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleManualScaleChange(0.30)}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 30
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white">Micro 30%</div>
@@ -231,8 +235,8 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleManualScaleChange(0.45)}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 45
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white">Compact 45%</div>
@@ -244,8 +248,8 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleManualScaleChange(0.75)}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 75
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white">Laptop 75%</div>
@@ -257,8 +261,8 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleManualScaleChange(1.00)}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 100
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white">Standard 100%</div>
@@ -270,8 +274,8 @@ export const AppearanceSettingsTab: React.FC = () => {
               onClick={() => handleManualScaleChange(1.25)}
               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 125
-                  ? 'border-[#BC881B] bg-amber-50/60 dark:bg-[#BC881B]/15 ring-1 ring-[#BC881B]'
-                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1220] hover:border-slate-300'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
               <div className="text-xs font-bold text-slate-900 dark:text-white">Large 125%</div>
@@ -280,10 +284,10 @@ export const AppearanceSettingsTab: React.FC = () => {
           </div>
 
           {/* Fine Zoom Slider */}
-          <div className="pt-1 space-y-1.5">
+          <div className="pt-1 space-y-1">
             <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
               <span>Fine Adjustment Slider (30% – 125%):</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-white">
+              <span className="font-['JetBrains_Mono'] font-bold text-slate-900 dark:text-white">
                 {Math.round(resolutionConfig.scale * 100)}%
               </span>
             </div>
@@ -294,9 +298,9 @@ export const AppearanceSettingsTab: React.FC = () => {
               step="0.05"
               value={resolutionConfig.scale}
               onChange={(e) => handleManualScaleChange(Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#BC881B]"
+              className="w-full h-2 bg-slate-200 dark:bg-white/[0.12] rounded-lg appearance-none cursor-pointer accent-amber-500"
             />
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+            <div className="flex justify-between text-[10px] text-slate-400 font-['JetBrains_Mono']">
               <span>30%</span>
               <span>50%</span>
               <span>75%</span>

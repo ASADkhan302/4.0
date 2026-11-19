@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  BookOpen, 
-  Sparkles, 
-  Check, 
-  ArrowRight,
-  GraduationCap
-} from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { playClickSound } from '../services/audio';
-import { StartScreenHeroDeco } from './decorative/StartScreenHeroDeco';
-import { BootSpinesDeco } from './decorative/BootSpinesDeco';
-import { ULM_CREST_SRC } from '../assets/brand/crestData';
-import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
+import { ULM_OFFICIAL_CREST_SRC } from '../constants/ulmOfficialAssets';
+import { ULM_OFFICIAL_CREST_DATA_URI, handleCrestFallback } from '../constants/ulmOfficialCrest';
+import { useInstitutionalIdentity } from '../utils/themeTransition';
 
-interface AppOpeningSplashProps {
+export interface AppOpeningSplashProps {
   onComplete: () => void;
+  booksCount?: number;
+  almarisCount?: number;
 }
 
 interface StepItem {
@@ -25,28 +20,83 @@ interface StepItem {
 const SQLITE_STEPS: StepItem[] = [
   { id: 'wal', label: 'Mounting SQLite WAL Engine', triggerPct: 15 },
   { id: 'register', label: 'Verifying 17-Column Register', triggerPct: 45 },
-  { id: 'cache', label: 'Hydrating 50-Row Thumbnail Cache', triggerPct: 75 },
-  { id: 'ready', label: 'Win32 Circulation Station Ready', triggerPct: 95 }
+  { id: 'cache', label: 'Hydrating IndexedDB Catalog Cache', triggerPct: 75 },
+  { id: 'ready', label: 'Workstation Circulation Engine Ready', triggerPct: 95 },
 ];
 
-export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }) => {
+const ROMAN_BOOK_SPINES = [
+  {
+    numeral: 'I',
+    heightClass: 'h-9',
+    bgClass: 'from-[#6B21A8] to-[#3B0764] border-purple-300/40 text-amber-200',
+    threshold: 10,
+  },
+  {
+    numeral: 'II',
+    heightClass: 'h-11',
+    bgClass: 'from-[#9F1239] to-[#4C0519] border-rose-300/40 text-amber-200',
+    threshold: 24,
+  },
+  {
+    numeral: 'III',
+    heightClass: 'h-10',
+    bgClass: 'from-[#047857] to-[#064E3B] border-emerald-300/40 text-amber-200',
+    threshold: 38,
+  },
+  {
+    numeral: 'IV',
+    heightClass: 'h-12',
+    bgClass: 'from-[#D97706] to-[#78350F] border-amber-200/60 text-white',
+    threshold: 52,
+  },
+  {
+    numeral: 'V',
+    heightClass: 'h-10',
+    bgClass: 'from-[#1D4ED8] to-[#1E3A8A] border-sky-300/40 text-amber-200',
+    threshold: 66,
+  },
+  {
+    numeral: 'VI',
+    heightClass: 'h-11',
+    bgClass: 'from-[#7E22CE] to-[#4C1D95] border-fuchsia-300/40 text-amber-200',
+    threshold: 80,
+  },
+  {
+    numeral: 'VII',
+    heightClass: 'h-9',
+    bgClass: 'from-[#0F766E] to-[#134E4A] border-teal-300/40 text-amber-200',
+    threshold: 92,
+  },
+];
+
+export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({
+  onComplete,
+}) => {
+  const identity = useInstitutionalIdentity();
   const [progress, setProgress] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const hasFinishedRef = useRef(false);
+
+  const currentMountStepText = useMemo(() => {
+    let activeStep = SQLITE_STEPS[0].label;
+    for (const step of SQLITE_STEPS) {
+      if (progress >= step.triggerPct - 10) {
+        activeStep = step.label;
+      }
+    }
+    return activeStep;
+  }, [progress]);
 
   const handleFinish = () => {
     if (hasFinishedRef.current) return;
     hasFinishedRef.current = true;
     setIsExiting(true);
-    // Exit: splash fades and scales up slightly (400ms)
     setTimeout(() => {
       onComplete();
-    }, 400);
+    }, 300);
   };
 
   useEffect(() => {
-    // Any click or Enter key skips the splash
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') {
         e.preventDefault();
@@ -64,7 +114,7 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
       // Audio autoplay policy fallback
     }
 
-    const duration = 2800; // ~3s total sequence
+    const duration = 2600;
     const startTime = Date.now();
 
     const interval = setInterval(() => {
@@ -77,13 +127,6 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
       const rawProgress = Math.min(100, Math.round((elapsed / duration) * 100));
       setProgress(rawProgress);
 
-      // Check SQLite mounting steps
-      SQLITE_STEPS.forEach(step => {
-        if (rawProgress >= step.triggerPct) {
-          setCompletedSteps(prev => prev.includes(step.id) ? prev : [...prev, step.id]);
-        }
-      });
-
       if (rawProgress >= 100) {
         clearInterval(interval);
         setTimeout(() => {
@@ -95,175 +138,140 @@ export const AppOpeningSplash: React.FC<AppOpeningSplashProps> = ({ onComplete }
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div 
+  const officialCrestUrl = ULM_OFFICIAL_CREST_SRC || ULM_OFFICIAL_CREST_DATA_URI;
+  const primaryCampus =
+    (identity.campusAddress || '').split(',')[0]?.trim() || 'Main Campus';
+
+  const splashContent = (
+    <div
       id="ulm-boot-splash"
       onClick={handleFinish}
-      className={`ulm-preserve-glass fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 select-none transition-all duration-300 ${
-        isExiting 
-          ? 'opacity-0 scale-[1.04] pointer-events-none' 
-          : 'opacity-100 scale-100'
+      className={`ulm-preserve-glass fixed inset-0 z-[99999] flex items-center justify-center p-4 select-none transition-opacity duration-300 bg-slate-900/15 dark:bg-[#090514]/70 backdrop-blur-md dark:backdrop-blur-xl backdrop-saturate-[165%] dark:backdrop-saturate-[180%] ${
+        isExiting ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
-      <style>{`
-        @keyframes crestEntrance {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        @keyframes crestPulse {
-          0% {
-            box-shadow: 0 0 0 rgba(188, 136, 27, 0);
-          }
-          100% {
-            box-shadow: 0 0 24px rgba(188, 136, 27, 0.35);
-          }
-        }
-        @keyframes fadeUp12px {
-          from {
-            opacity: 0;
-            transform: translateY(12px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .splash-step-1 {
-          animation: fadeUp12px 400ms cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
-        }
-        .splash-step-2 {
-          animation: fadeUp12px 400ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
-        }
-        .splash-step-3 {
-          animation: fadeUp12px 400ms cubic-bezier(0.16, 1, 0.3, 1) 240ms both;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .splash-step-1, .splash-step-2, .splash-step-3 {
-            animation: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-          }
-        }
-      `}</style>
-
-      {/* Skip Hint (Top Right) */}
-      <div className="absolute top-6 right-6 z-20">
+      {/* Top-Right Frosted Crystal Skip [Enter] Button */}
+      <div className="absolute top-5 right-5 z-20">
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             handleFinish();
           }}
-          className="ulm-preserve-glass bg-white/55 hover:bg-white/80 text-slate-900 border border-slate-300/80 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20 backdrop-blur-md px-4 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-2"
+          className="ulm-preserve-glass bg-white/80 hover:bg-white text-slate-900 border border-slate-300/85 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20 backdrop-blur-xl px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer inline-flex items-center gap-1.5"
         >
-          <span>Skip [Enter]</span>
-          <ArrowRight className="w-3.5 h-3.5" />
+          <span>Skip [Enter] →</span>
         </button>
       </div>
 
-      {/* Centerpiece Stage Container with ID for Transparent Frosted Glass */}
-      <div 
+      {/* Compact Vertical Portrait Splash Card (max-w-[370px]) */}
+      <div
         id="ulm-boot-card"
-        className="ulm-preserve-glass w-full max-w-md rounded-3xl p-7 text-center transition-all flex flex-col items-center space-y-4"
-        onClick={(e) => e.stopPropagation()}
+        onClick={handleFinish}
+        className="ulm-preserve-glass w-full max-w-[370px] rounded-[26px] px-6 py-7 text-center relative overflow-hidden cursor-pointer bg-gradient-to-br from-white/94 via-white/88 to-white/80 dark:from-[#23173D]/90 dark:via-[#19102E]/90 dark:to-[#120A22]/92 backdrop-blur-2xl backdrop-saturate-[185%] border border-white/90 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_3px_rgba(255,255,255,0.95),0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.22),0_28px_80px_rgba(0,0,0,0.78)]"
       >
-        {/* Floating Transparent Glass Container for ULM Crest Logo (zero square gray background, unclipped) */}
-        <div 
+        {/* 1. Larger Centered Live Crest Pedestal (w-20 h-20) */}
+        <div
           id="ulm-boot-logo"
-          className="ulm-preserve-glass w-28 h-28 rounded-2xl bg-white/10 dark:bg-white/5 backdrop-blur-md border border-[#BC881B]/40 shadow-[0_12px_36px_rgba(188,136,27,0.22)] flex items-center justify-center mx-auto mb-2 overflow-hidden p-2 shrink-0"
+          className="mx-auto w-20 h-20 rounded-2xl p-2 bg-gradient-to-br from-amber-500/15 via-purple-500/10 to-transparent border border-amber-400/35 shadow-[0_0_28px_rgba(245,158,11,0.16)] flex items-center justify-center"
         >
-          <img 
-            src={ULM_OFFICIAL_CREST_DATA_URI} 
-            alt="University of Lakki Marwat Official Crest" 
-            className="w-24 h-24 object-contain select-none pointer-events-none bg-transparent" 
-            style={{ 
-              clipPath: 'none',
-              imageRendering: '-webkit-optimize-contrast' 
-            }}
+          <img
+            src={identity.customCrestUrl || officialCrestUrl}
+            alt={identity.universityName}
+            onError={handleCrestFallback}
+            className="w-full h-full object-contain drop-shadow-sm"
           />
         </div>
 
-        <div className="w-full space-y-2">
-          {/* Top Pill */}
-          <div className="splash-step-1">
-            <span className="bg-[#541A72]/15 dark:bg-[#541A72]/35 text-[#541A72] dark:text-amber-300 border border-[#BC881B]/45 backdrop-blur-md px-3.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase inline-flex items-center gap-1.5 font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-[#541A72] dark:text-amber-300" />
-              <span>✨ CENTRAL CAMPUS WORKSTATION</span>
-            </span>
-          </div>
-
-          <h1 className="splash-step-2 text-slate-900 dark:text-white font-extrabold tracking-tight text-xl font-cinzel pt-1 mt-3">
-            UNIVERSITY OF LAKKI MARWAT
-          </h1>
-
-          <p className="splash-step-3 text-slate-600 dark:text-slate-300 text-xs font-medium font-sans mt-1">
-            Library Management System • Win32 Edition
-          </p>
+        {/* 2. Pill-Shaped Department Badge (rounded-full, Zero Emojis) */}
+        <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/[0.08] border border-amber-400/45">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)]" />
+          <span className="font-['Plus_Jakarta_Sans'] text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">
+            {identity.libraryDepartmentName} · {identity.workstationNodeId || 'LMS-WIN-01'}
+          </span>
         </div>
 
-        {/* Boot Splash Book Spines: 7 spines sliding up and settling one by one */}
-        <BootSpinesDeco />
+        {/* 3. Live Institution Heading & Crisp Subtitle */}
+        <h1 className="mt-3.5 font-['Plus_Jakarta_Sans'] text-[19px] font-extrabold uppercase tracking-wide text-slate-900 dark:text-white leading-tight">
+          {identity.universityName}
+        </h1>
+        <p className="mt-1 font-['Plus_Jakarta_Sans'] text-[11.5px] font-medium text-slate-600 dark:text-slate-300/80">
+          Digital Library &amp; Accession Ledger · {primaryCampus}
+        </p>
 
-        {/* System Mounting Status Bar & Percentage */}
-        <div className="w-full space-y-3 pt-1">
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-[12px] font-mono">
-              <span className="text-[#541A72] dark:text-sky-300 font-semibold text-xs">System Mounting Status</span>
-              <span className="text-slate-900 dark:text-white font-mono font-bold text-xs tabular-nums">{progress}%</span>
-            </div>
-            <div className="w-full h-2 rounded-full bg-slate-900/10 dark:bg-white/10 overflow-hidden backdrop-blur-sm">
-              <div 
-                className="h-full bg-gradient-to-r from-[#541A72] via-[#BC881B] to-emerald-500 transition-all duration-150"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Transparent Glass Boot Terminal Console: id="ulm-boot-console" */}
-          <div 
-            id="ulm-boot-console"
-            className="ulm-preserve-glass w-full rounded-2xl p-3.5 mt-4 font-mono text-[11px] text-left space-y-1.5 backdrop-blur-md transition-all min-h-[100px] flex flex-col justify-center"
-          >
-            {SQLITE_STEPS.map((step) => {
-              const isChecked = completedSteps.includes(step.id);
-              const isVisible = progress >= step.triggerPct - 5;
-              if (!isVisible) return null;
-
-              return (
-                <div 
-                  key={step.id} 
-                  className="flex items-center justify-between text-[11px] font-mono animate-in fade-in slide-in-from-bottom-1 duration-200"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-bold">›</span>
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">[OK]</span>
-                    <span className="text-slate-800 dark:text-slate-200">{step.label}...</span>
-                  </span>
-                  {isChecked ? (
-                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold animate-in zoom-in-75 duration-150">
-                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>MOUNTED</span>
-                    </span>
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {/* 4. Centered 7-Volume Roman-Numeral Book Spine Illustration (I II III IV V VI VII) */}
+        <div
+          aria-hidden="true"
+          className="my-5 flex items-end justify-center gap-1.5 h-12"
+        >
+          {ROMAN_BOOK_SPINES.map((spine, idx) => {
+            const isMounted = progress >= spine.threshold;
+            const isActivePulse =
+              progress >= spine.threshold - 14 && progress < spine.threshold + 16;
+            return (
+              <div
+                key={spine.numeral}
+                style={{
+                  transitionDelay: `${idx * 35}ms`,
+                }}
+                className={`ulm-preserve-dark ulm-preserve-glass w-[22px] ${spine.heightClass} rounded-[4px] bg-gradient-to-b ${spine.bgClass} border shadow-[0_4px_12px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.25)] flex flex-col items-center justify-between py-1.5 transition-all duration-300 hover:-translate-y-1 ${
+                  isActivePulse
+                    ? '-translate-y-1.5 scale-[1.06] ring-1 ring-amber-300/70'
+                    : isMounted
+                    ? 'translate-y-0 opacity-100'
+                    : 'translate-y-1 opacity-55'
+                }`}
+              >
+                <span className="w-3 h-[1.5px] rounded-full bg-amber-300/70" />
+                <span className="font-['Playfair_Display'] text-[9px] font-bold leading-none tracking-tight">
+                  {spine.numeral}
+                </span>
+                <span className="w-3 h-[1.5px] rounded-full bg-amber-300/50" />
+              </div>
+            );
+          })}
         </div>
 
-        {/* Footnote */}
-        <div className="text-slate-600 dark:text-slate-300 font-mono text-xs mt-4 opacity-85">
+        {/* 5. Clean Progress Header & Purple-Gold Progress Bar */}
+        <div className="mt-2 flex items-center justify-between text-[11px] font-semibold font-['Plus_Jakarta_Sans']">
+          <span className="text-sky-600 dark:text-sky-400">System Mounting Status</span>
+          <span className="font-['JetBrains_Mono'] text-slate-800 dark:text-white tabular-nums">
+            {progress}%
+          </span>
+        </div>
+        <div className="mt-1.5 h-2 w-full rounded-full bg-slate-200/80 dark:bg-white/[0.10] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#6B21A8] via-[#A855F7] to-[#F59E0B] transition-all duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* 6. Compact Rounded Console Status Box */}
+        <div
+          id="ulm-boot-console"
+          className="mt-4 rounded-2xl px-4 py-3.5 bg-slate-900/[0.04] dark:bg-[#0D071A]/75 border border-slate-200/85 dark:border-white/[0.10] flex items-center justify-between gap-2 font-['JetBrains_Mono'] text-[10.5px]"
+        >
+          <span className="text-emerald-600 dark:text-emerald-400 truncate">
+            &gt; [OK] {currentMountStepText}
+          </span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+            ✓ MOUNTED
+          </span>
+        </div>
+
+        {/* 7. Clean Footer Hint */}
+        <p className="mt-4 font-['JetBrains_Mono'] text-[10.5px] text-slate-500 dark:text-slate-400">
           Click anywhere or press Enter to launch
-        </div>
-
+        </p>
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(splashContent, document.body);
+  }
+
+  return splashContent;
 };
+
+export default AppOpeningSplash;

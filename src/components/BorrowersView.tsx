@@ -37,6 +37,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { SharedCsvWriter } from '../utils/csvWriter';
 import { matchesUrduSearch } from '../utils/urduUtils';
 import { ULM_OFFICIAL_CREST_SRC } from '../constants/ulmOfficialAssets';
+import { LiquidPillOverlay, LiquidIconFx } from './ui/liquid-pill-physics';
 
 export interface BorrowersViewProps {
   borrowers: Borrower[];
@@ -71,6 +72,16 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<'ALL' | BorrowerStatus>('ALL');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const viewSwitcherRef = useRef<HTMLDivElement | null>(null);
+  const viewItemRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [animTick, setAnimTick] = useState(1);
+
+  const iconFxForMode = (mode: 'grid' | 'table'): LiquidIconFx => (mode === 'grid' ? 'pop' : 'hop');
+
+  const handleSelectViewMode = (mode: 'grid' | 'table') => {
+    setAnimTick((t) => t + 1);
+    setViewMode(mode);
+  };
 
   // Modal states
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
@@ -230,20 +241,20 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
   return (
     <div className="w-full h-auto min-h-0 flex flex-col gap-5 p-4 md:p-6 pb-12 max-w-[1700px] mx-auto relative z-10 overflow-visible">
       {/* TOP HEADER CARD */}
-      <div className="rounded-[16px] bg-[#1A1A1A] border border-[#2E2A33] p-5 shadow-[0_4px_24px_rgba(0,0,0,0.4)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] p-5 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[rgba(84,26,114,0.35)] border border-[#A66BC9]/40 flex items-center justify-center text-[#E0B450] shadow-inner">
-              <Users className="w-5 h-5 text-[#E0B450]" />
+            <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-[#541A72] dark:text-[#FFD147] border border-purple-500/30 flex items-center justify-center shadow-inner shrink-0">
+              <Users className="w-5 h-5 text-[#541A72] dark:text-[#FFD147]" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold font-cinzel text-white tracking-wide flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold font-cinzel text-slate-900 dark:text-white tracking-wide flex items-center gap-2">
                 Borrowers &amp; Faculty Directory
-                <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#E0B450] border border-[#BC881B]/30">
+                <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/30">
                   ULM Patron Registry
                 </span>
               </h1>
-              <p className="text-xs md:text-sm text-[#B3AABD] font-sans">
+              <p className="text-xs md:text-sm text-slate-600 dark:text-[#B3AABD] font-sans">
                 Manage registered students, faculty members, and staff profiles, issue smart library cards, and monitor active borrowings.
               </p>
             </div>
@@ -365,21 +376,21 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
       </div>
 
       {/* SEARCH AND FILTERS BAR */}
-      <div className="rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md">
+      <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)]">
         {/* Search Input */}
         <div className="relative flex-1 min-w-[260px]">
-          <Search className="w-4 h-4 text-[#B3AABD] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, Urdu name, University ID, Roll No, Dept, Phone..."
-            className="w-full h-10 pl-10 pr-9 rounded-lg bg-[#221F26] border border-[#2E2A33] text-sm text-white placeholder-[#B3AABD]/60 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-all font-sans"
+            className="w-full h-10 pl-10 pr-9 rounded-xl bg-white/55 dark:bg-[#1B1130]/75 backdrop-blur-xl border border-white/60 dark:border-white/15 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-all font-sans"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B3AABD] hover:text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white z-10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -428,28 +439,61 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
           )}
 
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-[#221F26] border border-[#2E2A33] rounded-lg p-0.5">
+          <div
+            ref={viewSwitcherRef}
+            className="relative isolate inline-flex items-center bg-[#221F26] border border-[#2E2A33] rounded-lg p-0.5 gap-0.5"
+          >
+            <LiquidPillOverlay
+              containerRef={viewSwitcherRef}
+              itemRefs={viewItemRefs}
+              activeKey={viewMode}
+              axis="x"
+              variant="purple-pill"
+              triggerTick={animTick}
+            />
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition-colors ${
+              ref={(el) => {
+                viewItemRefs.current['grid'] = el;
+              }}
+              type="button"
+              onClick={() => handleSelectViewMode('grid')}
+              data-liquid-active={viewMode === 'grid' ? 'true' : undefined}
+              className={`relative z-10 p-2 rounded-md transition-colors cursor-pointer ${
                 viewMode === 'grid'
-                  ? 'bg-[#541A72] text-white shadow-sm'
+                  ? '!text-white'
                   : 'text-[#B3AABD] hover:text-white'
               }`}
               title="Card Grid View"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <span
+                className="ulm-nv-ico"
+                key={viewMode === 'grid' ? animTick : 0}
+                data-fx={viewMode === 'grid' ? iconFxForMode('grid') : undefined}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </span>
             </button>
             <button
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${
+              ref={(el) => {
+                viewItemRefs.current['table'] = el;
+              }}
+              type="button"
+              onClick={() => handleSelectViewMode('table')}
+              data-liquid-active={viewMode === 'table' ? 'true' : undefined}
+              className={`relative z-10 p-2 rounded-md transition-colors cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-[#541A72] text-white shadow-sm'
+                  ? '!text-white'
                   : 'text-[#B3AABD] hover:text-white'
               }`}
               title="Table List View"
             >
-              <List className="w-4 h-4" />
+              <span
+                className="ulm-nv-ico"
+                key={viewMode === 'table' ? animTick : 0}
+                data-fx={viewMode === 'table' ? iconFxForMode('table') : undefined}
+              >
+                <List className="w-4 h-4" />
+              </span>
             </button>
           </div>
         </div>
@@ -515,7 +559,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             return (
               <div
                 key={borrower.id}
-                className="group relative rounded-[14px] bg-[#1A1A1A] border border-[#2E2A33] hover:border-[#A66BC9]/45 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-[2px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.45)] overflow-hidden"
+                className="ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/60 dark:border-white/[0.14] hover:border-[#FFD147]/60 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-0.5 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] overflow-hidden"
               >
                 {/* User Card Background Watermark */}
                 <img
@@ -540,9 +584,9 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                       <span
                         className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
                           isFaculty
-                            ? 'bg-[#BC881B]/15 text-[#BC881B] dark:text-[#E0B450] border-[#BC881B]/40'
+                            ? 'bg-[#BC881B]/15 text-[#8A4B00] dark:text-[#E0B450] border-[#BC881B]/40'
                             : isStudent
-                            ? 'bg-[#A66BC9]/15 text-[#8B48B8] dark:text-[#C084FC] border-[#A66BC9]/40'
+                            ? 'bg-[#A66BC9]/15 text-[#541A72] dark:text-[#C084FC] border-[#A66BC9]/40'
                             : 'bg-[#29658E]/15 text-[#29658E] dark:text-[#6FA8D2] border-[#29658E]/40'
                         }`}
                       >
@@ -573,7 +617,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                           setBorrowerToEdit(borrower);
                           setIsAddEditModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#221F26] transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-[#221F26] transition-colors cursor-pointer"
                         title="Edit Member Profile"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -584,7 +628,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                   {/* Member Profile Main Block */}
                   <div className="flex items-start gap-3">
                     {/* Avatar / Photo */}
-                    <div className="relative w-12 h-12 rounded-xl bg-[#221F26] border border-[#2E2A33] overflow-hidden flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                    <div className="relative w-12 h-12 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] overflow-hidden flex-shrink-0 flex items-center justify-center text-slate-900 dark:text-white font-bold text-sm shadow-inner">
                       {borrower.photo_url || borrower.photo_path ? (
                         <img
                           src={borrower.photo_url || borrower.photo_path}
@@ -592,7 +636,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-[#E0B450] font-cinzel">
+                        <span className="text-[#8A4B00] dark:text-[#E0B450] font-cinzel">
                           {borrower.name.substring(0, 2).toUpperCase()}
                         </span>
                       )}
@@ -601,7 +645,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                     <div className="flex-1 min-w-0">
                       <button
                         onClick={() => setSelectedBorrowerForDetails(borrower)}
-                        className="text-left font-bold text-white text-sm hover:text-[#E0B450] transition-colors truncate block w-full"
+                        className="text-left font-bold text-slate-900 dark:text-white text-sm hover:text-[#541A72] dark:hover:text-[#E0B450] transition-colors truncate block w-full"
                         title={borrower.name}
                       >
                         {borrower.name}
@@ -609,66 +653,66 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
 
                       {borrower.name_urdu && (
                         <p 
-                          className="text-xs text-[#E0B450] font-urdu truncate leading-tight mt-0.5" 
+                          className="text-xs text-[#8A4B00] dark:text-[#E0B450] font-urdu truncate leading-tight mt-0.5" 
                           dir="rtl"
                         >
                           {borrower.name_urdu}
                         </p>
                       )}
 
-                      <p className="text-[11px] font-mono text-[#A66BC9] mt-0.5 truncate">
+                      <p className="text-[11px] font-mono text-[#541A72] dark:text-[#A66BC9] font-semibold mt-0.5 truncate">
                         {borrower.university_id || borrower.student_id}
                       </p>
                     </div>
                   </div>
 
                   {/* Academic / Employment Metadata */}
-                  <div className="rounded-lg bg-[#221F26]/70 border border-[#2E2A33] p-2.5 space-y-1 text-xs">
-                    <div className="flex items-center justify-between text-[#B3AABD]">
+                  <div className="rounded-xl bg-white/55 dark:bg-[#221F26]/70 border border-slate-200/80 dark:border-[#2E2A33] p-2.5 space-y-1 text-xs">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
                       <span>Department:</span>
-                      <span className="text-white font-medium truncate max-w-[150px]">
+                      <span className="text-slate-800 dark:text-white font-semibold truncate max-w-[150px]">
                         {borrower.department || 'General'}
                       </span>
                     </div>
 
                     {isStudent ? (
                       <>
-                        <div className="flex items-center justify-between text-[#B3AABD]">
+                        <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
                           <span>Program / Class:</span>
-                          <span className="text-[#E7E2EC] font-medium truncate">
+                          <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
                             {borrower.program || 'N/A'}{borrower.session ? ` (${borrower.session})` : ''}
                           </span>
                         </div>
                         {borrower.roll_number && (
-                          <div className="flex items-center justify-between text-[#B3AABD]">
+                          <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
                             <span>Roll Number:</span>
-                            <span className="text-white font-mono">{borrower.roll_number}</span>
+                            <span className="text-slate-800 dark:text-white font-mono font-semibold">{borrower.roll_number}</span>
                           </div>
                         )}
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between text-[#B3AABD]">
+                        <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
                           <span>Designation:</span>
-                          <span className="text-[#E7E2EC] font-medium truncate">
+                          <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
                             {borrower.designation || 'Staff'}
                           </span>
                         </div>
                         {borrower.employee_no && (
-                          <div className="flex items-center justify-between text-[#B3AABD]">
+                          <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
                             <span>Employee ID:</span>
-                            <span className="text-white font-mono">{borrower.employee_no}</span>
+                            <span className="text-slate-800 dark:text-white font-mono font-semibold">{borrower.employee_no}</span>
                           </div>
                         )}
                       </>
                     )}
 
                     {borrower.phone && (
-                      <div className="flex items-center justify-between text-[#B3AABD] pt-0.5 border-t border-[#2E2A33]/50">
+                      <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD] pt-0.5 border-t border-slate-200/70 dark:border-[#2E2A33]/50">
                         <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-[#34D399]" /> Contact:
+                          <Phone className="w-3 h-3 text-emerald-600 dark:text-[#34D399]" /> Contact:
                         </span>
-                        <span className="text-white font-mono text-[11px]">{borrower.phone}</span>
+                        <span className="text-slate-800 dark:text-white font-mono font-semibold text-[11px]">{borrower.phone}</span>
                       </div>
                     )}
                   </div>

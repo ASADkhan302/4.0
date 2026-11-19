@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { 
   FileSpreadsheet, 
   Plus, 
@@ -23,6 +24,7 @@ import {
   subscribeResolutionConfig,
   calculateAutoFitScale
 } from '../services/displayResolutionManager';
+import { triggerCircularThemeTransition, useInstitutionalIdentity } from '../utils/themeTransition';
 
 export interface PrimaryHeaderProps {
   activeTab: NavigationTab;
@@ -49,14 +51,16 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
   onOpenAddBook,
   onQuickExport,
   onReloadData,
-  universityName = 'University of Lakki Marwat',
-  libraryName = 'Campus Catalog & Circulation',
+  universityName,
+  libraryName,
   customLogoDataUri,
 }) => {
+  const identity = useInstitutionalIdentity();
   const [isRotating, setIsRotating] = useState(false);
   const [isSyncingMasterExcel, setIsSyncingMasterExcel] = useState(false);
   const [themeConfig, setThemeConfig] = useState(getStoredThemeConfig);
   const [resolutionConfig, setResolutionConfig] = useState(getStoredResolutionConfig);
+  const themeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const unsubTheme = subscribeThemeConfig(setThemeConfig);
@@ -67,11 +71,15 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
     };
   }, []);
 
+  const isDarkMode = themeConfig.themeMode === 'dark';
+
   const handleToggleTheme = () => {
-    const nextMode: 'light' | 'dark' = themeConfig.themeMode === 'light' ? 'dark' : 'light';
-    const updated = { ...themeConfig, themeMode: nextMode };
-    setThemeConfig(updated);
-    saveThemeConfig(updated);
+    void triggerCircularThemeTransition(themeBtnRef.current, () => {
+      const nextMode: 'light' | 'dark' = themeConfig.themeMode === 'light' ? 'dark' : 'light';
+      const updated = { ...themeConfig, themeMode: nextMode };
+      setThemeConfig(updated);
+      saveThemeConfig(updated);
+    });
   };
 
   const handleCycleResolution = () => {
@@ -123,11 +131,15 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
     await StorageEngine.triggerOneClickBackupDownload();
   };
 
+  const resolvedCrest = identity.customCrestUrl || customLogoDataUri || ULM_OFFICIAL_CREST_SRC;
+  const resolvedUniversityName = identity.universityName || universityName || 'University of Lakki Marwat';
+  const resolvedDepartmentName = identity.libraryDepartmentName || libraryName || 'Central Campus Library';
+
   const secondaryButtonClass =
     'inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/80 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-xl text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-white/15 ring-1 ring-[#C8963E]/25 shadow-xs transition-all duration-150 cursor-pointer';
 
   return (
-    <header className="shrink-0 w-full max-w-none mx-0 min-h-[56px] px-4 lg:px-6 py-2 bg-white/65 dark:bg-[#140D22]/68 backdrop-blur-2xl backdrop-saturate-200 border-b border-[#C8963E]/45 dark:border-[#FFD147]/25 shadow-[0_8px_24px_-8px_rgba(30,20,43,0.10),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.12)] z-30 select-none no-print">
+    <header className="ulm-preserve-glass shrink-0 rounded-[26px] mx-2.5 mt-2.5 sm:mx-3.5 sm:mt-3.5 px-4 sm:px-6 py-2.5 bg-gradient-to-br from-white/55 via-white/35 to-white/20 dark:from-white/[0.08] dark:via-[#18102B]/55 dark:to-[#120B22]/40 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/65 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.52),inset_-1px_-1px_1px_rgba(255,255,255,0.16),0_12px_32px_rgba(0,0,0,0.22)] transition-all z-30 select-none no-print">
       <div className="w-full max-w-none mx-0 flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
         
         {/* FAR-LEFT SIDE: Enlarged Crest Pedestal + Luxury Academic Serif Title */}
@@ -135,8 +147,8 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
           {/* Enlarged Crest Pedestal (60px-66px) with Gold Double-Rim */}
           <div className="w-[58px] h-[58px] xl:w-[66px] xl:h-[66px] rounded-2xl p-1 bg-white/95 dark:bg-white/10 backdrop-blur-xl border-2 border-[#C8963E] dark:border-[#FFD147]/80 ring-2 ring-[#C8963E]/30 shadow-lg flex items-center justify-center shrink-0">
             <img
-              src={customLogoDataUri || ULM_OFFICIAL_CREST_SRC}
-              alt="University Official Crest"
+              src={resolvedCrest}
+              alt={resolvedUniversityName}
               draggable={false}
               onError={handleCrestFallback}
               className="w-full h-full object-contain drop-shadow-xs"
@@ -148,11 +160,11 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
             <h1
               className="font-['Playfair_Display',Georgia,serif] !text-2xl xl:!text-[28px] 2xl:!text-[32px] !font-black !tracking-tight !leading-tight !text-[#1A1027] dark:!text-white drop-shadow-[0_1px_0_rgba(255,255,255,0.8)] dark:drop-shadow-none"
             >
-              {universityName || 'University of Lakki Marwat'}
+              {resolvedUniversityName}
             </h1>
             <div className="flex items-center gap-2.5 mt-1 flex-wrap">
               <span className="text-xs xl:text-sm font-extrabold uppercase tracking-[0.22em] text-[#8A4B00] dark:text-[#FFD147]">
-                {libraryName ? libraryName.toUpperCase() : 'CENTRAL CAMPUS LIBRARY'}
+                {resolvedDepartmentName.toUpperCase()}
               </span>
             </div>
           </div>
@@ -162,22 +174,40 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
         <div className="flex items-center justify-end gap-1.5 ml-auto shrink-0 flex-wrap">
           {/* 1. White Glass / Dark Glass Theme Toggle */}
           <button
+            ref={themeBtnRef}
             type="button"
             onClick={handleToggleTheme}
             className={secondaryButtonClass}
             title={themeConfig.themeMode === 'light' ? 'Switch to Dark Obsidian Mode' : 'Switch to Soft Eye-Comfort White Glass Mode'}
           >
-            {themeConfig.themeMode === 'light' ? (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="hidden sm:inline">White Glass</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="hidden sm:inline">Dark Glass</span>
-              </>
-            )}
+            <AnimatePresence mode="wait" initial={false}>
+              {!isDarkMode ? (
+                <motion.span
+                  key="sun"
+                  initial={{ opacity: 0, scale: 0.55, rotate: 25 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.55 }}
+                  transition={{ duration: 0.33 }}
+                  className="inline-flex items-center justify-center shrink-0"
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="moon"
+                  initial={{ opacity: 0, scale: 0.55, rotate: -25 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.55 }}
+                  transition={{ duration: 0.33 }}
+                  className="inline-flex items-center justify-center shrink-0"
+                >
+                  <Moon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                </motion.span>
+              )}
+            </AnimatePresence>
+            <span className="hidden sm:inline">
+              {!isDarkMode ? 'White Glass' : 'Dark Glass'}
+            </span>
           </button>
 
           {/* 2. Resolution & Workspace Zoom Selector */}
@@ -249,7 +279,7 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
             <span className="hidden xl:inline">{isSyncingMasterExcel ? 'Syncing...' : 'Master Excel'}</span>
           </button>
 
-          {/* 8. Primary CTA Button: + Add Book */}
+          {/* 8. Primary CTA Button: Add Book */}
           <button
             type="button"
             onClick={onOpenAddBook}
@@ -257,7 +287,7 @@ export const PrimaryHeader: React.FC<PrimaryHeaderProps> = ({
             title="Catalog a New Book Volume"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5] !text-white shrink-0" />
-            <span className="!text-white">+ Add Book</span>
+            <span className="!text-white">Add Book</span>
           </button>
         </div>
 

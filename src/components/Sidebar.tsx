@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   BookOpen, 
@@ -15,6 +15,7 @@ import {
   Library
 } from 'lucide-react';
 import { NavigationTab, Book } from '../types/library';
+import { LiquidPillOverlay, LiquidIconFx } from './ui/liquid-pill-physics';
 
 export type LmsNavItemData = {
   id: NavigationTab | 'search';
@@ -61,6 +62,42 @@ export function Sidebar({
 }: LmsSidebarProps) {
   const [internalIsSearchOpen, setInternalIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const sidebarNavRef = useRef<HTMLElement | null>(null);
+  const sidebarItemRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [visualActiveTab, setVisualActiveTab] = useState<NavigationTab>(activeTab);
+  const [animTick, setAnimTick] = useState(1);
+
+  useEffect(() => {
+    setVisualActiveTab((prev) => {
+      if (prev !== activeTab) {
+        setAnimTick((t) => t + 1);
+      }
+      return activeTab;
+    });
+  }, [activeTab]);
+
+  const iconFxForTab = (tabId: string): LiquidIconFx => {
+    switch (tabId) {
+      case 'catalog':
+        return 'pop';
+      case 'almaris':
+        return 'wave';
+      case 'scanner':
+        return 'hop';
+      case 'circulation':
+        return 'pop';
+      case 'borrowers':
+        return 'hop';
+      case 'reports':
+        return 'wave';
+      case 'excel':
+        return 'hop';
+      case 'settings':
+        return 'spin';
+      default:
+        return 'pop';
+    }
+  };
 
   const [windowDimensions, setWindowDimensions] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 1440,
@@ -191,6 +228,8 @@ export function Sidebar({
       setIsSearchOpen(true);
       return;
     }
+    setVisualActiveTab(id as NavigationTab);
+    setAnimTick((t) => t + 1);
     onTabChange(id as NavigationTab);
   };
 
@@ -206,28 +245,29 @@ export function Sidebar({
   return (
     <>
       <aside 
-        className={`shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none bg-white/60 dark:bg-[#120C1F]/65 backdrop-blur-2xl backdrop-saturate-200 border-r border-[#C8963E]/35 dark:border-white/10 shadow-[4px_0_24px_-4px_rgba(30,20,43,0.06)] text-slate-800 dark:text-slate-200 transition-[width] duration-200 ease-out relative z-20 no-print ${getSidebarWidthClass()}`}
+        ref={sidebarNavRef}
+        className={`ulm-preserve-glass shrink-0 h-full min-h-0 flex flex-col justify-between overflow-hidden select-none rounded-[26px] ml-2.5 sm:ml-3.5 bg-gradient-to-br from-white/50 via-white/32 to-white/18 dark:from-white/[0.07] dark:via-[#160E28]/55 dark:to-[#110A20]/40 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.15] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.48),inset_-1px_-1px_1px_rgba(255,255,255,0.14),0_12px_32px_rgba(0,0,0,0.22)] text-slate-800 dark:text-slate-200 transition-[width] duration-200 ease-out relative isolate z-20 no-print ${getSidebarWidthClass()}`}
       >
+        <LiquidPillOverlay
+          containerRef={sidebarNavRef}
+          itemRefs={sidebarItemRefs}
+          activeKey={visualActiveTab}
+          axis="y"
+          variant="sidebar-pill"
+          triggerTick={animTick}
+        />
+
         {/* Top Header */}
-        <div className="h-10 px-3 flex items-center justify-between border-b border-slate-200/70 dark:border-white/[0.06] shrink-0">
+        <div className="relative z-10 h-10 px-3 flex items-center justify-between border-b border-slate-200/70 dark:border-white/[0.06] shrink-0">
           {!isRail ? (
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">
               Navigation
             </span>
           ) : <div className="w-2" />}
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="p-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
-            title={isCollapsed ? "Expand Sidebar (⌘B)" : "Collapse Sidebar (⌘B)"}
-            aria-label="Toggle Sidebar"
-          >
-            {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </button>
         </div>
 
         {/* Scrollable Nav Items */}
-        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 sm:px-3 flex flex-col [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full ${
+        <div className={`relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 sm:px-3 flex flex-col [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-[#2B2730] [&::-webkit-scrollbar-thumb]:rounded-full ${
           isShortScreen ? 'py-2 gap-1' : 'py-3 gap-1.5'
         }`}>
           {navGroups.map((group, gIdx) => (
@@ -243,20 +283,24 @@ export function Sidebar({
                 <div className={`h-[1px] mx-3 bg-slate-200 dark:bg-white/[0.06] ${isShortScreen ? 'my-1.5' : 'my-2'}`} />
               )}
               {group.items.map(item => {
-                const isActive = activeTab === item.id;
+                const isActive = visualActiveTab === item.id;
                 const Icon = item.icon;
 
                 return (
                   <button
                     key={item.id}
+                    ref={(el) => {
+                      sidebarItemRefs.current[item.id] = el;
+                    }}
                     onClick={() => handleItemClick(item.id)}
                     title={item.title}
-                    className={`group relative flex items-center justify-between ${
+                    data-liquid-active={isActive ? 'true' : undefined}
+                    className={`group relative z-10 flex items-center justify-between ${
                       isRail ? 'px-0 justify-center' : 'px-3 gap-3'
-                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 text-left w-full border text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
+                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-colors duration-150 text-left w-full border border-transparent text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
                       isActive
-                        ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md'
-                        : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
+                        ? '!text-white'
+                        : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5'
                     }`}
                   >
                     {isActive && (
@@ -265,14 +309,20 @@ export function Sidebar({
 
                     <div className="relative flex items-center gap-3 min-w-0">
                       <div className="relative flex items-center justify-center shrink-0">
-                        <Icon 
-                          className={`w-5 h-5 shrink-0 transition-colors ${
-                            isActive 
-                              ? 'text-[#FFD147]' 
-                              : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'
-                          }`} 
-                          strokeWidth={1.75} 
-                        />
+                        <span
+                          className="ulm-nv-ico"
+                          key={isActive ? animTick : 0}
+                          data-fx={isActive ? iconFxForTab(item.id) : undefined}
+                        >
+                          <Icon 
+                            className={`w-5 h-5 shrink-0 transition-colors ${
+                              isActive 
+                                ? 'text-[#FFD147]' 
+                                : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'
+                            }`} 
+                            strokeWidth={1.75} 
+                          />
+                        </span>
                         {isRail && item.badge !== undefined && (
                           <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold bg-[#BC881B] text-black flex items-center justify-center leading-none shadow-xs pointer-events-none">
                             {item.badge}
@@ -316,33 +366,43 @@ export function Sidebar({
         </div>
 
         {/* Pinned Bottom Items */}
-        <div className={`border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-1.5 ${
+        <div className={`relative z-10 border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-1.5 ${
           isShortScreen ? 'p-2' : 'p-3'
         }`}>
           {bottomItems.map(item => {
-            const isActive = activeTab === item.id;
+            const isActive = visualActiveTab === item.id;
             const Icon = item.icon;
             return (
               <button
                 key={item.id}
+                ref={(el) => {
+                  sidebarItemRefs.current[item.id] = el;
+                }}
                 onClick={() => handleItemClick(item.id)}
                 title={item.title}
-                className={`group relative flex items-center justify-between ${
+                data-liquid-active={isActive ? 'true' : undefined}
+                className={`group relative z-10 flex items-center justify-between ${
                   isRail ? 'px-0 justify-center' : 'px-3 gap-3'
-                } ${itemHeightClass} rounded-[10px] cursor-pointer transition-all duration-150 w-full border text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
+                } ${itemHeightClass} rounded-[10px] cursor-pointer transition-colors duration-150 w-full border border-transparent text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
                   isActive
-                    ? 'bg-gradient-to-r from-[#541A72]/90 to-[#3B1054]/90 !text-white border-[#FFD147]/55 shadow-md backdrop-blur-md' 
-                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 border-transparent'
+                    ? '!text-white' 
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5'
                 }`}
               >
                 {isActive && (
                   <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
                 )}
                 <div className="relative flex items-center gap-3">
-                  <Icon 
-                    className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
-                    strokeWidth={1.75}
-                  />
+                  <span
+                    className="ulm-nv-ico"
+                    key={isActive ? animTick : 0}
+                    data-fx={isActive ? iconFxForTab(item.id) : undefined}
+                  >
+                    <Icon 
+                      className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
+                      strokeWidth={1.75}
+                    />
+                  </span>
                   {!isRail && (
                     <span className={`truncate text-[14px] leading-none ${isActive ? '!text-white font-semibold' : 'font-medium'}`} title={item.title}>
                       {item.title}
@@ -361,7 +421,7 @@ export function Sidebar({
           <button
             onClick={onToggleCollapse}
             title={isRail ? "Expand Sidebar" : "Collapse Sidebar"}
-            className={`group relative flex items-center ${
+            className={`group relative z-10 flex items-center ${
               isRail ? 'justify-center px-0' : 'justify-between px-3 gap-3'
             } ${itemHeightClass} rounded-[10px] transition-all duration-150 w-full border border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
           >

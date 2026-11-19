@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   FileSpreadsheet, 
@@ -282,13 +283,13 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
     return true;
   });
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-4xl max-h-[90vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/10 rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden flex flex-col relative"
+        className="w-full max-w-4xl max-h-[92vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-[#C8963E]/45 rounded-[26px] shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden flex flex-col relative my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Accent Stripe */}
@@ -844,4 +845,6 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

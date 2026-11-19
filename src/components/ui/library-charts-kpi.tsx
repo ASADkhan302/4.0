@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -19,8 +18,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-
-const SQUIRCLE = "[corner-shape:squircle]";
 
 export interface Series {
   key: string;
@@ -43,16 +40,15 @@ export function ChartCard({ title, subtitle, actions, className, children, ...re
   return (
     <figure
       className={cn(
-        "m-0 grid gap-4 rounded-[18px] bg-card/85 backdrop-blur-xl p-5 text-card-foreground border border-border/80 shadow-sm",
-        SQUIRCLE,
+        "m-0 grid gap-4 rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-5 text-slate-900 dark:text-white border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)]",
         className
       )}
       {...rest}
     >
       <figcaption className="flex items-start justify-between gap-3">
         <div className="grid gap-0.5">
-          <span className="text-[14px] font-bold tracking-[-0.01em] text-foreground">{title}</span>
-          {subtitle && <span className="text-[12px] text-muted-foreground font-medium">{subtitle}</span>}
+          <span className="text-[14px] font-bold tracking-[-0.01em] text-slate-900 dark:text-white">{title}</span>
+          {subtitle && <span className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">{subtitle}</span>}
         </div>
         {actions}
       </figcaption>
@@ -66,7 +62,7 @@ function Legend({ series }: { series: Series[] }) {
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1.5" aria-hidden>
       {series.map((s, i) => (
-        <li key={s.key} className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+        <li key={s.key} className="flex items-center gap-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-300">
           <span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: color(s, i) }} />
           {s.label}
         </li>
@@ -100,9 +96,9 @@ function ChartTooltip({
 }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="min-w-[140px] rounded-[10px] bg-popover/95 backdrop-blur-md px-3.5 py-2.5 text-[12px] text-popover-foreground shadow-xl border border-border">
+    <div className="min-w-[140px] rounded-[12px] bg-white/95 dark:bg-[#1A102D]/95 backdrop-blur-md px-3.5 py-2.5 text-[12px] text-slate-900 dark:text-white shadow-xl border border-slate-200/80 dark:border-white/15">
       {label !== undefined && (
-        <p className="mb-1.5 font-bold text-foreground">{labelFormat ? labelFormat(String(label)) : label}</p>
+        <p className="mb-1.5 font-bold text-slate-900 dark:text-white">{labelFormat ? labelFormat(String(label)) : label}</p>
       )}
       <ul className="grid gap-1">
         {payload.map((p) => {
@@ -110,11 +106,11 @@ function ChartTooltip({
           const s = series[i] ?? { key: String(p.dataKey ?? ""), label: String(p.name ?? p.dataKey ?? "") };
           return (
             <li key={s.key} className="flex items-center justify-between gap-4">
-              <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+              <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
                 <span className="h-2 w-2 rounded-[3px]" style={{ background: color(s, Math.max(i, 0)) }} />
                 {s.label}
               </span>
-              <span className="font-mono font-bold tabular-nums text-foreground">{format(Number(p.value ?? 0))}</span>
+              <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{format(Number(p.value ?? 0))}</span>
             </li>
           );
         })}
@@ -194,18 +190,25 @@ export function AreaTrend<T extends Record<string, unknown>>({
       <div role="img" aria-label={description} style={{ height }}>
         <div aria-hidden className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
+            <AreaChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 {series.map((s, i) => (
                   <linearGradient key={s.key} id={`${id}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={color(s, i)} stopOpacity={0.24} />
+                    <stop offset="0%" stopColor={color(s, i)} stopOpacity={0.28} />
                     <stop offset="100%" stopColor={color(s, i)} stopOpacity={0.02} />
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.6} />
+              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.5} />
               <XAxis dataKey={xKey as any} tickLine={false} axisLine={false} tick={AXIS} tickMargin={8} tickFormatter={xFormat} minTickGap={20} />
-              <YAxis tickLine={false} axisLine={false} tick={AXIS} tickFormatter={format} width={48} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tick={AXIS}
+                tickFormatter={format}
+                width={62}
+                allowDecimals={false}
+              />
               <RTooltip
                 cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
                 content={<ChartTooltip series={series} format={format} labelFormat={xFormat} />}
@@ -251,12 +254,19 @@ export function BarCompare<T extends Record<string, unknown>>({
       <div role="img" aria-label={description} style={{ height }}>
         <div aria-hidden className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 0 }} barGap={3} barCategoryGap="28%">
-              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.6} />
+            <BarChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barGap={4} barCategoryGap="24%">
+              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.5} />
               <XAxis dataKey={xKey as any} tickLine={false} axisLine={false} tick={AXIS} tickMargin={8} tickFormatter={xFormat} />
-              <YAxis tickLine={false} axisLine={false} tick={AXIS} tickFormatter={format} width={48} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tick={AXIS}
+                tickFormatter={format}
+                width={62}
+                allowDecimals={false}
+              />
               <RTooltip
-                cursor={{ fill: "var(--muted)", opacity: 0.35 }}
+                cursor={{ fill: "var(--muted)", opacity: 0.25 }}
                 content={<ChartTooltip series={series} format={format} labelFormat={xFormat} />}
               />
               {series.map((s, i) => (
@@ -266,8 +276,8 @@ export function BarCompare<T extends Record<string, unknown>>({
                   name={s.label}
                   stackId={stacked ? "a" : undefined}
                   fill={color(s, i)}
-                  maxBarSize={24}
-                  radius={stacked && i < series.length - 1 ? 0 : [4, 4, 0, 0]}
+                  maxBarSize={42}
+                  radius={stacked && i < series.length - 1 ? 0 : [6, 6, 0, 0]}
                   stroke={stacked ? "var(--card)" : undefined}
                   strokeWidth={stacked ? 2 : 0}
                   isAnimationActive={false}
@@ -338,25 +348,42 @@ export function DonutBreakdown({
           </ResponsiveContainer>
         </div>
         <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{centerLabel}</span>
-          <span className="text-[18px] font-extrabold tabular-nums font-mono text-foreground">{format(total)}</span>
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{centerLabel}</span>
+          <span
+            className="text-[18px] font-bold tabular-nums text-slate-900 dark:text-white mt-0.5"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            {format(total)}
+          </span>
         </div>
       </div>
-      <ul className="grid max-w-[340px] min-w-[180px] flex-1 gap-2">
-        {data.map((d, i) => (
-          <li key={d.label} className="flex items-center justify-between gap-4 text-[12.5px]">
-            <span className="flex items-center gap-2 text-muted-foreground font-medium">
-              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: color(series[i], i) }} />
-              {d.label}
-            </span>
-            <span className="tabular-nums font-mono">
-              <span className="font-bold text-foreground">{format(d.value)}</span>
-              <span className="ml-2 text-muted-foreground text-[11px]">
-                {total ? Math.round((d.value / total) * 100) : 0}%
-              </span>
-            </span>
-          </li>
-        ))}
+      <ul className="grid min-w-[220px] flex-1 gap-2.5">
+        {data.map((d, i) => {
+          const pct = total ? Math.round((d.value / total) * 100) : 0;
+          return (
+            <li
+              key={d.label}
+              className="rounded-xl bg-white/35 dark:bg-white/[0.04] border border-white/50 dark:border-white/[0.08] p-2.5"
+            >
+              <div className="flex items-center justify-between gap-4 text-[12.5px]">
+                <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold truncate">
+                  <span className="h-2.5 w-2.5 rounded-[3px] shrink-0" style={{ background: color(series[i], i) }} />
+                  <span className="truncate">{d.label}</span>
+                </span>
+                <span className="tabular-nums font-mono shrink-0">
+                  <span className="font-bold text-slate-900 dark:text-white">{format(d.value)}</span>
+                  <span className="ml-2 text-slate-500 dark:text-slate-400 text-[11px]">{pct}%</span>
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${Math.max(4, pct)}%`, background: color(series[i], i) }}
+                />
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -405,44 +432,44 @@ export interface KpiCardProps extends React.HTMLAttributes<HTMLDivElement> {
   icon?: React.ReactNode;
 }
 
-export function KpiCard({ label, value, delta, good = "up", period, trend, icon, className, ...rest }: KpiCardProps) {
-  const up = (delta ?? 0) >= 0;
-  const positive = delta === undefined ? null : (up && good === "up") || (!up && good === "down");
-
+export function KpiCard({
+  label,
+  value,
+  period,
+  icon,
+  className,
+  ...rest
+}: KpiCardProps) {
   return (
     <div
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
       className={cn(
-        "grid gap-2 rounded-[14px] bg-card/85 backdrop-blur-xl p-4 text-card-foreground border border-border/80 shadow-xs",
-        SQUIRCLE,
+        "flex flex-col justify-between gap-2 rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-4 text-slate-900 dark:text-white border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/55 transition-all",
         className
       )}
       {...rest}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-        {icon && <div className="text-muted-foreground/80">{icon}</div>}
+        <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">
+          {label}
+        </span>
+        {icon && (
+          <div className="w-7 h-7 rounded-xl bg-white/40 dark:bg-white/[0.07] border border-white/50 dark:border-white/15 flex items-center justify-center text-[#541A72] dark:text-[#FFD147] shrink-0">
+            {icon}
+          </div>
+        )}
       </div>
-      <div className="flex items-end justify-between gap-3">
-        <p className="text-[24px] leading-none font-extrabold tracking-[-0.02em] tabular-nums font-mono text-foreground">
+      <div className="mt-1 flex items-baseline gap-2">
+        <span
+          className="text-[26px] leading-none font-bold tracking-tight tabular-nums text-slate-900 dark:text-white"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+        >
           {value}
-        </p>
-        {trend && <Sparkline data={trend} className="w-20 shrink-0" slot={1} height={28} />}
+        </span>
       </div>
-      {delta !== undefined && (
-        <p className="flex items-center gap-1.5 text-[12px] mt-0.5">
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 font-bold tabular-nums px-1.5 py-0.5 rounded-[4px]",
-              positive
-                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                : "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-            )}
-          >
-            {up ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
-            <span className="sr-only">{up ? "Up" : "Down"} </span>
-            {Math.abs(delta * 100).toFixed(1)}%
-          </span>
-          {period && <span className="text-muted-foreground text-[11px] font-medium">{period}</span>}
+      {period && (
+        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+          {period}
         </p>
       )}
     </div>

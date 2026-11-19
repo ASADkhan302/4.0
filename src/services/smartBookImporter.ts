@@ -15,6 +15,12 @@ import { Book } from '../types/library';
 import { LibraryStorage } from './storage';
 import { getTodayIso } from '../utils/dateUtils';
 import { isArabicOrUrduScript } from '../utils/urduUtils';
+import {
+  startHeavyTask,
+  updateHeavyTaskProgress,
+  finishHeavyTask,
+  yieldToBrowserFrame,
+} from '../utils/heavyTaskRunner';
 
 export interface RejectedRowRecord {
   rowNumber: number;
@@ -62,18 +68,24 @@ export class SmartBookImporter {
     fileName: string,
     onProgress?: (pct: number, stage: string) => void
   ): Promise<SmartImportResult> {
-    onProgress?.(10, 'Reading spreadsheet file...');
-
-    let workbook: XLSX.WorkBook;
+    await startHeavyTask(
+      'Importing Library Catalog Batch',
+      `Reading "${fileName}" and indexing Accession & Barcode series...`,
+      100
+    );
     try {
-      workbook = XLSX.read(fileBuffer, {
-        type: 'array',
-        cellDates: true,
-        raw: false,
-      });
-    } catch (e: any) {
-      throw new Error(`Failed to read spreadsheet file: ${e.message || 'Corrupted file'}`);
-    }
+      onProgress?.(10, 'Reading spreadsheet file...');
+
+      let workbook: XLSX.WorkBook;
+      try {
+        workbook = XLSX.read(fileBuffer, {
+          type: 'array',
+          cellDates: true,
+          raw: false,
+        });
+      } catch (e: any) {
+        throw new Error(`Failed to read spreadsheet file: ${e.message || 'Corrupted file'}`);
+      }
 
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
       throw new Error('Spreadsheet contains no worksheets.');
@@ -254,11 +266,27 @@ export class SmartBookImporter {
     const nowIso = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const today = getTodayIso();
 
-    // Iterate through data rows
+    // Iterate through data rows in 250-row async chunks to keep UI responsive
     const dataStartRow = targetHeaderRowIdx + 1;
-    const totalDataRows = targetRows2d.length - dataStartRow;
+    const totalDataRows = Math.max(1, targetRows2d.length - dataStartRow);
+    const CHUNK_SIZE = 250;
 
     for (let r = dataStartRow; r < targetRows2d.length; r++) {
+      const processedRows = r - dataStartRow;
+      if (processedRows > 0 && processedRows % CHUNK_SIZE === 0) {
+        const pct = Math.min(82, 55 + Math.round((processedRows / totalDataRows) * 28));
+        onProgress?.(
+          pct,
+          `Processed ${processedRows.toLocaleString()} of ${totalDataRows.toLocaleString()} rows...`
+        );
+        updateHeavyTaskProgress(
+          processedRows,
+          totalDataRows,
+          `Processed ${processedRows.toLocaleString()} of ${totalDataRows.toLocaleString()} spreadsheet rows (${acceptedBooks.length.toLocaleString()} valid volumes)...`
+        );
+        await yieldToBrowserFrame();
+      }
+
       const row = targetRows2d[r] || [];
       const rowNum = r + 1;
 
@@ -384,6 +412,12 @@ export class SmartBookImporter {
     }
 
     onProgress?.(85, `Committing ${acceptedBooks.length} accepted books to catalog...`);
+    updateHeavyTaskProgress(
+      totalDataRows,
+      totalDataRows,
+      `Committing ${acceptedBooks.length.toLocaleString()} accepted books to catalog...`
+    );
+    await yieldToBrowserFrame();
 
     // Persist accepted books into LibraryStorage (persists to IndexedDB and memory)
     if (acceptedBooks.length > 0) {
@@ -403,5 +437,8 @@ export class SmartBookImporter {
       rejectedRows,
       message: `${acceptedBooks.length} valid books imported & added to catalog. ${rejectedRows.length} incomplete rows rejected.`,
     };
+    } finally {
+      finishHeavyTask();
+    }
   }
 }
