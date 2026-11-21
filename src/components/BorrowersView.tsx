@@ -240,48 +240,43 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
 
   return (
     <div className="w-full h-auto min-h-0 flex flex-col gap-5 p-4 md:p-6 pb-12 max-w-[1700px] mx-auto relative z-10 overflow-visible">
-      {/* TOP HEADER CARD */}
-      <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] p-5 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-[#541A72] dark:text-[#FFD147] border border-purple-500/30 flex items-center justify-center shadow-inner shrink-0">
-              <Users className="w-5 h-5 text-[#541A72] dark:text-[#FFD147]" />
-            </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold font-cinzel text-slate-900 dark:text-white tracking-wide flex items-center gap-2">
-                Borrowers &amp; Faculty Directory
-                <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-full bg-[#BC881B]/15 text-[#8A4B00] dark:text-[#E0B450] border border-[#BC881B]/30">
-                  ULM Patron Registry
-                </span>
-              </h1>
-              <p className="text-xs md:text-sm text-slate-600 dark:text-[#B3AABD] font-sans">
-                Manage registered students, faculty members, and staff profiles, issue smart library cards, and monitor active borrowings.
-              </p>
-            </div>
+      {/* 1. TOP HEADER BANNER (Frosted Crystal Shell matching Books Catalog / Issue Desk) */}
+      <div className="ulm-preserve-glass rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.08] dark:via-[#1B1130]/75 dark:to-[#120A22]/85 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.15] px-5 py-4 md:px-6 md:py-5 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.55),inset_-1px_-1px_1.5px_rgba(255,255,255,0.12),0_12px_32px_rgba(15,23,42,0.08)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.12),0_14px_36px_rgba(0,0,0,0.38)] flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-purple-500/12 dark:bg-purple-500/20 text-[#541A72] dark:text-[#FFD147] border border-purple-500/25 dark:border-purple-400/30 flex items-center justify-center shadow-inner shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-xl font-bold font-cinzel text-slate-900 dark:text-white tracking-wide leading-tight truncate">
+              Member ID Cards &amp; Borrower Registry
+            </h1>
+            <p className="text-xs text-slate-600 dark:text-[#B3AABD] font-sans mt-0.5 truncate">
+              Manage registered students, faculty, and staff profiles, issue CR80 smart library ID cards, and monitor active circulation.
+            </p>
           </div>
         </div>
 
-        {/* Action Buttons Toolbar */}
-        <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
+        {/* Action Buttons Row (Single clean horizontal row) */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => {
               setBorrowerToEdit(null);
               setIsAddEditModalOpen(true);
             }}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#541A72] via-[#6B21A8] to-[#B4690E] hover:brightness-110 active:scale-[0.98] !text-white text-xs md:text-sm font-bold border border-[#FFD147]/40 shadow-md transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 h-9 px-4 rounded-xl bg-gradient-to-r from-[#541A72] via-[#6B21A8] to-[#B4690E] hover:brightness-110 active:scale-[0.98] !text-white text-xs font-bold border border-[#FFD147]/45 shadow-md transition-all cursor-pointer"
           >
-            <UserPlus className="w-4 h-4 !text-white shrink-0" />
-            <span className="!text-white">+ Register Borrower</span>
+            <UserPlus className="w-3.5 h-3.5 !text-white shrink-0" />
+            <span className="!text-white">+ Enroll Borrower</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsCsvImportModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-800 dark:text-[#E7E2EC] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 h-9 px-3.5 rounded-xl bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] hover:border-emerald-500/50 hover:bg-white dark:hover:bg-white/[0.11] text-slate-800 dark:text-slate-100 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
             title="Import class or departmental list via CSV"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-[#34D399] shrink-0" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Import CSV</span>
           </button>
 
@@ -289,30 +284,30 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             type="button"
             onClick={handleOpenFilteredPrint}
             disabled={filteredBorrowers.length === 0}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-white dark:hover:bg-[#2B2730] text-[#8A4B00] dark:text-[#E0B450] text-xs md:text-sm font-semibold shadow-xs transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 h-9 px-3.5 rounded-xl bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] hover:border-[#BC881B]/60 hover:bg-white dark:hover:bg-white/[0.11] text-amber-800 dark:text-[#FFD147] text-xs font-semibold shadow-2xs transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             title="Batch print CR80 identity cards"
           >
-            <Printer className="w-4 h-4 text-[#B4690E] dark:text-[#E0B450] shrink-0" />
-            <span>Batch Print ID Cards ({filteredBorrowers.length})</span>
+            <Printer className="w-3.5 h-3.5 shrink-0" />
+            <span>Batch Print ({filteredBorrowers.length})</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportCsv}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#6FA8D2]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-[#29658E] dark:hover:text-[#6FA8D2] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 h-9 px-3 rounded-xl bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] hover:border-sky-500/50 hover:bg-white dark:hover:bg-white/[0.11] text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
             title="Export filtered borrowers to CSV"
           >
-            <Download className="w-4 h-4 shrink-0" />
+            <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
             <span>Export</span>
           </button>
 
           <button
             type="button"
             onClick={handleDownloadTemplate}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#BC881B]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-[#B4690E] dark:hover:text-[#E0B450] text-xs md:text-sm font-semibold shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 h-9 px-3 rounded-xl bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] hover:border-[#BC881B]/50 hover:bg-white dark:hover:bg-white/[0.11] text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
             title="Download CSV import template"
           >
-            <IdCard className="w-4 h-4 shrink-0" />
+            <IdCard className="w-3.5 h-3.5 text-amber-600 dark:text-[#FFD147] shrink-0" />
             <span>Template</span>
           </button>
 
@@ -320,86 +315,148 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             <button
               type="button"
               onClick={onReloadData}
-              className="inline-flex items-center justify-center whitespace-nowrap shrink-0 p-2.5 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] hover:border-[#A66BC9]/50 hover:bg-white dark:hover:bg-[#2B2730] text-slate-700 dark:text-[#B3AABD] hover:text-slate-950 dark:hover:text-white shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-xl bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] hover:border-purple-400/60 hover:bg-white dark:hover:bg-white/[0.11] text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
               title="Refresh database records"
             >
-              <RefreshCw className="w-4 h-4 shrink-0" />
+              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
             </button>
           )}
         </div>
       </div>
 
-      {/* KPI METRIC CARDS ROW */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        <KpiCard
-          label="Total Registered"
-          value={totalBorrowers}
-          icon={Users}
-          iconColor="#BC881B"
-          accentBarColor="#BC881B"
-          subLabel={`${studentCount} Students, ${facultyStaffCount} Faculty/Staff`}
-        />
-        <KpiCard
-          label="Active Students"
-          value={studentCount}
-          icon={GraduationCap}
-          iconColor="#A66BC9"
-          accentBarColor="#A66BC9"
-          subLabel="Undergraduate & Postgraduate"
-        />
-        <KpiCard
-          label="Faculty & Staff"
-          value={facultyStaffCount}
-          icon={Briefcase}
-          iconColor="#6FA8D2"
-          accentBarColor="#29658E"
-          subLabel="Academic and Administrative"
-        />
-        <KpiCard
-          label="Books on Loan"
-          value={totalActiveLoansCount}
-          icon={BookOpen}
-          iconColor="#E0B450"
-          accentBarColor="#E0B450"
-          isGoldNumber={totalActiveLoansCount > 0}
-          subLabel="Circulated reading material"
-        />
-        <KpiCard
-          label="Suspended / Overdue"
-          value={suspendedOrOverdueCount}
-          icon={AlertTriangle}
-          iconColor={suspendedOrOverdueCount > 0 ? '#FB7185' : '#34D399'}
-          accentBarColor={suspendedOrOverdueCount > 0 ? '#FB7185' : '#34D399'}
-          isDanger={suspendedOrOverdueCount > 0}
-          subLabel={suspendedOrOverdueCount > 0 ? 'Requires administrative review' : 'No overdue accounts'}
-        />
+      {/* 2. TOP 4 MEMBER KPI CARDS (Exact 3-Tier Frosted Crystal Spec — Zero Dotted Lines) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* KPI 1: TOTAL MEMBERS */}
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
+              TOTAL MEMBERS
+            </span>
+            <div className="w-7 h-7 rounded-full bg-amber-500/[0.14] dark:bg-amber-400/[0.16] border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-[#FFD147] shrink-0">
+              <Users className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
+              <CountUp end={totalBorrowers} />
+            </span>
+            <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
+              registered
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] truncate">
+            {studentCount} Students · {facultyStaffCount} Faculty &amp; Staff
+          </p>
+        </div>
+
+        {/* KPI 2: STUDENTS */}
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
+              STUDENTS
+            </span>
+            <div className="w-7 h-7 rounded-full bg-purple-500/[0.14] dark:bg-purple-400/[0.18] border border-purple-500/30 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
+              <GraduationCap className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
+              <CountUp end={studentCount} />
+            </span>
+            <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
+              enrolled
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] truncate">
+            Undergraduate &amp; Postgraduate Scholars
+          </p>
+        </div>
+
+        {/* KPI 3: FACULTY & STAFF */}
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
+              FACULTY &amp; STAFF
+            </span>
+            <div className="w-7 h-7 rounded-full bg-sky-500/[0.14] dark:bg-sky-400/[0.18] border border-sky-500/30 flex items-center justify-center text-sky-700 dark:text-sky-300 shrink-0">
+              <Briefcase className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
+              <CountUp end={facultyStaffCount} />
+            </span>
+            <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
+              personnel
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] truncate">
+            Academic &amp; Administrative Officers
+          </p>
+        </div>
+
+        {/* KPI 4: ACTIVE BORROWERS / LOANS */}
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
+              ACTIVE BORROWERS
+            </span>
+            <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
+              suspendedOrOverdueCount > 0
+                ? 'bg-rose-500/12 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                : 'bg-emerald-500/12 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+            }`}>
+              <BookOpen className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className={`font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none ${
+              totalActiveLoansCount > 0 ? 'text-amber-700 dark:text-[#FFD147]' : 'text-slate-900 dark:text-white'
+            }`}>
+              <CountUp end={totalActiveLoansCount} />
+            </span>
+            <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
+              active loans
+            </span>
+          </div>
+          <p className={`text-[11px] truncate ${
+            suspendedOrOverdueCount > 0
+              ? 'text-rose-600 dark:text-rose-400 font-semibold'
+              : 'text-slate-500 dark:text-[#B3AABD]'
+          }`}>
+            {suspendedOrOverdueCount > 0
+              ? `${suspendedOrOverdueCount} suspended or overdue accounts`
+              : 'All member accounts in good standing'}
+          </p>
+        </div>
       </div>
 
-      {/* SEARCH AND FILTERS BAR */}
-      <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/[0.16] p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.45),inset_-1.5px_-1.5px_1.5px_rgba(255,255,255,0.15),0_10px_30px_rgba(0,0,0,0.2)]">
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[260px]">
-          <Search className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+      {/* 3. SINGLE-ROW COMPACT SEARCH & FILTER TOOLBAR */}
+      <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.15] p-3.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_10px_28px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_12px_30px_rgba(0,0,0,0.28)]">
+        {/* Search Input with cleanly padded leading icon */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="w-4 h-4 text-amber-700 dark:text-[#FFD147] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, Urdu name, University ID, Roll No, Dept, Phone..."
-            className="w-full h-10 pl-10 pr-9 rounded-xl bg-white/55 dark:bg-[#1B1130]/75 backdrop-blur-xl border border-white/60 dark:border-white/15 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#BC881B] focus:ring-1 focus:ring-[#BC881B] transition-all font-sans"
+            className="ulm-compact-control w-full h-10 pl-10 pr-9 rounded-xl bg-white/90 dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[13px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 transition-all font-sans"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white z-10 cursor-pointer"
+              aria-label="Clear search"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Filter Controls */}
+        {/* Filter Controls + Grid/List Toggle */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Role Filter */}
           <CustomSelect
             value={selectedRole}
             onChange={(val) => setSelectedRole(val as 'ALL' | BorrowerRole)}
@@ -409,10 +466,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               { value: 'Faculty', label: 'Faculty' },
               { value: 'Staff', label: 'Staff' },
             ]}
-            className="w-[130px]"
+            className="w-[132px]"
+            compact
           />
 
-          {/* Status Filter */}
           <CustomSelect
             value={selectedStatus}
             onChange={(val) => setSelectedStatus(val as 'ALL' | BorrowerStatus)}
@@ -420,12 +477,12 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               { value: 'ALL', label: 'All Statuses' },
               { value: 'active', label: 'Active' },
               { value: 'suspended', label: 'Suspended' },
-              { value: 'left', label: 'Left/Alumni' },
+              { value: 'left', label: 'Left / Alumni' },
             ]}
-            className="w-[130px]"
+            className="w-[138px]"
+            compact
           />
 
-          {/* Department Filter */}
           {departments.length > 0 && (
             <CustomSelect
               value={selectedDepartment}
@@ -434,14 +491,15 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                 { value: 'ALL', label: 'All Departments' },
                 ...departments.map((d) => ({ value: d, label: d })),
               ]}
-              className="w-[180px]"
+              className="w-[178px]"
+              compact
             />
           )}
 
-          {/* View Mode Toggle */}
+          {/* Dual-Theme Frosted Crystal View Mode Toggle */}
           <div
             ref={viewSwitcherRef}
-            className="relative isolate inline-flex items-center bg-[#221F26] border border-[#2E2A33] rounded-lg p-0.5 gap-0.5"
+            className="relative isolate inline-flex items-center h-10 bg-slate-200/75 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.14] rounded-xl p-1 gap-0.5"
           >
             <LiquidPillOverlay
               containerRef={viewSwitcherRef}
@@ -458,10 +516,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               type="button"
               onClick={() => handleSelectViewMode('grid')}
               data-liquid-active={viewMode === 'grid' ? 'true' : undefined}
-              className={`relative z-10 p-2 rounded-md transition-colors cursor-pointer ${
+              className={`relative z-10 px-2.5 h-8 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === 'grid'
                   ? '!text-white'
-                  : 'text-[#B3AABD] hover:text-white'
+                  : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white'
               }`}
               title="Card Grid View"
             >
@@ -470,8 +528,9 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                 key={viewMode === 'grid' ? animTick : 0}
                 data-fx={viewMode === 'grid' ? iconFxForMode('grid') : undefined}
               >
-                <LayoutGrid className="w-4 h-4" />
+                <LayoutGrid className="w-3.5 h-3.5" />
               </span>
+              <span className="hidden sm:inline">Grid</span>
             </button>
             <button
               ref={(el) => {
@@ -480,10 +539,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               type="button"
               onClick={() => handleSelectViewMode('table')}
               data-liquid-active={viewMode === 'table' ? 'true' : undefined}
-              className={`relative z-10 p-2 rounded-md transition-colors cursor-pointer ${
+              className={`relative z-10 px-2.5 h-8 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === 'table'
                   ? '!text-white'
-                  : 'text-[#B3AABD] hover:text-white'
+                  : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white'
               }`}
               title="Table List View"
             >
@@ -492,27 +551,29 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                 key={viewMode === 'table' ? animTick : 0}
                 data-fx={viewMode === 'table' ? iconFxForMode('table') : undefined}
               >
-                <List className="w-4 h-4" />
+                <List className="w-3.5 h-3.5" />
               </span>
+              <span className="hidden sm:inline">List</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* FILTER RESULT STATUS */}
-      <div className="flex items-center justify-between text-xs text-[#B3AABD] px-1">
+      <div className="flex items-center justify-between text-xs text-slate-600 dark:text-[#B3AABD] px-1">
         <span>
-          Showing <strong className="text-white font-medium">{filteredBorrowers.length}</strong> of{' '}
-          <strong className="text-white font-medium">{totalBorrowers}</strong> members
+          Showing <strong className="text-slate-900 dark:text-white font-semibold tabular-nums">{filteredBorrowers.length}</strong> of{' '}
+          <strong className="text-slate-900 dark:text-white font-semibold tabular-nums">{totalBorrowers}</strong> members
           {(searchQuery || selectedRole !== 'ALL' || selectedStatus !== 'ALL' || selectedDepartment !== 'ALL') && (
             <button
+              type="button"
               onClick={() => {
                 setSearchQuery('');
                 setSelectedRole('ALL');
                 setSelectedStatus('ALL');
                 setSelectedDepartment('ALL');
               }}
-              className="ml-2 text-[#E0B450] hover:underline"
+              className="ml-2 text-amber-700 dark:text-[#FFD147] font-semibold hover:underline cursor-pointer"
             >
               (Clear filters)
             </button>
@@ -522,31 +583,32 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
 
       {/* EMPTY STATE */}
       {filteredBorrowers.length === 0 && (
-        <div className="rounded-[16px] bg-[#1A1A1A] border border-[#2E2A33] p-12 text-center flex flex-col items-center justify-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#221F26] border border-[#2E2A33] flex items-center justify-center text-[#B3AABD]">
-            <Users className="w-8 h-8 text-[#A66BC9]" />
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.06] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl border border-white/80 dark:border-white/[0.14] p-12 text-center flex flex-col items-center justify-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-purple-500/12 dark:bg-purple-500/20 border border-purple-500/25 flex items-center justify-center text-purple-700 dark:text-purple-300">
+            <Users className="w-8 h-8" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-white">No members found</h3>
-            <p className="text-xs md:text-sm text-[#B3AABD] max-w-md mx-auto">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">No members found</h3>
+            <p className="text-xs md:text-sm text-slate-600 dark:text-[#B3AABD] max-w-md mx-auto">
               No registered borrowers matched your current search criteria or department filter. Try resetting filters or enroll a new member.
             </p>
           </div>
           <button
+            type="button"
             onClick={() => {
               setSearchQuery('');
               setSelectedRole('ALL');
               setSelectedStatus('ALL');
               setSelectedDepartment('ALL');
             }}
-            className="px-4 py-2 rounded-lg bg-[#221F26] border border-[#2E2A33] text-xs font-medium text-[#E0B450] hover:bg-[#2B2730] transition-colors"
+            className="h-9 px-4 rounded-xl bg-amber-500/[0.14] hover:bg-amber-500/25 border border-amber-500/35 text-xs font-bold text-amber-900 dark:text-[#FFD147] transition-colors cursor-pointer"
           >
             Reset Filters
           </button>
         </div>
       )}
 
-      {/* CARDS GRID VIEW */}
+      {/* 4. MEMBER REGISTRY CARDS — GRID VIEW */}
       {viewMode === 'grid' && filteredBorrowers.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredBorrowers.map((borrower) => {
@@ -555,238 +617,270 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             const maxLimit = borrower.borrow_limit || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3);
             const isStudent = borrower.role === 'Student';
             const isFaculty = borrower.role === 'Faculty';
+            const isQuotaFull = loansCount >= maxLimit;
 
             return (
               <div
                 key={borrower.id}
-                className="ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/60 dark:border-white/[0.14] hover:border-[#FFD147]/60 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-0.5 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] overflow-hidden"
+                className="ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] hover:border-[#BC881B]/60 dark:hover:border-[#FFD147]/55 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-0.5 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] overflow-hidden"
               >
                 {/* User Card Background Watermark */}
                 <img
                   src={ULM_OFFICIAL_CREST_SRC}
                   alt=""
                   aria-hidden="true"
-                  className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.08] z-0"
+                  className="pointer-events-none select-none absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-[0.07] z-0"
                 />
 
                 {/* Decorative Top Accent Hairline */}
-                <div 
+                <div
                   className={`absolute top-0 left-0 right-0 h-[2px] ${
                     isFaculty ? 'bg-[#BC881B]' : isStudent ? 'bg-[#A66BC9]' : 'bg-[#29658E]'
-                  }`} 
+                  }`}
                 />
 
                 <div className="relative z-10 flex flex-col justify-between h-full">
-                <div className="space-y-3.5">
-                  {/* Top Bar: Role Pill, Status, Quick Actions */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span
-                        className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
-                          isFaculty
-                            ? 'bg-[#BC881B]/15 text-[#8A4B00] dark:text-[#E0B450] border-[#BC881B]/40'
-                            : isStudent
-                            ? 'bg-[#A66BC9]/15 text-[#541A72] dark:text-[#C084FC] border-[#A66BC9]/40'
-                            : 'bg-[#29658E]/15 text-[#29658E] dark:text-[#6FA8D2] border-[#29658E]/40'
-                        }`}
-                      >
-                        {borrower.role}
-                      </span>
-
-                      <StatusPill
-                        label={borrower.status.toUpperCase()}
-                        variant={borrower.status === 'active' ? 'green' : borrower.status === 'suspended' ? 'danger' : 'muted'}
-                        dot
-                      />
-
-                      {overduesCount > 0 ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          {overduesCount} Overdue
+                  <div className="space-y-3.5">
+                    {/* Top Bar: Role Tag, Architectural Status Micro-Tag, Overdue/Fine Tag, Edit */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md border ${
+                            isFaculty
+                              ? 'bg-[#BC881B]/[0.14] text-[#8A4B00] dark:text-[#FFD147] border-[#BC881B]/35'
+                              : isStudent
+                              ? 'bg-[#A66BC9]/[0.14] text-[#541A72] dark:text-[#D8B4FE] border-[#A66BC9]/35'
+                              : 'bg-[#29658E]/[0.14] text-[#1E4F73] dark:text-[#7DD3FC] border-[#29658E]/35'
+                          }`}
+                        >
+                          {borrower.role}
                         </span>
-                      ) : (
-                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                          Fine: Rs. 0
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {/* Architectural Status Micro-Tag with 6px Square LED Dot */}
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                            borrower.status === 'active'
+                              ? isQuotaFull
+                                ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
+                                : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                              : borrower.status === 'suspended'
+                              ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300 border-rose-500/35'
+                              : 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${
+                              borrower.status === 'active'
+                                ? isQuotaFull
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500'
+                                : borrower.status === 'suspended'
+                                ? 'bg-rose-500'
+                                : 'bg-slate-400'
+                            }`}
+                          />
+                          <span>
+                            {borrower.status === 'active' && isQuotaFull
+                              ? 'QUOTA FULL'
+                              : borrower.status.toUpperCase()}
+                          </span>
+                        </span>
+
+                        {overduesCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/12 text-rose-700 dark:text-rose-300 border border-rose-500/35">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            <span>{overduesCount} Overdue</span>
+                          </span>
+                        )}
+                      </div>
+
                       <button
+                        type="button"
                         onClick={() => {
                           setBorrowerToEdit(borrower);
                           setIsAddEditModalOpen(true);
                         }}
-                        className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-[#221F26] transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.10] transition-colors cursor-pointer shrink-0"
                         title="Edit Member Profile"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  </div>
 
-                  {/* Member Profile Main Block */}
-                  <div className="flex items-start gap-3">
-                    {/* Avatar / Photo */}
-                    <div className="relative w-12 h-12 rounded-xl bg-white/80 dark:bg-[#221F26] border border-slate-200/80 dark:border-[#2E2A33] overflow-hidden flex-shrink-0 flex items-center justify-center text-slate-900 dark:text-white font-bold text-sm shadow-inner">
-                      {borrower.photo_url || borrower.photo_path ? (
-                        <img
-                          src={borrower.photo_url || borrower.photo_path}
-                          alt={borrower.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-[#8A4B00] dark:text-[#E0B450] font-cinzel">
-                          {borrower.name.substring(0, 2).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <button
-                        onClick={() => setSelectedBorrowerForDetails(borrower)}
-                        className="text-left font-bold text-slate-900 dark:text-white text-sm hover:text-[#541A72] dark:hover:text-[#E0B450] transition-colors truncate block w-full"
-                        title={borrower.name}
-                      >
-                        {borrower.name}
-                      </button>
-
-                      {borrower.name_urdu && (
-                        <p 
-                          className="text-xs text-[#8A4B00] dark:text-[#E0B450] font-urdu truncate leading-tight mt-0.5" 
-                          dir="rtl"
-                        >
-                          {borrower.name_urdu}
-                        </p>
-                      )}
-
-                      <p className="text-[11px] font-mono text-[#541A72] dark:text-[#A66BC9] font-semibold mt-0.5 truncate">
-                        {borrower.university_id || borrower.student_id}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Academic / Employment Metadata */}
-                  <div className="rounded-xl bg-white/55 dark:bg-[#221F26]/70 border border-slate-200/80 dark:border-[#2E2A33] p-2.5 space-y-1 text-xs">
-                    <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
-                      <span>Department:</span>
-                      <span className="text-slate-800 dark:text-white font-semibold truncate max-w-[150px]">
-                        {borrower.department || 'General'}
-                      </span>
-                    </div>
-
-                    {isStudent ? (
-                      <>
-                        <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
-                          <span>Program / Class:</span>
-                          <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
-                            {borrower.program || 'N/A'}{borrower.session ? ` (${borrower.session})` : ''}
+                    {/* Member Profile Main Block */}
+                    <div className="flex items-start gap-3">
+                      <div className="relative w-12 h-12 rounded-xl bg-white/90 dark:bg-white/[0.06] border border-slate-200/90 dark:border-white/[0.14] overflow-hidden shrink-0 flex items-center justify-center text-slate-900 dark:text-white font-bold text-sm shadow-inner">
+                        {borrower.photo_url || borrower.photo_path ? (
+                          <img
+                            src={borrower.photo_url || borrower.photo_path}
+                            alt={borrower.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[#8A4B00] dark:text-[#FFD147] font-cinzel">
+                            {borrower.name.substring(0, 2).toUpperCase()}
                           </span>
-                        </div>
-                        {borrower.roll_number && (
-                          <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
-                            <span>Roll Number:</span>
-                            <span className="text-slate-800 dark:text-white font-mono font-semibold">{borrower.roll_number}</span>
-                          </div>
                         )}
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
-                          <span>Designation:</span>
-                          <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
-                            {borrower.designation || 'Staff'}
-                          </span>
-                        </div>
-                        {borrower.employee_no && (
-                          <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD]">
-                            <span>Employee ID:</span>
-                            <span className="text-slate-800 dark:text-white font-mono font-semibold">{borrower.employee_no}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {borrower.phone && (
-                      <div className="flex items-center justify-between text-slate-600 dark:text-[#B3AABD] pt-0.5 border-t border-slate-200/70 dark:border-[#2E2A33]/50">
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-emerald-600 dark:text-[#34D399]" /> Contact:
-                        </span>
-                        <span className="text-slate-800 dark:text-white font-mono font-semibold text-[11px]">{borrower.phone}</span>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Active Loans & Limit Progress */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-[#B3AABD] flex items-center gap-1">
-                        <BookOpen className="w-3 h-3 text-[#E0B450]" /> Active Books on Loan:
-                      </span>
-                      <span className={`font-mono font-bold ${loansCount > 0 ? 'text-[#E0B450]' : 'text-white'}`}>
-                        {loansCount} / {maxLimit}
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBorrowerForDetails(borrower)}
+                          className="text-left font-['Plus_Jakarta_Sans'] font-bold text-slate-900 dark:text-white text-[14px] hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors truncate block w-full cursor-pointer"
+                          title={borrower.name}
+                        >
+                          {borrower.name}
+                        </button>
+
+                        {borrower.name_urdu && (
+                          <p
+                            className="text-xs text-[#8A4B00] dark:text-[#FFD147] font-urdu truncate leading-tight mt-0.5"
+                            dir="rtl"
+                          >
+                            {borrower.name_urdu}
+                          </p>
+                        )}
+
+                        <p className="text-[11px] font-['JetBrains_Mono'] text-[#541A72] dark:text-[#C084FC] font-semibold mt-0.5 truncate">
+                          {borrower.university_id || borrower.student_id}
+                        </p>
+                      </div>
                     </div>
-                    <div className="w-full h-1.5 rounded-full bg-[#221F26] overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
+
+                    {/* Academic / Employment Metadata */}
+                    <div className="rounded-xl bg-white/65 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.09] p-2.5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD]">
+                        <span className="shrink-0">Department:</span>
+                        <span className="text-slate-900 dark:text-white font-semibold truncate">
+                          {borrower.department || 'General'}
+                        </span>
+                      </div>
+
+                      {isStudent ? (
+                        <>
+                          <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD]">
+                            <span className="shrink-0">Program:</span>
+                            <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
+                              {borrower.program || 'N/A'}{borrower.session ? ` (${borrower.session})` : ''}
+                            </span>
+                          </div>
+                          {borrower.roll_number && (
+                            <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD]">
+                              <span className="shrink-0">Roll No:</span>
+                              <span className="text-slate-900 dark:text-white font-['JetBrains_Mono'] font-semibold truncate">
+                                {borrower.roll_number}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD]">
+                            <span className="shrink-0">Designation:</span>
+                            <span className="text-slate-800 dark:text-slate-100 font-semibold truncate">
+                              {borrower.designation || 'Staff'}
+                            </span>
+                          </div>
+                          {borrower.employee_no && (
+                            <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD]">
+                              <span className="shrink-0">Employee ID:</span>
+                              <span className="text-slate-900 dark:text-white font-['JetBrains_Mono'] font-semibold truncate">
+                                {borrower.employee_no}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {borrower.phone && (
+                        <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-[#B3AABD] pt-1 border-t border-slate-200/75 dark:border-white/[0.08]">
+                          <span className="flex items-center gap-1 shrink-0">
+                            <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Contact:
+                          </span>
+                          <span className="text-slate-900 dark:text-white font-['JetBrains_Mono'] font-semibold text-[11px] truncate">
+                            {borrower.phone}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Active Loans & Limit Progress */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-600 dark:text-[#B3AABD] flex items-center gap-1 font-medium">
+                          <BookOpen className="w-3 h-3 text-amber-700 dark:text-[#FFD147]" /> Active Books:
+                        </span>
+                        <span className={`font-['JetBrains_Mono'] font-bold tabular-nums ${
                           loansCount >= maxLimit
-                            ? 'bg-rose-500'
+                            ? 'text-rose-600 dark:text-rose-400'
                             : loansCount > 0
-                            ? 'bg-[#BC881B]'
-                            : 'bg-transparent'
-                        }`}
-                        style={{ width: `${Math.min(100, (loansCount / maxLimit) * 100)}%` }}
-                      />
+                            ? 'text-amber-700 dark:text-[#FFD147]'
+                            : 'text-slate-800 dark:text-white'
+                        }`}>
+                          {loansCount} / {maxLimit}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-slate-200/85 dark:bg-white/[0.08] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            loansCount >= maxLimit
+                              ? 'bg-rose-500'
+                              : loansCount > 0
+                              ? 'bg-[#BC881B]'
+                              : 'bg-transparent'
+                          }`}
+                          style={{ width: `${Math.min(100, (loansCount / maxLimit) * 100)}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Card Action Buttons Footer */}
-                <div className="pt-3 mt-3 border-t border-[#2E2A33] flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onIssueBook(borrower)}
-                    disabled={borrower.status !== 'active' || loansCount >= maxLimit}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 py-1.5 px-2.5 rounded-lg bg-[rgba(188,136,27,0.15)] hover:bg-[#BC881B]/25 active:scale-[0.98] text-[#8A4B00] dark:text-[#E0B450] text-xs font-semibold border border-[#BC881B]/30 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    title={
-                      borrower.status !== 'active'
-                        ? 'Member suspended/inactive'
-                        : loansCount >= maxLimit
-                        ? 'Borrow limit reached'
-                        : 'Issue new book to member'
-                    }
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
-                    <span>Quick Issue Book</span>
-                  </button>
+                  {/* Clean Bottom Action Row (Zero Text Wrapping / Clipping) */}
+                  <div className="pt-3 mt-3.5 border-t border-slate-200/80 dark:border-white/[0.10] flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onIssueBook(borrower)}
+                      disabled={borrower.status !== 'active' || loansCount >= maxLimit}
+                      className="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-8 px-2.5 rounded-lg bg-amber-500/[0.14] hover:bg-amber-500/25 active:scale-[0.98] text-amber-900 dark:text-[#FFD147] text-[11.5px] font-bold border border-amber-500/35 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                      title={
+                        borrower.status !== 'active'
+                          ? 'Member suspended/inactive'
+                          : loansCount >= maxLimit
+                          ? 'Borrow limit reached'
+                          : 'Issue new book to member'
+                      }
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Quick Issue</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBorrowerForDetails(borrower)}
-                    className="inline-flex items-center justify-center whitespace-nowrap shrink-0 py-1.5 px-3 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-[#E7E2EC] text-xs font-medium border border-[#2E2A33] transition-colors cursor-pointer"
-                  >
-                    <span>View History</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBorrowerForDetails(borrower)}
+                      className="inline-flex items-center justify-center whitespace-nowrap shrink-0 h-8 px-2.5 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 dark:text-slate-200 text-[11.5px] font-semibold border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
+                    >
+                      History
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSinglePrint(borrower)}
-                    className="inline-flex items-center justify-center shrink-0 p-1.5 rounded-lg bg-[#221F26] hover:bg-[#2B2730] text-[#E0B450] border border-[#2E2A33] transition-colors cursor-pointer"
-                    title="Print CR80 ID Card"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSinglePrint(borrower)}
+                      className="inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-700 dark:text-[#FFD147] border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
+                      title="View / Print CR80 ID Card"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onDeleteBorrower(borrower)}
-                    className="inline-flex items-center justify-center shrink-0 p-1.5 rounded-lg bg-[#221F26] hover:bg-rose-950/40 hover:text-rose-400 text-[#B3AABD] border border-[#2E2A33] transition-colors cursor-pointer"
-                    title="Delete member"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteBorrower(borrower)}
+                      className="inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-rose-50 dark:bg-white/[0.06] dark:hover:bg-rose-950/50 text-slate-500 hover:text-rose-600 dark:text-[#B3AABD] dark:hover:text-rose-400 border border-slate-300/80 dark:border-white/[0.12] hover:border-rose-400/40 transition-colors cursor-pointer"
+                      title="Delete member"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -794,59 +888,61 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         </div>
       )}
 
-      {/* TABLE LIST VIEW */}
+      {/* 5. TABLE LIST VIEW (Dual-Theme Frosted Crystal Table) */}
       {viewMode === 'table' && filteredBorrowers.length > 0 && (
-        <div className="rounded-[16px] bg-[#1A1A1A] border border-[#2E2A33] overflow-hidden shadow-xl">
+        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.14] overflow-hidden shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_10px_28px_rgba(15,23,42,0.08)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_12px_32px_rgba(0,0,0,0.3)]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm font-sans border-collapse">
               <thead>
-                <tr className="bg-[#221F26] text-[#B3AABD] text-xs uppercase tracking-wider border-b border-[#2E2A33]">
-                  <th className="py-3 px-4">Member Name &amp; ID</th>
-                  <th className="py-3 px-4">Role &amp; Status</th>
-                  <th className="py-3 px-4">Department / Program</th>
-                  <th className="py-3 px-4">Contact Phone</th>
-                  <th className="py-3 px-4">Active Loans</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr className="bg-slate-100/80 dark:bg-white/[0.05] text-slate-600 dark:text-[#B3AABD] text-[11px] font-bold uppercase tracking-wider border-b border-slate-200/80 dark:border-white/[0.10]">
+                  <th className="py-3.5 px-4">Member Name &amp; ID</th>
+                  <th className="py-3.5 px-4">Role &amp; Status</th>
+                  <th className="py-3.5 px-4">Department / Program</th>
+                  <th className="py-3.5 px-4">Contact Phone</th>
+                  <th className="py-3.5 px-4">Active Loans</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#2E2A33]">
+              <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.08]">
                 {filteredBorrowers.map((b) => {
                   const loansCount = activeLoansMap.countMap.get(b.id) || 0;
                   const maxLimit = b.borrow_limit || 3;
+                  const isQuotaFull = loansCount >= maxLimit;
 
                   return (
                     <tr
                       key={b.id}
-                      className="hover:bg-[#221F26]/60 transition-colors group"
+                      className="hover:bg-white/60 dark:hover:bg-white/[0.04] transition-colors group"
                     >
                       {/* Name & ID */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-[#2B2730] border border-[#2E2A33] flex items-center justify-center font-bold text-xs text-[#E0B450] flex-shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-white/90 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.12] flex items-center justify-center font-bold text-xs text-[#8A4B00] dark:text-[#FFD147] shrink-0 overflow-hidden">
                             {b.photo_url || b.photo_path ? (
                               <img
                                 src={b.photo_url || b.photo_path}
                                 alt={b.name}
-                                className="w-full h-full object-cover rounded-lg"
+                                className="w-full h-full object-cover"
                               />
                             ) : (
                               b.name.substring(0, 2).toUpperCase()
                             )}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <button
+                              type="button"
                               onClick={() => setSelectedBorrowerForDetails(b)}
-                              className="font-bold text-white text-sm hover:text-[#E0B450] transition-colors text-left block"
+                              className="font-['Plus_Jakarta_Sans'] font-bold text-slate-900 dark:text-white text-sm hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors text-left block truncate cursor-pointer"
                             >
                               {b.name}
                             </button>
                             <div className="flex items-center gap-2">
                               {b.name_urdu && (
-                                <span className="text-xs text-[#E0B450] font-urdu" dir="rtl">
+                                <span className="text-xs text-[#8A4B00] dark:text-[#FFD147] font-urdu" dir="rtl">
                                   {b.name_urdu}
                                 </span>
                               )}
-                              <span className="font-mono text-xs text-[#A66BC9]">
+                              <span className="font-['JetBrains_Mono'] text-xs text-[#541A72] dark:text-[#C084FC] font-semibold">
                                 {b.university_id || b.student_id}
                               </span>
                             </div>
@@ -856,32 +952,53 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
 
                       {/* Role & Status */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span
-                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border ${
                               b.role === 'Faculty'
-                                ? 'bg-[#BC881B]/15 text-[#E0B450] border-[#BC881B]/40'
+                                ? 'bg-[#BC881B]/[0.14] text-[#8A4B00] dark:text-[#FFD147] border-[#BC881B]/35'
                                 : b.role === 'Student'
-                                ? 'bg-[#A66BC9]/15 text-[#C084FC] border-[#A66BC9]/40'
-                                : 'bg-[#29658E]/15 text-[#6FA8D2] border-[#29658E]/40'
+                                ? 'bg-[#A66BC9]/[0.14] text-[#541A72] dark:text-[#D8B4FE] border-[#A66BC9]/35'
+                                : 'bg-[#29658E]/[0.14] text-[#1E4F73] dark:text-[#7DD3FC] border-[#29658E]/35'
                             }`}
                           >
                             {b.role}
                           </span>
-                          <StatusPill
-                            label={b.status.toUpperCase()}
-                            variant={b.status === 'active' ? 'green' : b.status === 'suspended' ? 'danger' : 'muted'}
-                            dot
-                          />
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                              b.status === 'active'
+                                ? isQuotaFull
+                                  ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
+                                  : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                                : b.status === 'suspended'
+                                ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300 border-rose-500/35'
+                                : 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${
+                                b.status === 'active'
+                                  ? isQuotaFull
+                                    ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
+                                  : b.status === 'suspended'
+                                  ? 'bg-rose-500'
+                                  : 'bg-slate-400'
+                              }`}
+                            />
+                            <span>
+                              {b.status === 'active' && isQuotaFull ? 'QUOTA FULL' : b.status.toUpperCase()}
+                            </span>
+                          </span>
                         </div>
                       </td>
 
                       {/* Department / Program */}
                       <td className="py-3 px-4">
-                        <div className="text-white text-xs font-medium">
+                        <div className="text-slate-900 dark:text-white text-xs font-semibold">
                           {b.department || 'N/A'}
                         </div>
-                        <div className="text-[#B3AABD] text-[11px]">
+                        <div className="text-slate-500 dark:text-[#B3AABD] text-[11px]">
                           {b.role === 'Student'
                             ? `${b.program || ''} ${b.session ? `(${b.session})` : ''}`
                             : b.designation || 'Staff'}
@@ -890,13 +1007,25 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
 
                       {/* Contact Phone */}
                       <td className="py-3 px-4">
-                        <div className="text-white font-mono text-xs">{b.phone || 'N/A'}</div>
-                        {b.email && <div className="text-[#B3AABD] text-[11px] truncate max-w-[140px]">{b.email}</div>}
+                        <div className="text-slate-900 dark:text-white font-['JetBrains_Mono'] text-xs font-medium">
+                          {b.phone || 'N/A'}
+                        </div>
+                        {b.email && (
+                          <div className="text-slate-500 dark:text-[#B3AABD] text-[11px] truncate max-w-[160px]">
+                            {b.email}
+                          </div>
+                        )}
                       </td>
 
                       {/* Active Loans */}
                       <td className="py-3 px-4">
-                        <span className={`font-mono text-xs font-bold ${loansCount > 0 ? 'text-[#E0B450]' : 'text-white'}`}>
+                        <span className={`font-['JetBrains_Mono'] text-xs font-bold tabular-nums ${
+                          loansCount >= maxLimit
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : loansCount > 0
+                            ? 'text-amber-700 dark:text-[#FFD147]'
+                            : 'text-slate-800 dark:text-white'
+                        }`}>
                           {loansCount} / {maxLimit}
                         </span>
                       </td>
@@ -905,40 +1034,45 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            type="button"
                             onClick={() => onIssueBook(b)}
                             disabled={b.status !== 'active' || loansCount >= maxLimit}
-                            className="px-2.5 py-1 rounded-md bg-[rgba(188,136,27,0.15)] hover:bg-[#BC881B]/30 text-[#E0B450] text-xs font-semibold border border-[#BC881B]/30 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500/[0.14] hover:bg-amber-500/25 text-amber-900 dark:text-[#FFD147] text-xs font-bold border border-amber-500/35 transition-colors disabled:opacity-35 disabled:pointer-events-none cursor-pointer whitespace-nowrap"
                             title="Issue Book"
                           >
                             Issue
                           </button>
                           <button
+                            type="button"
                             onClick={() => setSelectedBorrowerForDetails(b)}
-                            className="p-1.5 rounded-md text-[#B3AABD] hover:text-white hover:bg-[#221F26] transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-white/[0.10] transition-colors cursor-pointer"
                             title="View Profile & History"
                           >
                             <Users className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleOpenSinglePrint(b)}
-                            className="p-1.5 rounded-md text-[#B3AABD] hover:text-[#E0B450] hover:bg-[#221F26] transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-amber-700 dark:hover:text-[#FFD147] hover:bg-slate-200/70 dark:hover:bg-white/[0.10] transition-colors cursor-pointer"
                             title="Print Card"
                           >
                             <Printer className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setBorrowerToEdit(b);
                               setIsAddEditModalOpen(true);
                             }}
-                            className="p-1.5 rounded-md text-[#B3AABD] hover:text-[#34D399] hover:bg-[#221F26] transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-200/70 dark:hover:bg-white/[0.10] transition-colors cursor-pointer"
                             title="Edit"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => onDeleteBorrower(b)}
-                            className="p-1.5 rounded-md text-[#B3AABD] hover:text-rose-400 hover:bg-[#221F26] transition-colors"
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-[#B3AABD] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200/70 dark:hover:bg-white/[0.10] transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />

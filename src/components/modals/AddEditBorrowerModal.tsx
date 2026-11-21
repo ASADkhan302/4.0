@@ -707,39 +707,39 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
   return createPortal(
     <>
-      <div 
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150"
+      <div
+        className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150"
         onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-labelledby="borrower-dialog-title"
       >
-        {/* Dynamic Modal Container (Adapts from single column up to 2-column wide layout) */}
-        <div 
-          className="ulm-preserve-glass w-full max-w-5xl max-h-[90vh] flex flex-col rounded-[26px] bg-white/90 dark:bg-[#140D22]/90 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/60 dark:border-white/15 shadow-2xl overflow-hidden transition-all text-slate-900 dark:text-slate-200"
+        {/* Unified Frosted Crystal Modal Container */}
+        <div
+          className="ulm-preserve-glass w-full max-w-[1040px] max-h-[90vh] flex flex-col rounded-[26px] bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.14] shadow-[0_28px_80px_rgba(15,23,42,0.32)] dark:shadow-[0_28px_80px_rgba(0,0,0,0.85)] overflow-hidden transition-all text-slate-900 dark:text-slate-100"
         >
           {/* Header */}
-          <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-white/60 dark:bg-[#020617]/80 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                <UserPlus className="w-4 h-4 text-amber-600 dark:text-amber-500" />
+          <div className="shrink-0 px-6 py-4 bg-white/70 dark:bg-white/[0.03] border-b border-slate-200/80 dark:border-white/[0.10] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/[0.14] border border-amber-500/35 flex items-center justify-center text-amber-700 dark:text-[#FFD147] shrink-0">
+                <UserPlus className="w-4 h-4" />
               </div>
-              <div>
-                <h2 id="borrower-dialog-title" className="text-sm sm:text-base font-bold text-slate-900 dark:text-[#F1F5F9] font-cinzel leading-tight tracking-wide">
+              <div className="min-w-0">
+                <h2 id="borrower-dialog-title" className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-cinzel leading-tight tracking-wide truncate">
                   {isEditMode ? 'Edit Library Borrower Profile' : 'Enroll Borrower (Add Person)'}
                 </h2>
-                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
+                <p className="text-[11px] text-slate-600 dark:text-[#B3AABD] font-sans mt-0.5 truncate">
                   Institutional Registration · Smart CR80 Member Identification System
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* Mobile Card Preview Toggle Button */}
               <button
                 type="button"
                 onClick={() => setShowMobilePreview(!showMobilePreview)}
-                className="lg:hidden px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="lg:hidden px-3 py-1.5 rounded-xl bg-amber-500/[0.14] border border-amber-500/35 text-amber-800 dark:text-[#FFD147] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 <span>Card Preview</span>
@@ -749,7 +749,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-[#F1F5F9] hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100/80 hover:bg-slate-200/80 dark:bg-white/[0.05] dark:hover:bg-white/[0.12] border border-slate-200/80 dark:border-white/[0.10] transition-colors cursor-pointer"
                 aria-label="Close dialog"
               >
                 <X className="w-4 h-4 stroke-[2.5]" />
@@ -757,28 +757,28 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
             </div>
           </div>
 
-          {/* Main Content Area: Form on Left + Live Preview on Right (Wide Windows) */}
-          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col lg:flex-row">
-            
-            {/* LEFT / FORM COLUMN */}
-            <div className="flex-1 p-5 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+          {/* Main 12-Column Content Area: Form (7 cols) + Live CR80 Preview (5 cols) */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+
+            {/* LEFT FORM COLUMN (lg:col-span-7) */}
+            <div className="lg:col-span-7 overflow-y-auto p-5 sm:p-6 space-y-4 border-b lg:border-b-0 lg:border-r border-slate-200/80 dark:border-white/[0.10]">
 
               {/* Form Error Banner */}
               {formError && (
-                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="p-3 rounded-xl bg-rose-500/12 border border-rose-500/35 text-rose-700 dark:text-rose-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                   <span>{formError}</span>
                 </div>
               )}
 
               {/* Duplicate University ID Blocking Banner */}
               {duplicateError && (
-                <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-600/40 text-rose-200 text-xs flex items-center justify-between gap-3 shadow-md">
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-200 text-xs flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                     <div>
                       <span className="font-bold">{duplicateError.message}</span>
-                      <p className="text-[11px] text-rose-300/80 mt-0.5">
+                      <p className="text-[11px] text-rose-700/80 dark:text-rose-300/80 mt-0.5">
                         University ID must be strictly unique in the institutional database.
                       </p>
                     </div>
@@ -787,7 +787,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenExisting(duplicateError.existingId!)}
-                      className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-[#F1F5F9] font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs transition-colors"
                     >
                       <span>Open Record</span>
                       <ExternalLink className="w-3 h-3" />
@@ -798,95 +798,86 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
               {/* Same Person Warning (Name + Phone) */}
               {samePersonWarning && (
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/35 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>{samePersonWarning}</span>
                 </div>
               )}
 
               {/* Collapsible Mobile Card Preview (Visible only on narrow screens when toggled) */}
               {showMobilePreview && (
-                <div className="lg:hidden p-3 rounded-xl bg-[#020617] border border-amber-500/30 flex flex-col items-center gap-3">
+                <div className="lg:hidden p-3.5 rounded-2xl bg-slate-100/80 dark:bg-white/[0.04] border border-amber-500/35 flex flex-col items-center gap-3">
                   <div className="flex items-center justify-between w-full">
-                    <span className="text-[11px] font-mono text-amber-400 font-bold flex items-center gap-1.5">
+                    <span className="text-[11px] font-mono text-amber-700 dark:text-[#FFD147] font-bold flex items-center gap-1.5">
                       <CreditCard className="w-3.5 h-3.5" /> Live Member Card
                     </span>
-                    <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded border border-slate-700 text-[10px]">
+                    <div className="flex items-center gap-1 bg-white/80 dark:bg-[#110A20]/90 p-1 rounded-lg border border-slate-200 dark:border-white/[0.12] text-[11px]">
                       <button
                         type="button"
                         onClick={() => setPreviewSide('front')}
-                        className={`px-2 py-0.5 rounded ${previewSide === 'front' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400'}`}
+                        className={`px-2.5 py-0.5 rounded-md font-semibold cursor-pointer ${previewSide === 'front' ? 'bg-[#BC881B] text-[#1A1A1A]' : 'text-slate-600 dark:text-slate-400'}`}
                       >
                         Front
                       </button>
                       <button
                         type="button"
                         onClick={() => setPreviewSide('back')}
-                        className={`px-2 py-0.5 rounded ${previewSide === 'back' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400'}`}
+                        className={`px-2.5 py-0.5 rounded-md font-semibold cursor-pointer ${previewSide === 'back' ? 'bg-[#BC881B] text-[#1A1A1A]' : 'text-slate-600 dark:text-slate-400'}`}
                       >
                         Back
                       </button>
                     </div>
                   </div>
                   <div className="overflow-x-auto w-full flex justify-center py-1 ulm-preserve-dark rounded-xl">
-                    <MemberCard member={previewMember} side={previewSide} />
+                    <MemberCard member={previewMember} side={previewSide} scale={0.82} />
                   </div>
                 </div>
               )}
 
               {/* Top Segmented Selector: [Student | Faculty | Staff] */}
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5 font-semibold">
-                  People Type / Institutional Role <span className="text-amber-500">*</span>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                  Institutional Role <span className="text-amber-600 dark:text-[#FFD147]">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-2 bg-[#020617] p-1.5 rounded-xl border border-[#334155]">
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-200/70 dark:bg-white/[0.04] p-1 rounded-xl border border-slate-300/80 dark:border-white/[0.12]">
                   {(['Student', 'Faculty', 'Staff'] as BorrowerRole[]).map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => handleRoleChange(r)}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      className={`h-9 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                         role === r
-                          ? 'bg-amber-500 text-slate-950 shadow-md border border-amber-400'
-                          : 'text-slate-400 hover:text-[#F1F5F9] hover:bg-slate-800/60'
+                          ? 'bg-gradient-to-r from-[#BC881B] to-[#D4A02A] text-[#1A1A1A] shadow-sm border border-[#FFD147]/60'
+                          : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/[0.06]'
                       }`}
                     >
-                      <UserCheck className="w-3.5 h-3.5" />
+                      <UserCheck className="w-3.5 h-3.5 shrink-0" />
                       <span>{r}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 1. University ID & Blood Group Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div className="sm:col-span-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                      University ID (Unique Barcode ID) <span className="text-amber-500">*</span>
-                    </label>
-                  </div>
+              {/* 1. University ID (8 cols) & Blood Group (4 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
+                <div className="sm:col-span-8">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    University ID (Unique Barcode ID) <span className="text-amber-600 dark:text-[#FFD147]">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={universityId}
                     onChange={(e) => handleUniversityIdChange(e.target.value)}
                     placeholder="e.g. ULM-FA23-BCS-042"
-                    className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs font-mono text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs transition-colors"
+                    className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 transition-all"
                   />
-                  {idPatternWarning && (
-                    <p className="text-[10px] text-amber-400/90 mt-1 leading-tight font-sans">
-                      {idPatternWarning}
-                    </p>
-                  )}
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                      Blood Group
-                    </label>
-                  </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Blood Group
+                  </label>
                   <CustomSelect
                     value={bloodGroup}
                     onChange={(val) => setBloodGroup(String(val))}
@@ -895,38 +886,39 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   />
                 </div>
               </div>
+              {idPatternWarning && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 -mt-2 leading-tight font-sans">
+                  {idPatternWarning}
+                </p>
+              )}
 
               {/* 2. Full Name (English) & Name in Urdu (اردو نام) Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                      Full Name (English) <span className="text-amber-500">*</span>
-                    </label>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Full Name (English) <span className="text-amber-600 dark:text-[#FFD147]">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Muhammad Bilal Ahmad"
-                    className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs transition-colors"
+                    className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 transition-all"
                   />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-amber-300/90 tracking-wide">
-                      Name in Urdu (اردو نام)
-                    </label>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-amber-800 dark:text-[#FFD147] whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Name in Urdu (اردو نام)
+                  </label>
                   <input
                     type="text"
                     dir="rtl"
                     value={nameUrdu}
                     onChange={(e) => setNameUrdu(e.target.value)}
                     placeholder="محمد بلال احمد"
-                    className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-sm text-amber-300 placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs font-urdu transition-colors"
+                    className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-sm text-amber-800 dark:text-[#FFD147] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B] focus:ring-2 focus:ring-[#BC881B]/20 font-urdu transition-all"
                     style={{ fontFamily: 'var(--font-urdu)' }}
                   />
                 </div>
@@ -934,49 +926,32 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
               {/* 3. STUDENT ACADEMIC PROFILE (Only for students) */}
               {role === 'Student' && (
-                <div className="p-4 rounded-xl bg-[#020617] border border-amber-500/25 space-y-3.5 shadow-xs">
+                <div className="rounded-[20px] p-4 bg-white/70 dark:bg-white/[0.03] border border-amber-400/35 space-y-3.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" /> Student Academic Profile
+                    <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-amber-800 dark:text-[#FFD147] font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" /> Student Academic Profile
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Roll Number */}
+                  {/* Sub-Row A: Roll Number | Degree Level | Study Mode */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Roll Number</label>
-                      </div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Roll Number
+                      </label>
                       <input
                         type="text"
                         value={rollNumber}
                         onChange={(e) => setRollNumber(e.target.value)}
                         placeholder="BSCS-23-42"
-                        className="w-full bg-[#0B1220] border border-[#334155] rounded-lg px-3 py-1.5 text-xs font-mono text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                        className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                       />
                     </div>
 
-                    {/* Degree Level */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Degree Level</label>
-                        <div className="relative group inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => applySameAsAbove('degreeLevel')}
-                            className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                            aria-label="Copy previous degree level"
-                          >
-                            <Copy className="w-2.5 h-2.5 opacity-90" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                            <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                              Copy from previous entry
-                            </div>
-                            <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                          </div>
-                        </div>
-                      </div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Degree Level
+                      </label>
                       <CustomSelect
                         value={degreeLevel}
                         onChange={(val) => handleDegreeLevelChange(String(val))}
@@ -985,27 +960,10 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       />
                     </div>
 
-                    {/* Study Mode */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Study Mode</label>
-                        <div className="relative group inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => applySameAsAbove('studyMode')}
-                            className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                            aria-label="Copy previous study mode"
-                          >
-                            <Copy className="w-2.5 h-2.5 opacity-90" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                            <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                              Copy from previous entry
-                            </div>
-                            <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                          </div>
-                        </div>
-                      </div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Study Mode
+                      </label>
                       <CustomSelect
                         value={studyMode}
                         onChange={(val) => setStudyMode(String(val))}
@@ -1015,100 +973,50 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {/* Degree Program */}
-                    <div className="sm:col-span-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Degree Program</label>
-                        <div className="relative group inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => applySameAsAbove('program')}
-                            className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                            aria-label="Copy previous degree program"
-                          >
-                            <Copy className="w-2.5 h-2.5 opacity-90" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                            <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                              Copy from previous entry
-                            </div>
-                            <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                          </div>
-                        </div>
-                      </div>
+                  {/* Sub-Row B: Degree Program | Session | Semester (1-8) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Degree Program
+                      </label>
                       <input
                         type="text"
                         value={program}
                         onChange={(e) => setProgram(e.target.value)}
-                        placeholder="e.g. Computer Science, Physics, LLB"
-                        className="w-full bg-[#0B1220] border border-[#334155] rounded-lg px-3 py-1.5 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                        placeholder="e.g. Computer Science"
+                        className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                       />
                     </div>
 
-                    {/* Academic Session */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Session (e.g. FA23)</label>
-                        <div className="relative group inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => applySameAsAbove('session')}
-                            className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                            aria-label="Copy previous session"
-                          >
-                            <Copy className="w-2.5 h-2.5 opacity-90" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                            <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                              Copy from previous entry
-                            </div>
-                            <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                          </div>
-                        </div>
-                      </div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Session
+                      </label>
                       <input
                         type="text"
                         value={session}
                         onChange={(e) => handleSessionChange(e.target.value)}
                         placeholder="e.g. FA23, SP24"
-                        className="w-full bg-[#0B1220] border border-[#334155] rounded-lg px-3 py-1.5 text-xs font-mono text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                        className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                       />
                     </div>
 
-                    {/* Current Semester */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-slate-300">Semester (1-8)</label>
-                        <div className="relative group inline-flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => applySameAsAbove('semester')}
-                            className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                            aria-label="Copy previous semester"
-                          >
-                            <Copy className="w-2.5 h-2.5 opacity-90" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                            <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                              Copy from previous entry
-                            </div>
-                            <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                          </div>
-                        </div>
-                      </div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                        Semester (1–8)
+                      </label>
                       <CustomSelect
                         value={semester}
                         onChange={(val) => setSemester(Number(val))}
-                        options={[1, 2, 3, 4, 5, 6, 7, 8].map(s => ({ value: s, label: `Semester ${s}` }))}
+                        options={[1, 2, 3, 4, 5, 6, 7, 8].map((s) => ({ value: s, label: `Semester ${s}` }))}
                         compact
                       />
                     </div>
                   </div>
 
-                  {/* Father Name */}
+                  {/* Sub-Row C: Full-width Father Name */}
                   <div>
-                    <label className="text-[11px] font-medium text-slate-300 block mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                       Father Name
                     </label>
                     <input
@@ -1116,7 +1024,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       value={fatherName}
                       onChange={(e) => setFatherName(e.target.value)}
                       placeholder="e.g. Gulzar Ahmad"
-                      className="w-full bg-[#0B1220] border border-[#334155] rounded-lg px-3 py-1.5 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                      className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                     />
                   </div>
                 </div>
@@ -1124,43 +1032,28 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
               {/* 4. FACULTY / STAFF PROFILE (Only for Faculty and Staff) */}
               {role !== 'Student' && (
-                <div className="p-4 rounded-xl bg-[#020617] border border-blue-500/25 space-y-3.5">
+                <div className="rounded-[20px] p-4 bg-white/70 dark:bg-white/[0.03] border border-sky-400/35 space-y-3.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-blue-400 font-bold">
+                    <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300 font-bold">
                       {role} Institutional Appointment &amp; Employee Details
                     </span>
-                    <div className="relative group inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => applySameAsAbove('designation')}
-                        className="w-5 h-5 rounded flex items-center justify-center text-blue-400 hover:text-blue-300 bg-[#0B1220] hover:bg-[#1E293B] border border-blue-500/30 hover:border-blue-400 transition-colors cursor-pointer shrink-0"
-                        aria-label="Copy previous designation"
-                      >
-                        <Copy className="w-3 h-3 opacity-90" />
-                      </button>
-                      <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                        <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                          Copy from previous entry
-                        </div>
-                        <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                         Designation Rank
                       </label>
                       <CustomSelect
                         value={designation}
                         onChange={(val) => setDesignation(val)}
                         options={FACULTY_STAFF_DESIGNATIONS.map((d) => ({ value: d, label: d }))}
+                        compact
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                         Employee No / Staff ID
                       </label>
                       <input
@@ -1168,7 +1061,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                         value={employeeNo}
                         onChange={(e) => setEmployeeNo(e.target.value)}
                         placeholder="e.g. EMP-1042 or ULM-FAC-05"
-                        className="w-full bg-[#0B1220] border border-[#334155] rounded-lg px-3 py-1.5 text-xs font-mono text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                        className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                       />
                     </div>
                   </div>
@@ -1177,28 +1070,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
               {/* 5. Department Selection */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                    Department <span className="text-amber-500">*</span>
-                  </label>
-                  <div className="relative group inline-flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => applySameAsAbove('department')}
-                      className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                      aria-label="Copy previous department"
-                    >
-                      <Copy className="w-3 h-3 opacity-90" />
-                    </button>
-                    <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                      <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                        Copy from previous entry
-                      </div>
-                      <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                    </div>
-                  </div>
-                </div>
-
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                  Department <span className="text-amber-600 dark:text-[#FFD147]">*</span>
+                </label>
                 <CustomSelect
                   value={department}
                   onChange={(val) => setDepartment(val)}
@@ -1210,98 +1084,76 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     setDepartment(newDept);
                   }}
                   addNewPlaceholder="Type new department name..."
+                  compact
                 />
               </div>
 
               {/* 6. Phone & Email Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                      Mobile Phone (Pakistani)
-                    </label>
-                    <span className="text-[10px] font-mono text-slate-400">03XX-XXXXXXX</span>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Mobile Phone (03XX-XXXXXXX)
+                  </label>
                   <input
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="0300-1234567 or +92 300..."
-                    className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs font-mono text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs transition-colors"
+                    className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                   />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                      University Email
-                    </label>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    University Email
+                  </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="member@ulm.edu.pk (Optional)"
-                    className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs transition-colors"
+                    className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                   />
                 </div>
               </div>
 
               {/* 7. Address */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-200 tracking-wide">
-                    Campus / Residential Address
-                  </label>
-                  <div className="relative group inline-flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => applySameAsAbove('address')}
-                      className="w-5 h-5 rounded flex items-center justify-center text-[#E0B450] hover:text-amber-200 bg-[#221F26] hover:bg-[#2B2730] border border-[#2E2A33] hover:border-[#BC881B]/60 transition-colors cursor-pointer shrink-0"
-                      aria-label="Copy previous address"
-                    >
-                      <Copy className="w-3 h-3 opacity-90" />
-                    </button>
-                    <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                      <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                        Copy from previous entry
-                      </div>
-                      <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-2"></div>
-                    </div>
-                  </div>
-                </div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                  Campus / Residential Address
+                </label>
                 <input
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="e.g. Hostels / Lakki Marwat Campus Address"
-                  className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs transition-colors"
+                  className="ulm-compact-control w-full h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                 />
               </div>
 
-              {/* 8. Photo Upload with Drag & Zoom 4:5 Crop */}
-              <div className="p-3.5 rounded-xl bg-slate-100/80 dark:bg-[#020617] border border-slate-200 dark:border-[#334155] flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-[70px] rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-900 border-2 border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
+              {/* 8. Compact Frosted Crystal Passport Photo Dropzone */}
+              <div className="flex items-center justify-between gap-3.5 p-3 rounded-2xl bg-white/70 dark:bg-white/[0.03] border border-dashed border-slate-300 dark:border-white/[0.16]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-[60px] rounded-xl overflow-hidden bg-slate-100 dark:bg-[#110A20] border border-amber-500/45 flex items-center justify-center shrink-0">
                     {photoUrl ? (
                       <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="text-[9px] font-mono text-slate-600 dark:text-slate-400 text-center p-1 leading-tight">
-                        4:5 Portrait (300×375)
+                      <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 text-center p-1 leading-tight">
+                        4:5 Photo
                       </div>
                     )}
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
-                      Member Portrait Photo (4:5 Crop, 300 × 375 px)
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-slate-800 dark:text-white block truncate">
+                      Member Portrait Photo (4:5 · 300 × 375 px)
                     </span>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] mt-0.5 truncate">
                       Drag-and-zoom crop ready for CR80 Smart Card printing
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <input
                     ref={photoInputRef}
                     type="file"
@@ -1312,16 +1164,16 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   />
                   <label
                     htmlFor="borrower-modal-photo-input"
-                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-[#334155] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    className="!mb-0 !inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white border border-slate-300/90 dark:border-white/[0.14] text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap"
                   >
-                    <Upload className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{photoUrl ? 'Change...' : 'Browse...'}</span>
+                    <Upload className="w-3.5 h-3.5 text-amber-600 dark:text-[#FFD147]" />
+                    <span>{photoUrl ? 'Change' : 'Upload'}</span>
                   </label>
                   {photoUrl && (
                     <button
                       type="button"
                       onClick={() => setPhotoUrl('')}
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/15 border border-rose-500/30 cursor-pointer"
+                      className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/12 border border-rose-400/35 cursor-pointer transition-colors"
                       title="Remove photo"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1330,89 +1182,57 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                 </div>
               </div>
 
-              {/* 9. Joined Date, Valid Until, Limit, Status */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 9. Joined Date, Valid Until, Borrow Limit, Status */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                     Joined Date
                   </label>
                   <input
                     type="date"
                     value={joinedDate}
                     onChange={(e) => setJoinedDate(e.target.value)}
-                    className="w-full bg-[#020617] border border-[#334155] rounded-lg px-2.5 py-1.5 text-xs text-[#F1F5F9] focus:outline-none focus:border-amber-500"
+                    className="ulm-compact-control w-full h-10 px-2.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12px] text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-300">Valid Until</label>
-                    <div className="relative group inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => applySameAsAbove('validUntil')}
-                        className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                        aria-label="Copy previous valid until date"
-                      >
-                        <Copy className="w-2.5 h-2.5 opacity-90" />
-                      </button>
-                      <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                        <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                          Copy from previous entry
-                        </div>
-                        <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                      </div>
-                    </div>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Valid Until
+                  </label>
                   <input
                     type="date"
                     value={validUntil}
                     onChange={(e) => setValidUntil(e.target.value)}
-                    className="w-full bg-[#020617] border border-[#334155] rounded-lg px-2.5 py-1.5 text-xs text-[#F1F5F9] focus:outline-none focus:border-amber-500"
+                    className="ulm-compact-control w-full h-10 px-2.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12px] text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-300">Borrow Limit</label>
-                    <div className="relative group inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => applySameAsAbove('borrowLimit')}
-                        className="w-4 h-4 rounded flex items-center justify-center text-amber-400 hover:text-amber-300 bg-[#070D18] hover:bg-[#1E293B] border border-amber-500/30 hover:border-amber-400 transition-colors cursor-pointer shrink-0"
-                        aria-label="Copy previous borrow limit"
-                      >
-                        <Copy className="w-2.5 h-2.5 opacity-90" />
-                      </button>
-                      <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:flex flex-col items-end pointer-events-none z-50 whitespace-nowrap">
-                        <div className="bg-[#1F1B24] border border-[#3E3846] text-[#F1F5F9] text-[10.5px] font-medium px-2 py-0.5 rounded shadow-lg shadow-black/80">
-                          Copy from previous entry
-                        </div>
-                        <div className="w-1.5 h-1.5 bg-[#1F1B24] border-r border-b border-[#3E3846] rotate-45 -mt-0.75 mr-1.5"></div>
-                      </div>
-                    </div>
-                  </div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
+                    Max Books Limit
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={20}
                     value={borrowLimit}
                     onChange={(e) => setBorrowLimit(Number(e.target.value))}
-                    className="w-full bg-[#020617] border border-[#334155] rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#F1F5F9] focus:outline-none focus:border-amber-500"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] font-['JetBrains_Mono'] text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                     Status
                   </label>
                   <CustomSelect
                     value={status}
                     onChange={(val) => setStatus(val as BorrowerStatus)}
                     options={[
-                      { value: 'active', label: 'Active', badge: 'Normal' },
-                      { value: 'suspended', label: 'Suspended', badge: 'Blocked' },
-                      { value: 'left', label: 'Left', badge: 'Archived' }
+                      { value: 'active', label: 'Active' },
+                      { value: 'suspended', label: 'Suspended' },
+                      { value: 'left', label: 'Left' },
                     ]}
                     compact
                   />
@@ -1421,7 +1241,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
 
               {/* 10. Notes */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1 tracking-wide">
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5 font-['Plus_Jakarta_Sans']">
                   Institutional Notes
                 </label>
                 <textarea
@@ -1429,38 +1249,39 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g. Verified by HOD, special library clearance, or remarks..."
-                  className="w-full bg-[#020617] border border-[#334155] rounded-xl px-3.5 py-2 text-xs text-[#F1F5F9] placeholder:text-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs"
+                  className="ulm-compact-control w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-[12.5px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#BC881B]"
                 />
               </div>
-
             </div>
 
-            {/* RIGHT COLUMN: DEDICATED LIVE CARD PREVIEW (Wide Windows: lg+) */}
-            <div className="hidden lg:flex w-[440px] bg-slate-50 dark:bg-[#070B14] border-l border-slate-200 dark:border-[#334155] p-5 flex-col items-center justify-between shrink-0">
+            {/* RIGHT COLUMN: DEDICATED LIVE CR80 CARD PREVIEW (lg:col-span-5) */}
+            <div className="hidden lg:flex lg:col-span-5 overflow-y-auto p-5 bg-slate-900/[0.025] dark:bg-white/[0.02] flex-col justify-between gap-4">
               <div className="w-full space-y-4">
-                {/* Preview Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-amber-500" />
-                    <div>
+                {/* Preview Header + Front/Back Switcher */}
+                <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-white/[0.10]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/[0.14] border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-[#FFD147] shrink-0">
+                      <CreditCard className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-cinzel leading-none">
-                        Live Card Preview
+                        Live CR80 Preview
                       </h4>
-                      <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                      <p className="text-[10.5px] text-slate-500 dark:text-[#B3AABD] mt-0.5 truncate">
                         Updates in real-time as you type
                       </p>
                     </div>
                   </div>
 
                   {/* Side Switcher */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-1 bg-slate-200/75 dark:bg-white/[0.05] p-1 rounded-xl border border-slate-300/80 dark:border-white/[0.12] text-xs shrink-0">
                     <button
                       type="button"
                       onClick={() => setPreviewSide('front')}
-                      className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
                         previewSide === 'front'
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          ? 'bg-[#BC881B] text-[#1A1A1A] shadow-xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Front
@@ -1468,10 +1289,10 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setPreviewSide('back')}
-                      className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
                         previewSide === 'back'
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          ? 'bg-[#BC881B] text-[#1A1A1A] shadow-xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Back
@@ -1479,54 +1300,53 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Scaled Preview Wrapper (Center 398 × 227 card) */}
-                <div className="py-2 flex justify-center items-center ulm-preserve-dark rounded-xl">
-                  <div className="transition-transform duration-200 hover:scale-[1.02]">
-                    <MemberCard member={previewMember} side={previewSide} />
+                {/* Scaled CR80 Preview Wrapper — Fits cleanly inside lg:col-span-5 without clipping */}
+                <div className="py-2 flex justify-center items-center ulm-preserve-dark rounded-2xl bg-slate-900/[0.04] dark:bg-black/25 border border-slate-200/70 dark:border-white/[0.08]">
+                  <div className="transition-transform duration-200 hover:scale-[1.015]">
+                    <MemberCard member={previewMember} side={previewSide} scale={0.84} />
                   </div>
                 </div>
 
-                {/* Spec Highlights Checklist */}
-                <div className="bg-[#020617] rounded-xl p-3 border border-slate-800 text-[10.5px] font-mono text-slate-300 space-y-1.5">
-                  <div className="text-amber-400 font-bold uppercase text-[10px] tracking-wider pb-1 border-b border-slate-800 flex items-center justify-between">
+                {/* Frosted Crystal CARD SPECIFICATIONS Sub-Card */}
+                <div className="rounded-[18px] p-4 bg-white/75 dark:bg-white/[0.035] border border-slate-200/85 dark:border-white/[0.12] text-[11px] font-['JetBrains_Mono'] text-slate-700 dark:text-slate-300 space-y-2">
+                  <div className="text-amber-800 dark:text-[#FFD147] font-bold uppercase text-[10.5px] tracking-wider pb-1.5 border-b border-slate-200/80 dark:border-white/[0.10] flex items-center justify-between">
                     <span>Card Specifications</span>
-                    <span className="text-[9px] text-slate-400 font-normal">CR80 7:4</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">CR80 · ISO 7810</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Card ID:</span>
-                    <span className="text-amber-300 font-bold">{previewMember.university_id}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">Card ID:</span>
+                    <span className="text-amber-800 dark:text-[#FFD147] font-bold truncate">{previewMember.university_id}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Cardholder:</span>
-                    <span className="text-slate-100 truncate max-w-[190px]">{previewMember.name}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">Cardholder:</span>
+                    <span className="text-slate-900 dark:text-white font-semibold truncate max-w-[200px]">{previewMember.name}</span>
                   </div>
                   {previewMember.name_urdu && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">اردو نام:</span>
-                      <span className="text-amber-300 font-urdu">{previewMember.name_urdu}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500 dark:text-slate-400">اردو نام:</span>
+                      <span className="text-amber-800 dark:text-[#FFD147] font-urdu">{previewMember.name_urdu}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Expiry / Valid:</span>
-                    <span className="text-slate-200 font-semibold">{previewMember.valid_until || 'PERMANENT'}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">Valid Until:</span>
+                    <span className="text-slate-900 dark:text-slate-100 font-semibold">{previewMember.valid_until || 'PERMANENT'}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Circulation Limit:</span>
-                    <span className="text-emerald-400 font-bold">{previewMember.borrow_limit} Books</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">Circulation Limit:</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">{previewMember.borrow_limit} Books</span>
+                  </div>
+                  <div className="pt-2 mt-1 border-t border-slate-200/75 dark:border-white/[0.08] text-[10.5px] text-slate-500 dark:text-[#B3AABD] text-center font-sans font-medium">
+                    CR80 Dual-Sided Thermal PVC Print Ready
                   </div>
                 </div>
-              </div>
-
-              <div className="text-[10px] text-slate-500 text-center font-sans pt-2">
-                CR80 Dual-Sided Thermal PVC Print Ready
               </div>
             </div>
 
           </div>
 
           {/* Footer Actions */}
-          <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-white/75 dark:bg-[#020617] border-t border-slate-200/80 dark:border-[#334155] flex flex-wrap items-center justify-between gap-3">
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+          <div className="shrink-0 px-6 py-4 bg-white/80 dark:bg-white/[0.03] border-t border-slate-200/80 dark:border-white/[0.10] flex flex-wrap items-center justify-between gap-3">
+            <span className="text-[11px] font-mono text-slate-500 dark:text-[#B3AABD]">
               {isEditMode ? 'Editing Borrower Profile' : 'Tip: Press [Enter] for rapid "Save & Next"'}
             </span>
 
@@ -1534,7 +1354,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                className="h-9 px-4 rounded-xl bg-slate-200/85 hover:bg-slate-300/85 dark:bg-white/[0.07] dark:hover:bg-white/[0.13] text-slate-800 dark:text-slate-100 border border-slate-300/80 dark:border-white/[0.14] text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1544,7 +1364,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                   type="button"
                   onClick={() => handleSave(true)}
                   disabled={Boolean(duplicateError)}
-                  className="px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/40 font-bold text-xs transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
+                  className="h-9 px-4 rounded-xl bg-amber-500/[0.14] hover:bg-amber-500/25 text-amber-900 dark:text-[#FFD147] border border-amber-500/40 font-bold text-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                   title="Save this record and keep role, department and class context ready for the next person"
                 >
                   <span>Save &amp; Next</span>
@@ -1556,7 +1376,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                 type="button"
                 onClick={() => handleSave(false)}
                 disabled={Boolean(duplicateError)}
-                className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold text-xs shadow-md transition-colors cursor-pointer disabled:cursor-not-allowed"
+                className="h-9 px-5 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:brightness-110 active:scale-[0.98] text-[#1A1A1A] font-bold text-xs shadow-md border border-[#FFD147]/50 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isEditMode ? 'Save Changes' : 'Save & Close'}
               </button>

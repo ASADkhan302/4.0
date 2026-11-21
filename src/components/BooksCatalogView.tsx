@@ -1352,35 +1352,60 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
 
                   {/* Inline + Copy Series Extension Popover */}
                   {extendPopoverBookId === bookKey && (
-                    <div className="mt-2.5 p-2.5 rounded-xl bg-amber-500/15 dark:bg-[#1E1136]/95 border border-amber-500/45 space-y-2 text-[11px]">
-                      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-[#FFD147]">
-                        <span>Extend Copies in Series</span>
+                    <div className="mt-2.5 !rounded-2xl p-3 bg-amber-500/[0.08] dark:bg-amber-500/[0.07] border border-amber-400/35 backdrop-blur-md space-y-2.5">
+                      {/* Header Row with Cleanly Contained Close Button */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1.5 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
+                          <span className="ulm-kpi-label text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 font-['Plus_Jakarta_Sans'] truncate">
+                            Extend Copies in Series
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setExtendPopoverBookId(null)}
-                          className="p-0.5 rounded hover:bg-black/10 cursor-pointer"
+                          className="!w-6 !h-6 !min-h-0 !p-0 !rounded-lg hover:bg-amber-500/20 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors shrink-0 cursor-pointer"
+                          aria-label="Close extend copies panel"
                         >
-                          <X className="w-3 h-3" />
+                          ✕
                         </button>
                       </div>
-                      <div className="text-[10px] font-mono text-slate-700 dark:text-slate-300">
-                        Allocates #{nextSeriesAccession} → #{nextSeriesAccession + extendPopoverCount - 1} (
-                        <code>{AccessionSeriesEngine.formatBarcode(nextSeriesAccession)}</code> →{' '}
-                        <code>
-                          {AccessionSeriesEngine.formatBarcode(
-                            nextSeriesAccession + extendPopoverCount - 1
-                          )}
-                        </code>
-                        )
+
+                      {/* Clean Non-Redundant Series Allocation Telemetry */}
+                      <div className="px-2.5 py-1.5 rounded-xl bg-white/60 dark:bg-[#0F081E]/65 border border-slate-200/80 dark:border-white/[0.08] font-['JetBrains_Mono'] ulm-kpi-label text-[10.5px] text-slate-700 dark:text-slate-200 leading-relaxed">
+                        {extendPopoverCount === 1 ? (
+                          <span>
+                            Next:{' '}
+                            <strong className="text-amber-600 dark:text-amber-300">
+                              #{nextSeriesAccession}
+                            </strong>{' '}
+                            ·{' '}
+                            <span className="text-slate-500 dark:text-slate-400">
+                              {AccessionSeriesEngine.formatBarcode(nextSeriesAccession)}
+                            </span>
+                          </span>
+                        ) : (
+                          <span>
+                            Range:{' '}
+                            <strong className="text-amber-600 dark:text-amber-300">
+                              #{nextSeriesAccession} → #{nextSeriesAccession + extendPopoverCount - 1}
+                            </strong>{' '}
+                            <span className="text-slate-500 dark:text-slate-400">
+                              ({extendPopoverCount} vols)
+                            </span>
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center h-7 border border-amber-500/40 rounded-lg overflow-hidden bg-white dark:bg-[#121014]">
+
+                      {/* Compact Single-Row Stepper + Submit Button (Zero Overflow) */}
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex items-center h-8 rounded-xl bg-white dark:bg-[#0E071C] border border-amber-400/40 p-0.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => setExtendPopoverCount(Math.max(1, extendPopoverCount - 1))}
-                            className="w-6 h-full text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+                            className="!w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
                           >
-                            -
+                            −
                           </button>
                           <input
                             type="number"
@@ -1392,20 +1417,21 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                                 Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1))
                               )
                             }
-                            className="w-10 text-center font-mono font-bold text-[11px] bg-transparent text-slate-900 dark:text-white focus:outline-none"
+                            className="ulm-scanner-bare-input w-10 h-7 text-center bg-transparent font-['Space_Grotesk'] text-[12.5px] font-bold text-slate-900 dark:text-white focus:outline-none p-0"
                           />
                           <button
                             type="button"
                             onClick={() => setExtendPopoverCount(Math.min(50, extendPopoverCount + 1))}
-                            className="w-6 h-full text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+                            className="!w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
                           >
                             +
                           </button>
                         </div>
+
                         <button
                           type="button"
                           onClick={() => handleConfirmExtendBookCopies(book)}
-                          className="h-7 px-2.5 rounded-lg bg-[#C8963E] text-slate-950 font-extrabold font-mono text-[10.5px] hover:brightness-110 cursor-pointer"
+                          className="ulm-kpi-label flex-1 h-8 px-3 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[11.5px] font-['Plus_Jakarta_Sans'] whitespace-nowrap shadow-sm transition-all cursor-pointer inline-flex items-center justify-center"
                         >
                           + Add {extendPopoverCount} in Series
                         </button>
@@ -1419,7 +1445,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onSelectBook && onSelectBook(book)}
-                        className="h-6 px-2.5 rounded-lg text-[10.5px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                        className="ulm-kpi-label h-8 px-3 !rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] hover:bg-slate-900/[0.11] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center transition-all cursor-pointer"
                       >
                         Details
                       </button>
@@ -1427,17 +1453,17 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleReturnCopyAction(book)}
-                          className="h-6 px-2.5 rounded-lg text-[10.5px] font-extrabold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 cursor-pointer shadow-xs inline-flex items-center gap-1"
+                          className="ulm-kpi-label h-8 px-3.5 !rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer"
                           title={book.borrower_name ? `Checked out to ${book.borrower_name} — Click to Return` : 'Return this copy to shelf'}
                         >
-                          <RotateCcw className="w-2.5 h-2.5" />
+                          <RotateCcw className="w-3 h-3" />
                           <span>Return</span>
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={() => handleIssueBookAction(book)}
-                          className="h-6 px-3 rounded-lg text-[10.5px] font-extrabold bg-[#C8963E] text-slate-950 hover:brightness-110 cursor-pointer shadow-xs"
+                          className="ulm-kpi-label h-8 px-3.5 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center shadow-sm transition-all cursor-pointer"
                         >
                           Issue
                         </button>
@@ -1452,10 +1478,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             setExtendPopoverCount(1);
                           }
                         }}
-                        className="h-6 px-2 rounded-lg text-[10.5px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-[#FFD147] border border-amber-500/35 cursor-pointer flex items-center gap-0.5"
+                        className="ulm-kpi-label h-8 px-3 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 transition-all cursor-pointer"
                         title="Extend existing book with +N new copies in strict series order"
                       >
-                        <Plus className="w-2.5 h-2.5" />
+                        <Plus className="w-3 h-3" />
                         <span>Copy</span>
                       </button>
                     </div>

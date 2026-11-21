@@ -90,7 +90,7 @@ export const AppearanceSettingsTab: React.FC = () => {
       {/* Section Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-slate-200/80 dark:border-white/[0.10]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
             <Palette className="w-4 h-4 stroke-[2]" />
           </div>
           <div>
@@ -103,7 +103,7 @@ export const AppearanceSettingsTab: React.FC = () => {
           </div>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-wider">
           <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
           <span>DUAL-THEME ENGINE</span>
         </span>
@@ -121,13 +121,13 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={(e) => handleToggleTheme('light', e.currentTarget)}
-              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
+              className={`p-3 !rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
                 themeConfig.themeMode === 'light'
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 shadow-xs ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] shadow-xs ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/12 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
                 <Sun className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -139,9 +139,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={(e) => handleToggleTheme('dark', e.currentTarget)}
-              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
+              className={`p-3 !rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
                 themeConfig.themeMode === 'dark'
-                  ? 'border-amber-500/60 bg-purple-950/50 dark:bg-amber-500/15 shadow-xs ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-purple-950/50 dark:bg-amber-500/[0.14] shadow-xs ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -163,23 +163,29 @@ export const AppearanceSettingsTab: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               {(Object.keys(WHITE_TONES) as WhiteTone[]).map((tKey) => {
                 const tone = WHITE_TONES[tKey];
+                const shortLabel =
+                  tKey === 'pearl'
+                    ? 'Cream Pearl'
+                    : tKey === 'soft-alabaster'
+                    ? 'Warm Alabaster'
+                    : 'Dove Mist';
                 const isSelected = themeConfig.whiteTone === tKey;
                 return (
                   <button
                     key={tKey}
                     type="button"
                     onClick={() => handleSelectWhiteTone(tKey)}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
+                    className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
                       isSelected
-                        ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                        ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                         : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate">{tone.name}</span>
+                    <div className="flex items-center justify-between gap-1 w-full">
+                      <span className="ulm-kpi-label text-[11px] font-bold text-slate-900 dark:text-white whitespace-nowrap">{shortLabel}</span>
                       <div className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs shrink-0" style={{ backgroundColor: tone.primary }} />
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-['JetBrains_Mono']">
+                    <span className="ulm-kpi-label text-[10px] text-slate-500 dark:text-slate-400 font-['JetBrains_Mono']">
                       {tone.primary}
                     </span>
                   </button>
@@ -195,7 +201,7 @@ export const AppearanceSettingsTab: React.FC = () => {
             <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 block">
               Display Scaling Presets (اسکرین زوم)
             </span>
-            <span className="font-['JetBrains_Mono'] text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+            <span className="font-['JetBrains_Mono'] ulm-kpi-label text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/30">
               {Math.round(resolutionConfig.scale * 100)}% ({resolutionConfig.mode === 'auto' ? 'Auto-Fit' : 'Manual'})
             </span>
           </div>
@@ -204,9 +210,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleSelectResolutionPreset('auto')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'auto'
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -220,9 +226,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleManualScaleChange(0.30)}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 30
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -233,9 +239,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleManualScaleChange(0.45)}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 45
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -246,9 +252,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleManualScaleChange(0.75)}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 75
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -259,9 +265,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleManualScaleChange(1.00)}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 100
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >
@@ -272,9 +278,9 @@ export const AppearanceSettingsTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleManualScaleChange(1.25)}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2.5 !rounded-xl border text-left transition-all cursor-pointer ${
                 resolutionConfig.mode === 'manual' && Math.round(resolutionConfig.scale * 100) === 125
-                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/15 ring-1 ring-amber-500/40'
+                  ? 'border-amber-500/60 bg-amber-500/12 dark:bg-amber-500/[0.14] ring-1 ring-amber-500/40'
                   : 'border-slate-200/80 dark:border-white/[0.10] bg-white/60 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06]'
               }`}
             >

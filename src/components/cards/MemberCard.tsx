@@ -28,7 +28,7 @@ export const MemberCard: React.FC<MemberCardProps> = ({
   const resolvedData = cardData || borrowerToCardMemberData(member);
 
   const cardWidth = side === 'both' ? 428 * 2 + 32 : 428;
-  const cardHeight = 270;
+  const cardHeight = 276;
 
   const wrapperStyle: React.CSSProperties =
     scale !== 1

@@ -486,32 +486,32 @@ export const ResetToZeroModal: React.FC<ResetToZeroModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-slate-200/80 dark:border-white/[0.10] flex items-center justify-between shrink-0">
+        <div className="-mx-6 -mb-6 mt-2 px-6 py-4 bg-slate-100/75 dark:bg-white/[0.035] border-t border-slate-200/90 dark:border-white/[0.10] flex items-center justify-between shrink-0">
           {resetResult?.success ? (
-            <div className="w-full flex items-center justify-between gap-2">
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 dark:text-white text-xs font-semibold transition-colors cursor-pointer"
+                className="h-[40px] px-4 !rounded-xl inline-flex items-center justify-center gap-2 bg-white/90 hover:bg-white dark:bg-white/[0.08] dark:hover:bg-white/[0.14] border border-slate-300/90 dark:border-white/[0.16] text-slate-800 dark:text-slate-100 text-[12.5px] font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap"
               >
                 Close &amp; Stay Here
               </button>
               <button
                 type="button"
                 onClick={onGoToStartScreen}
-                className="px-5 h-10 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 !text-slate-950 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+                className="h-[40px] px-5 !rounded-xl inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 border border-amber-300/50 !text-slate-950 text-[12px] font-bold uppercase tracking-wider shadow-[0_6px_18px_rgba(245,158,11,0.30)] transition-all cursor-pointer whitespace-nowrap"
               >
                 <span className="!text-slate-950">Go to Start Screen</span>
-                <ArrowRight className="w-4 h-4 !text-slate-950" />
+                <ArrowRight className="w-4 h-4 !text-slate-950 shrink-0" />
               </button>
             </div>
           ) : (
-            <div className="w-full flex items-center justify-between">
+            <div className="w-full flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isProcessing}
-                className="px-4 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 dark:text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="h-[40px] px-4 !rounded-xl inline-flex items-center justify-center gap-2 bg-white/90 hover:bg-white dark:bg-white/[0.08] dark:hover:bg-white/[0.14] border border-slate-300/90 dark:border-white/[0.16] text-slate-800 dark:text-slate-100 text-[12.5px] font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
               >
                 Cancel
               </button>
@@ -520,20 +520,20 @@ export const ResetToZeroModal: React.FC<ResetToZeroModalProps> = ({
                 type="button"
                 onClick={handleExecuteReset}
                 disabled={!isConfirmValid || isProcessing}
-                className={`px-5 h-10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+                className={`h-[40px] px-5 !rounded-xl inline-flex items-center justify-center gap-2 text-[12px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                   isConfirmValid && !isProcessing
-                    ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 !text-white shadow-lg shadow-rose-600/30 cursor-pointer'
-                    : 'bg-rose-500/15 border border-rose-500/25 text-rose-500/60 dark:text-rose-400/60 cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-rose-400/40 !text-white shadow-[0_6px_20px_rgba(225,29,72,0.35)] cursor-pointer'
+                    : 'bg-slate-200/80 dark:bg-white/[0.05] border border-slate-300/85 dark:border-white/[0.12] text-slate-400 dark:text-slate-500 cursor-not-allowed'
                 }`}
               >
                 {isProcessing ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin !text-white" />
+                    <Loader2 className="w-4 h-4 animate-spin !text-white shrink-0" />
                     <span className="!text-white">Purging Library Data...</span>
                   </>
                 ) : (
                   <>
-                    <Trash2 className={`w-4 h-4 ${isConfirmValid ? '!text-white' : ''}`} />
+                    <Trash2 className={`w-4 h-4 shrink-0 ${isConfirmValid ? '!text-white' : ''}`} />
                     <span className={isConfirmValid ? '!text-white' : ''}>Reset to Zero</span>
                   </>
                 )}

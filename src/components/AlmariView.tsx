@@ -776,15 +776,6 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               <h2 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight">
                 Physical Almari Cupboard &amp; 3D Bookshelf Registry
               </h2>
-              {/* LIVE DATABASE SYNC HUD (Computed dynamically via useMemo) */}
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
-                <Database className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span>
-                  {selectedAlmari
-                    ? `DB SYNCED · ${activeAlmariBooksCount} VOLS LOCKED IN ${selectedAlmari.code}`
-                    : `DB SYNCED · ${almaris.length} ALMARIS`}
-                </span>
-              </span>
               {activeAlmariCheckedOutCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/35">
                   {activeAlmariCheckedOutCount} OUT ON LOAN

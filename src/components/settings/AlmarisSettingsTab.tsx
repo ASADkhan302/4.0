@@ -52,6 +52,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
   const [newNotes, setNewNotes] = useState('');
   const [newGroupIds, setNewGroupIds] = useState<string[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [showUnassignedGroups, setShowUnassignedGroups] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -180,42 +181,61 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
         </div>
       )}
 
-      {/* Sub-Section A: Compact Warning Banner */}
+      {/* Sub-Section A: Sleek Collapsible Unassigned Book Groups Status Bar */}
       {groupsWithNoAlmari.length > 0 && (
-        <div className="bg-amber-500/[0.08] border border-amber-500/30 rounded-2xl p-3.5 flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-[11px] flex-1 min-w-0">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-              <span className="font-bold text-amber-900 dark:text-amber-300 text-[12px]">
-                Warning: Unassigned Book Groups ({groupsWithNoAlmari.length})
+        <div className="rounded-2xl px-4 py-3 bg-amber-500/[0.07] border border-amber-400/30">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowUnassignedGroups(prev => !prev)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowUnassignedGroups(prev => !prev);
+              }
+            }}
+            className="flex items-center justify-between gap-3 cursor-pointer select-none !min-h-0"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-[12px] font-semibold text-amber-800 dark:text-amber-200 whitespace-nowrap">
+                {groupsWithNoAlmari.length} Unassigned Book {groupsWithNoAlmari.length === 1 ? 'Group' : 'Groups'}
               </span>
-              <span className="text-amber-800/80 dark:text-amber-200/75 text-[10px]">
-                Auto-slotted by discipline when placed
+              <span className="ulm-kpi-label text-[11px] text-slate-600 dark:text-slate-400 hidden sm:inline truncate">
+                · Auto-slotted by discipline until linked to an Almari
               </span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/75 dark:bg-white/[0.06] border border-amber-400/35 ulm-kpi-label text-[11px] font-semibold text-amber-800 dark:text-amber-200 whitespace-nowrap shrink-0">
+              {showUnassignedGroups ? 'Hide ▴' : 'Show Groups ▾'}
+            </span>
+          </div>
+
+          {showUnassignedGroups && (
+            <div className="mt-3 pt-2.5 border-t border-amber-400/20 flex flex-wrap gap-1.5">
               {groupsWithNoAlmari.map(g => (
                 <span
                   key={g.id}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
-                  style={{
-                    backgroundColor: `${g.color}18`,
-                    borderColor: `${g.color}55`,
-                    color: g.color,
-                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/75 dark:bg-white/[0.05] border border-slate-200/80 dark:border-white/[0.12] ulm-kpi-label text-[11px] font-medium text-slate-800 dark:text-slate-200"
                 >
-                  {g.name_en} ({g.name_ur})
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: g.color }}
+                  />
+                  <span>{g.name_en}</span>
+                  <span className="text-slate-400 dark:text-slate-400 font-urdu text-[11px]" dir="auto">
+                    ({g.name_ur})
+                  </span>
                 </span>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* Header & Add Button */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/12 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Building2 className="w-4 h-4" />
           </div>
           <div>
@@ -486,7 +506,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
                               ({alm.name_ur})
                             </span>
                             {alm.name_locked && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-['JetBrains_Mono']" title="Name is locked">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ulm-kpi-label text-[9.5px] bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-['JetBrains_Mono']" title="Name is locked">
                                 <Lock className="w-2.5 h-2.5" />
                                 Locked
                               </span>
@@ -660,13 +680,13 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
       <div className="pt-3 border-t border-slate-200/70 dark:border-white/[0.10] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/15 dark:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/12 dark:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
               <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-300" />
             </div>
             <div>
-              <h4 className="font-['Plus_Jakarta_Sans'] text-[13px] font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h4 className="font-['Plus_Jakarta_Sans'] text-[13px] font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                 <span>Almari Plan (ماسٹر الماری پلان)</span>
-                <span className="text-[10px] font-['JetBrains_Mono'] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
+                <span className="inline-flex items-center px-2.5 py-0.5 !rounded-md bg-amber-500/12 border border-amber-400/35 font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold text-amber-700 dark:text-amber-300">
                   {almariPlan.length} Disciplines
                 </span>
               </h4>
@@ -679,7 +699,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
           <button
             type="button"
             onClick={handleResetPlanToDefault}
-            className="h-8 px-3 bg-white/75 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-800 dark:text-amber-300 border border-amber-500/35 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            className="h-8 px-3 !rounded-xl bg-white/75 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-800 dark:text-amber-300 border border-amber-400/35 ulm-kpi-label text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
             title="Reset Almari Plan to canonical 12 disciplines"
           >
             <RotateCcw className="w-3 h-3" />
@@ -689,30 +709,37 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
           {almariPlan.map((entry) => {
-            const assignedCount = almaris.filter(a => a.plan_key === entry.key || a.name_en.startsWith(entry.name_en)).length;
+            const assignedAlmaris = almaris.filter(
+              a => a.plan_key === entry.key || a.name_en.startsWith(entry.name_en)
+            );
+            const assignedCount = assignedAlmaris.length;
+            const assignedCodes = assignedAlmaris.map(a => a.code);
             return (
               <div
                 key={entry.key}
-                className="rounded-2xl p-3.5 bg-white/70 dark:bg-white/[0.045] border border-slate-200/80 dark:border-white/[0.12] hover:border-amber-500/40 transition-all flex flex-col justify-between space-y-2 shadow-[inset_1px_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_1px_1px_1px_rgba(255,255,255,0.08)]"
+                className="rounded-2xl p-3.5 bg-white/75 dark:bg-white/[0.035] hover:bg-white dark:hover:bg-white/[0.06] border border-slate-200/85 dark:border-white/[0.10] hover:border-amber-400/35 transition-all flex flex-col justify-between gap-2.5"
               >
-                <div className="space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-['Plus_Jakarta_Sans'] font-bold text-slate-900 dark:text-white text-[12px] leading-snug">
-                      {entry.name_en}
-                    </span>
-                    <span className="font-urdu text-[12px] text-amber-700 dark:text-amber-300 shrink-0" dir="auto">
-                      {entry.name_ur}
-                    </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-['Plus_Jakarta_Sans'] text-[12.5px] font-bold text-slate-900 dark:text-white leading-tight">
+                    {entry.name_en}
                   </div>
-                  <div className="text-[10.5px] text-slate-600 dark:text-slate-300/90 leading-relaxed">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 mr-1">Target Disciplines:</span>
-                    <span>{(entry.group_names_en || []).join(', ')}</span>
+                  <div className="font-urdu text-[12px] font-medium text-amber-700 dark:text-amber-300/90 shrink-0" dir="rtl">
+                    {entry.name_ur}
                   </div>
                 </div>
-                <div className="pt-2 border-t border-slate-200/70 dark:border-white/[0.08] flex items-center justify-between text-[10.5px]">
-                  <span className="text-slate-500 dark:text-slate-400">Current Almaris:</span>
-                  <span className="font-['JetBrains_Mono'] text-slate-900 dark:text-white font-bold">
-                    {assignedCount > 0 ? `${assignedCount} active` : 'None yet'}
+                <p className="ulm-kpi-label text-[11px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2">
+                  {(entry.group_names_en || []).join(', ')}
+                </p>
+                <div className="pt-2 border-t border-slate-200/60 dark:border-white/[0.07] flex items-center justify-between font-['JetBrains_Mono'] ulm-kpi-label text-[10px]">
+                  <span className="text-slate-400 dark:text-slate-500 uppercase tracking-wider">Almaris</span>
+                  <span
+                    className={
+                      assignedCount > 0
+                        ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }
+                  >
+                    {assignedCount > 0 ? assignedCodes.join(', ') : 'Auto-create'}
                   </span>
                 </div>
               </div>

@@ -168,7 +168,7 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
       {/* Header & Add Button */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/12 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
@@ -379,41 +379,44 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
 
       {/* Groups List Scrollable Compact Table */}
       <div className="rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] overflow-hidden">
-        <div className="max-h-[520px] overflow-y-auto overflow-x-auto pr-1">
+        <div className="max-h-[520px] overflow-y-auto overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-[#150E26]/95 backdrop-blur-md">
-              <tr className="border-b border-slate-200/80 dark:border-white/[0.10] text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                <th className="py-2.5 px-2.5 w-10 text-center">#</th>
-                <th className="py-2.5 px-3">Group Name (English &amp; Urdu)</th>
-                <th className="py-2.5 px-3">Color Badge</th>
-                <th className="py-2.5 px-3">Suggestion Rules</th>
-                <th className="py-2.5 px-2.5 text-center">Status</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
+              <tr className="border-b border-slate-200/80 dark:border-white/[0.10]">
+                <th className="!py-2.5 !px-2.5 w-10 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">#</th>
+                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">GROUP</th>
+                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">COLOR</th>
+                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">AUTO-RULE</th>
+                <th className="!py-2.5 !px-3 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">STATUS</th>
+                <th className="!py-2.5 !px-3 text-right whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">ACTIONS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/60 dark:divide-white/[0.06] text-[12px] text-slate-800 dark:text-slate-200">
+            <tbody className="text-[12px] text-slate-800 dark:text-slate-200">
               {groups.map((grp, idx) => {
                 const isEditing = editingGroupId === grp.id;
                 return (
-                  <tr key={grp.id} className="hover:bg-white/70 dark:hover:bg-white/[0.04] transition-colors">
+                  <tr
+                    key={grp.id}
+                    className="!h-auto border-b border-slate-200/60 dark:border-white/[0.06] hover:bg-slate-900/[0.02] dark:hover:bg-white/[0.025] transition-colors"
+                  >
                     {/* Reorder arrows */}
-                    <td className="py-2 px-2 text-center">
+                    <td className="!h-auto !py-2.5 !px-2 text-center align-middle">
                       <div className="flex flex-col items-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => handleMoveOrder(idx, 'up')}
                           disabled={idx === 0}
-                          className="p-0.5 text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-20 cursor-pointer"
+                          className="!min-h-0 !p-0.5 text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-20 cursor-pointer"
                           title="Move up"
                         >
                           <ArrowUp className="w-2.5 h-2.5" />
                         </button>
-                        <span className="text-[10px] font-['JetBrains_Mono'] text-slate-500 dark:text-slate-400">{idx + 1}</span>
+                        <span className="ulm-kpi-label text-[10px] font-['JetBrains_Mono'] text-slate-500 dark:text-slate-400 leading-none">{idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => handleMoveOrder(idx, 'down')}
                           disabled={idx === groups.length - 1}
-                          className="p-0.5 text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-20 cursor-pointer"
+                          className="!min-h-0 !p-0.5 text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-20 cursor-pointer"
                           title="Move down"
                         >
                           <ArrowDown className="w-2.5 h-2.5" />
@@ -422,14 +425,14 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                     </td>
 
                     {/* Group names */}
-                    <td className="py-2 px-3">
+                    <td className="!h-auto !py-2.5 !px-3 align-middle">
                       {isEditing ? (
                         <div className="space-y-1.5 max-w-xs">
                           <input
                             type="text"
                             value={editNameEn}
                             onChange={e => setEditNameEn(e.target.value)}
-                            className="w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
+                            className="ulm-compact-control w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
                             placeholder="English name"
                           />
                           <input
@@ -437,22 +440,24 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                             dir="auto"
                             value={editNameUr}
                             onChange={e => setEditNameUr(e.target.value)}
-                            className="w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white font-urdu"
+                            className="ulm-compact-control w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white font-urdu"
                             placeholder="اردو نام"
                           />
                         </div>
                       ) : (
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-900 dark:text-white leading-snug">{grp.name_en}</span>
-                          <span className="text-slate-500 dark:text-slate-400 font-urdu text-[12px]" dir="auto">
-                            ({grp.name_ur})
+                        <div className="flex flex-col gap-0.5 min-w-[120px]">
+                          <span className="font-semibold text-[12.5px] text-slate-900 dark:text-white leading-tight whitespace-nowrap">
+                            {grp.name_en}
+                          </span>
+                          <span className="ulm-kpi-label text-[11px] text-slate-500 dark:text-slate-400 font-urdu leading-tight" dir="auto">
+                            {grp.name_ur}
                           </span>
                         </div>
                       )}
                     </td>
 
                     {/* Color */}
-                    <td className="py-2 px-3">
+                    <td className="!h-auto !py-2.5 !px-3 align-middle whitespace-nowrap">
                       {isEditing ? (
                         <input
                           type="color"
@@ -461,18 +466,20 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                           className="w-7 h-7 rounded-lg border border-slate-300 dark:border-white/15 cursor-pointer bg-transparent"
                         />
                       ) : (
-                        <div className="flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5">
                           <div
-                            className="w-3.5 h-3.5 rounded-full border border-black/20 dark:border-white/30 shrink-0"
+                            className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10 dark:ring-white/20"
                             style={{ backgroundColor: grp.color }}
                           />
-                          <span className="font-['JetBrains_Mono'] text-[11px] text-slate-500 dark:text-slate-400">{grp.color}</span>
+                          <span className="font-['JetBrains_Mono'] ulm-kpi-label text-[11px] text-slate-500 dark:text-slate-300">
+                            {grp.color}
+                          </span>
                         </div>
                       )}
                     </td>
 
-                    {/* Suggestion rules */}
-                    <td className="py-2 px-3">
+                    {/* Auto-Rule */}
+                    <td className="!h-auto !py-2.5 !px-3 align-middle">
                       {isEditing ? (
                         <div className="space-y-1 max-w-xs">
                           <input
@@ -480,59 +487,65 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                             value={editMatchLang}
                             onChange={e => setEditMatchLang(e.target.value)}
                             placeholder="match_language (e.g. Urdu)"
-                            className="w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
+                            className="ulm-compact-control w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
                           />
                           <input
                             type="text"
                             value={editMatchCat}
                             onChange={e => setEditMatchCat(e.target.value)}
                             placeholder="match_category"
-                            className="w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
+                            className="ulm-compact-control w-full h-7 px-2 bg-white dark:bg-white/[0.06] border border-slate-300 dark:border-white/15 rounded-lg text-[11px] text-slate-900 dark:text-white"
                           />
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex items-center gap-1 flex-nowrap">
                           {grp.match_language && (
-                            <span className="inline-block px-1.5 py-0.5 bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 rounded text-[10px] font-['JetBrains_Mono']">
+                            <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md bg-purple-500/10 dark:bg-white/[0.05] border border-purple-400/25 dark:border-white/[0.10] font-['JetBrains_Mono'] ulm-kpi-label text-[10.5px] text-purple-700 dark:text-purple-200">
                               Lang: {grp.match_language}
                             </span>
                           )}
                           {grp.match_category && (
-                            <span className="inline-block px-1.5 py-0.5 bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 rounded text-[10px] font-['JetBrains_Mono']">
+                            <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md bg-purple-500/10 dark:bg-white/[0.05] border border-purple-400/25 dark:border-white/[0.10] font-['JetBrains_Mono'] ulm-kpi-label text-[10.5px] text-purple-700 dark:text-purple-200">
                               Cat: {grp.match_category}
                             </span>
                           )}
                           {!grp.match_language && !grp.match_category && (
-                            <span className="text-[10px] text-slate-400 italic">No auto-match rules</span>
+                            <span className="ulm-kpi-label text-[10.5px] text-slate-400 italic whitespace-nowrap">Manual</span>
                           )}
                         </div>
                       )}
                     </td>
 
                     {/* Architectural Status Micro-Tag */}
-                    <td className="py-2 px-2.5 text-center">
+                    <td className="!h-auto !py-2.5 !px-3 text-center align-middle whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => handleToggleActive(grp.id, grp.is_active)}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider border cursor-pointer transition-colors ${
+                        className={`!min-h-0 !h-auto inline-flex items-center gap-1.5 px-2 py-0.5 !rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.10] font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition-colors ${
                           grp.is_active
-                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                            : 'bg-slate-200/80 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 border-slate-300 dark:border-white/[0.12]'
+                            ? 'text-emerald-600 dark:text-emerald-400 hover:border-emerald-400/45'
+                            : 'text-slate-500 dark:text-slate-400 hover:border-slate-400/50'
                         }`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-xs ${grp.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        <span
+                          className={`w-[5px] h-[5px] rounded-[1px] shrink-0 ${
+                            grp.is_active
+                              ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.75)]'
+                              : 'bg-slate-400'
+                          }`}
+                        />
                         <span>{grp.is_active ? 'ACTIVE' : 'HIDDEN'}</span>
                       </button>
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 text-right">
+                    <td className="!h-auto !py-2.5 !px-3 text-right align-middle whitespace-nowrap">
                       {isEditing ? (
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="inline-flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={handleSaveEdit}
-                            className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] flex items-center cursor-pointer"
+                            className="!min-h-0 w-7 h-7 bg-emerald-600 hover:bg-emerald-500 text-white !rounded-lg text-[11px] flex items-center justify-center cursor-pointer"
                             title="Save changes"
                           >
                             <Check className="w-3.5 h-3.5" />
@@ -540,18 +553,18 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                           <button
                             type="button"
                             onClick={() => setEditingGroupId(null)}
-                            className="p-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] cursor-pointer"
+                            className="!min-h-0 w-7 h-7 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 text-slate-700 dark:text-slate-300 !rounded-lg text-[11px] flex items-center justify-center cursor-pointer"
                             title="Cancel"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="inline-flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => handleStartEdit(grp)}
-                            className="p-1.5 text-slate-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                            className="!min-h-0 w-7 h-7 text-slate-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-slate-100 dark:hover:bg-white/10 !rounded-lg transition-colors flex items-center justify-center cursor-pointer"
                             title="Edit group"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -559,7 +572,7 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
                           <button
                             type="button"
                             onClick={() => handleDelete(grp.id, grp.name_en)}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                            className="!min-h-0 w-7 h-7 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 !rounded-lg transition-colors flex items-center justify-center cursor-pointer"
                             title="Delete group"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

@@ -234,29 +234,29 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0 print:overflow-visible"
+      className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0 print:overflow-visible"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-5xl my-auto bg-[#0B1220] border border-[#334155] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-all text-slate-200 print:border-none print:shadow-none print:w-auto print:max-w-none print:max-h-none print:bg-white"
+        className="ulm-preserve-glass w-full max-w-5xl my-auto bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.14] rounded-[26px] shadow-[0_28px_80px_rgba(15,23,42,0.32)] dark:shadow-[0_28px_80px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[94vh] transition-all text-slate-900 dark:text-slate-100 print:border-none print:shadow-none print:w-auto print:max-w-none print:max-h-none print:bg-white print:rounded-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-5 py-3.5 bg-[#020617] border-b border-[#334155] flex items-center justify-between gap-3 shrink-0 print:hidden no-print">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <IdCard className="w-5 h-5 text-amber-500" />
+        <div className="px-6 py-4 bg-white/70 dark:bg-white/[0.03] border-b border-slate-200/80 dark:border-white/[0.10] flex items-center justify-between gap-3 shrink-0 print:hidden no-print">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/[0.14] border border-amber-500/35 flex items-center justify-center text-amber-700 dark:text-[#FFD147] shrink-0">
+              <IdCard className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white font-cinzel leading-tight flex items-center gap-2 flex-wrap">
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-cinzel leading-tight flex items-center gap-2 flex-wrap">
                 <span>ULM Smart Library ID Card Studio (CR80 ISO/IEC 7810 ID-1)</span>
                 {memberList.length > 1 && (
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-lg bg-amber-500/[0.14] text-amber-800 dark:text-[#FFD147] border border-amber-500/35">
                     {memberList.length} Cards Selected
                   </span>
                 )}
               </h3>
-              <p className="text-[11px] font-mono text-slate-400">
+              <p className="text-[11px] font-mono text-slate-500 dark:text-[#B3AABD] truncate">
                 85.60 mm × 53.98 mm · Pre-Baked 6.5% RGBA Watermark · Code-128 &amp; Verification QR
               </p>
             </div>
@@ -264,27 +264,27 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100/80 hover:bg-slate-200/80 dark:bg-white/[0.05] dark:hover:bg-white/[0.12] border border-slate-200/80 dark:border-white/[0.10] transition-colors cursor-pointer shrink-0"
             aria-label="Close dialog"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
         {/* Status Notification */}
         {statusNotification && (
           <div
-            className={`px-5 py-2 border-b flex items-center justify-between text-xs shrink-0 print:hidden no-print ${
+            className={`px-6 py-2.5 border-b flex items-center justify-between text-xs shrink-0 print:hidden no-print ${
               statusNotification.type === 'warn'
-                ? 'bg-amber-950/40 border-amber-600/30 text-amber-200'
+                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-600/30 text-amber-900 dark:text-amber-200'
                 : statusNotification.type === 'success'
-                ? 'bg-emerald-950/40 border-emerald-600/30 text-emerald-200'
-                : 'bg-blue-950/40 border-blue-600/30 text-blue-200'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-600/30 text-emerald-900 dark:text-emerald-200'
+                : 'bg-sky-50 dark:bg-blue-950/40 border-sky-200 dark:border-blue-600/30 text-sky-900 dark:text-blue-200'
             }`}
           >
             <div className="flex items-center gap-2">
               {statusNotification.type === 'warn' ? (
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               ) : (
                 <Info className="w-4 h-4 shrink-0" />
               )}
@@ -293,7 +293,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
             <button
               type="button"
               onClick={() => setStatusNotification(null)}
-              className="text-slate-400 hover:text-white cursor-pointer"
+              className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -301,16 +301,16 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
         )}
 
         {/* Toolbar Controls */}
-        <div className="px-5 py-3 bg-[#080d19] border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden no-print">
+        <div className="px-6 py-3 bg-slate-50/75 dark:bg-white/[0.025] border-b border-slate-200/80 dark:border-white/[0.10] flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden no-print">
           {/* Side Selector (Both / Front / Back) */}
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
+          <div className="flex items-center gap-1 bg-slate-200/75 dark:bg-white/[0.05] p-1 rounded-xl border border-slate-300/80 dark:border-white/[0.12]">
             <button
               type="button"
               onClick={() => setActiveSide('both')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 activeSide === 'both'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-[#BC881B] text-[#1A1A1A] shadow-xs'
+                  : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Both Sides
@@ -318,10 +318,10 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveSide('front')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 activeSide === 'front'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-[#BC881B] text-[#1A1A1A] shadow-xs'
+                  : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Front Side
@@ -329,10 +329,10 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveSide('back')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 activeSide === 'back'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-[#BC881B] text-[#1A1A1A] shadow-xs'
+                  : 'text-slate-600 dark:text-[#B3AABD] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Back Side
@@ -341,14 +341,14 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
 
           {/* Sample Presets Selector */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 text-[11px] font-medium flex items-center gap-1 whitespace-nowrap">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-slate-600 dark:text-[#B3AABD] text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-[#FFD147] shrink-0" />
               Preset:
             </span>
             <select
               value={selectedPresetKey}
               onChange={(e) => handlePresetChange(e.target.value)}
-              className="ulm-inline-select w-auto bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1 outline-hidden focus:border-amber-500 cursor-pointer"
+              className="ulm-compact-control ulm-inline-select h-9 w-auto bg-white dark:bg-[#110A20]/90 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs rounded-xl px-3 outline-hidden focus:border-[#BC881B] cursor-pointer"
             >
               {currentMember && (
                 <option value="member">
@@ -364,14 +364,14 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
 
           {/* Print / PDF Layout Option */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 text-[11px] font-medium flex items-center gap-1 whitespace-nowrap">
-              <Layers className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-slate-600 dark:text-[#B3AABD] text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap">
+              <Layers className="w-3.5 h-3.5 text-amber-600 dark:text-[#FFD147] shrink-0" />
               Sheet:
             </span>
             <select
               value={cardLayout}
               onChange={(e) => setCardLayout(e.target.value as CardPdfLayout)}
-              className="ulm-inline-select w-auto bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1 outline-hidden focus:border-amber-500 cursor-pointer"
+              className="ulm-compact-control ulm-inline-select h-9 w-auto bg-white dark:bg-[#110A20]/90 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs rounded-xl px-3 outline-hidden focus:border-[#BC881B] cursor-pointer"
             >
               <option value="cr80_single">Exact CR80 Pages (85.60 × 53.98 mm)</option>
               <option value="a4_sheet_10">A4 Sheet (10 Cards: 2 × 5 with Crop Marks)</option>
@@ -384,10 +384,10 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
             <button
               type="button"
               onClick={() => setIsEditorOpen(!isEditorOpen)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`h-9 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                 isEditorOpen
-                  ? 'bg-purple-500/20 border-purple-400/50 text-purple-200'
-                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+                  ? 'bg-purple-500/20 border-purple-400/50 text-purple-900 dark:text-purple-200'
+                  : 'bg-white/85 dark:bg-white/[0.06] border-slate-300/90 dark:border-white/[0.14] text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
@@ -395,7 +395,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
             </button>
 
             {memberList.length > 1 && (
-              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
+              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-700 dark:text-slate-200">
                 <button
                   type="button"
                   disabled={selectedMemberIndex <= 0}
@@ -403,7 +403,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
                     setSelectedPresetKey('member');
                     setSelectedMemberIndex((idx) => Math.max(0, idx - 1));
                   }}
-                  className="p-1.5 rounded bg-slate-900 border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.12] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-white/[0.12] cursor-pointer"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
@@ -417,7 +417,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
                     setSelectedPresetKey('member');
                     setSelectedMemberIndex((idx) => Math.min(memberList.length - 1, idx + 1));
                   }}
-                  className="p-1.5 rounded bg-slate-900 border border-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 cursor-pointer"
+                  className="p-1.5 rounded-lg bg-white/85 dark:bg-white/[0.06] border border-slate-300/80 dark:border-white/[0.12] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-white/[0.12] cursor-pointer"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -427,10 +427,10 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
         </div>
 
         {/* Scrollable Body: Interactive Card Preview + Live Field Editor */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-[#020617]/60 space-y-6 print:p-0 print:bg-white print:overflow-visible">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-900/[0.025] dark:bg-black/20 space-y-6 print:p-0 print:bg-white print:overflow-visible">
           {/* Interactive CR80 Card Preview (Also serves as @media print target) */}
           <div className="flex flex-col items-center justify-center space-y-3 print:space-y-0">
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-900/70 border border-slate-800/80 shadow-inner flex items-center justify-center overflow-x-auto max-w-full print:p-0 print:bg-transparent print:border-none print:shadow-none">
+            <div className="p-4 sm:p-5 rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] shadow-inner flex items-center justify-center overflow-x-auto max-w-full ulm-preserve-dark print:p-0 print:bg-transparent print:border-none print:shadow-none">
               <UlmSmartIdCard
                 data={editableData}
                 crestUrl={ULM_OFFICIAL_CREST_SRC}
@@ -439,12 +439,12 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-400 font-mono print:hidden no-print">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-600 dark:text-[#B3AABD] font-mono print:hidden no-print">
               <span>ISO/IEC 7810 ID-1 (CR80: 85.60 × 53.98 mm)</span>
               <span>•</span>
               <span>Pre-Baked Canvas Watermark: {watermarkAlpha.toFixed(1)}% Alpha</span>
               <span>•</span>
-              <span className="text-amber-400 font-bold">
+              <span className="text-amber-800 dark:text-[#FFD147] font-bold">
                 {editableData.name} ({editableData.memberId})
               </span>
             </div>
@@ -452,39 +452,39 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
 
           {/* Live Field Editor Panel */}
           {isEditorOpen && (
-            <div className="rounded-xl bg-[#0B1220] border border-slate-800 p-4 sm:p-5 space-y-4 print:hidden no-print">
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+            <div className="rounded-[20px] bg-white/75 dark:bg-white/[0.035] border border-slate-200/85 dark:border-white/[0.12] p-4 sm:p-5 space-y-4 print:hidden no-print">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-white/[0.10]">
                 <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-amber-400" />
-                  <h4 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                  <Sliders className="w-4 h-4 text-amber-600 dark:text-[#FFD147]" />
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                     Live Card Field Editor &amp; Watermark Calibration
                   </h4>
                 </div>
                 <button
                   type="button"
                   onClick={handleResetFields}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.07] dark:hover:bg-white/[0.12] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/[0.12] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Reset Fields</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end text-xs">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Borrower Full Name
                   </label>
                   <input
                     type="text"
                     value={editableData.name}
                     onChange={(e) => handleFieldChange('name', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Card Role Badge
                   </label>
                   <select
@@ -492,7 +492,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
                     onChange={(e) =>
                       handleFieldChange('role', e.target.value as CardMemberData['role'])
                     }
-                    className="w-full h-9 px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   >
                     <option value="STUDENT CARD">STUDENT CARD</option>
                     <option value="FACULTY CARD">FACULTY CARD</option>
@@ -502,128 +502,128 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Member ID / Barcode
                   </label>
                   <input
                     type="text"
                     value={editableData.memberId}
                     onChange={(e) => handleFieldChange('memberId', e.target.value.toUpperCase())}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white font-mono text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Roll No / Reg ID
                   </label>
                   <input
                     type="text"
                     value={editableData.rollNo}
                     onChange={(e) => handleFieldChange('rollNo', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white font-mono text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Academic Session
                   </label>
                   <input
                     type="text"
                     value={editableData.session}
                     onChange={(e) => handleFieldChange('session', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Program / Designation
                   </label>
                   <input
                     type="text"
                     value={editableData.program}
                     onChange={(e) => handleFieldChange('program', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Department
                   </label>
                   <input
                     type="text"
                     value={editableData.department}
                     onChange={(e) => handleFieldChange('department', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Blood Group
                   </label>
                   <input
                     type="text"
                     value={editableData.bloodGroup}
                     onChange={(e) => handleFieldChange('bloodGroup', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white font-mono text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Borrowing Limit
                   </label>
                   <input
                     type="text"
                     value={editableData.borrowingLimit}
                     onChange={(e) => handleFieldChange('borrowingLimit', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Holder Contact Phone
                   </label>
                   <input
                     type="text"
                     value={editableData.phone}
                     onChange={(e) => handleFieldChange('phone', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white font-mono text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Valid Till
                   </label>
                   <input
                     type="text"
                     value={editableData.validTill}
                     onChange={(e) => handleFieldChange('validTill', e.target.value.toUpperCase())}
-                    className="w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                    className="ulm-compact-control w-full h-10 px-3 rounded-xl bg-white dark:bg-[#110A20]/85 border border-slate-300/90 dark:border-white/[0.14] text-slate-900 dark:text-white font-mono text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap truncate mb-1.5">
                     Watermark Alpha ({watermarkAlpha.toFixed(1)}%)
                   </label>
-                  <div className="flex items-center gap-2 h-9">
+                  <div className="flex items-center gap-2 h-10">
                     <input
                       type="range"
                       min={2}
                       max={15}
                       step={0.5}
                       value={watermarkAlpha}
-                      onChange={(e) => setWatermarkAlpha( parseFloat(e.target.value) || 6.5 )}
+                      onChange={(e) => setWatermarkAlpha(parseFloat(e.target.value) || 6.5)}
                       className="flex-1 accent-amber-500 cursor-pointer"
                     />
-                    <span className="font-mono text-xs text-amber-400 w-12 text-right">
+                    <span className="font-mono text-xs text-amber-800 dark:text-[#FFD147] font-bold w-12 text-right">
                       {watermarkAlpha.toFixed(1)}%
                     </span>
                   </div>
@@ -634,17 +634,17 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 py-3.5 bg-[#020617] border-t border-[#334155] flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden no-print">
-          <span className="text-xs text-slate-400 font-mono">
-            Active Card: <strong className="text-emerald-400">{editableData.name}</strong> ·{' '}
-            <span className="text-amber-400">{editableData.memberId}</span>
+        <div className="px-6 py-4 bg-white/80 dark:bg-white/[0.03] border-t border-slate-200/80 dark:border-white/[0.10] flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden no-print">
+          <span className="text-xs text-slate-600 dark:text-[#B3AABD] font-mono">
+            Active Card: <strong className="text-emerald-700 dark:text-emerald-400">{editableData.name}</strong> ·{' '}
+            <span className="text-amber-800 dark:text-[#FFD147] font-semibold">{editableData.memberId}</span>
           </span>
 
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              className="h-9 px-4 rounded-xl bg-slate-200/85 hover:bg-slate-300/85 dark:bg-white/[0.07] dark:hover:bg-white/[0.13] text-slate-800 dark:text-slate-100 border border-slate-300/80 dark:border-white/[0.14] text-xs font-semibold transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -654,7 +654,7 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
               type="button"
               disabled={isGeneratingPdf}
               onClick={handleSaveAsPdf}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md transition-colors cursor-pointer whitespace-nowrap"
+              className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:brightness-110 text-[#1A1A1A] font-bold text-xs flex items-center gap-1.5 shadow-md border border-[#FFD147]/50 transition-all cursor-pointer whitespace-nowrap"
               title="Save exact physical PDF with crop marks or CR80 dimensions"
             >
               {isGeneratingPdf ? (
@@ -670,10 +670,10 @@ export const MemberCardPrintModal: React.FC<MemberCardPrintModalProps> = ({
               type="button"
               disabled={isGeneratingPdf}
               onClick={handlePrint}
-              className="px-4 py-2 rounded-lg bg-[#541A72] hover:bg-[#6B21A8] text-white font-bold text-xs flex items-center gap-1.5 border border-[#C8963E]/60 shadow-md transition-colors cursor-pointer whitespace-nowrap"
+              className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#541A72] to-[#6B21A8] hover:brightness-110 !text-white font-bold text-xs flex items-center gap-1.5 border border-[#FFD147]/45 shadow-md transition-all cursor-pointer whitespace-nowrap"
             >
               <Printer className="w-3.5 h-3.5 text-[#FFD147]" />
-              <span>Print CR80 Card</span>
+              <span className="!text-white">Print CR80 Card</span>
             </button>
           </div>
         </div>

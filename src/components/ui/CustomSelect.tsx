@@ -311,22 +311,22 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         style={{ minWidth: 0 }}
-        className={`w-full max-w-full min-w-0 overflow-hidden flex items-center justify-between gap-2 rounded-[10px] border text-left transition-colors cursor-pointer ${
-          compact ? 'h-10 px-3 py-2 text-[13px]' : 'h-10 px-3.5 py-2 text-[13px]'
+        className={`ulm-compact-control w-full max-w-full min-w-0 overflow-hidden flex items-center justify-between gap-1.5 !rounded-xl border text-left transition-all cursor-pointer ${
+          compact ? 'h-10 px-3 text-[12.5px]' : 'h-10 px-3.5 text-[12.5px]'
         } ${
           disabled
-            ? 'bg-slate-100 dark:bg-[#1A1A1A] border-slate-200 dark:border-white/[0.06] text-slate-400 dark:text-[#B3AABD] cursor-not-allowed pointer-events-none'
+            ? 'bg-slate-100/80 dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.08] text-slate-400 dark:text-[#B3AABD] cursor-not-allowed pointer-events-none'
             : isOpen
-            ? 'bg-white dark:bg-[#141214] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-slate-900 dark:text-white'
-            : 'bg-white dark:bg-[#121014] hover:bg-slate-50 dark:hover:bg-[#1E1B22] border-slate-300 dark:border-white/15 hover:border-[#BC881B]/60 text-slate-900 dark:text-[#F1F5F9]'
+            ? 'bg-white dark:bg-[#140D26] border-[#BC881B] ring-2 ring-[#BC881B]/25 text-slate-900 dark:text-white'
+            : 'bg-white/90 dark:bg-[#110A20]/85 hover:bg-white dark:hover:bg-[#19102E] border-slate-300/90 dark:border-white/[0.14] hover:border-[#BC881B]/60 text-slate-900 dark:text-white'
         } ${triggerClassName}`}
       >
         <span className="truncate block font-semibold min-w-0 flex-1">
           {selectedOption ? (
-            <span className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center gap-1.5 min-w-0">
               <span className="truncate">{selectedOption.label}</span>
               {selectedOption.badge && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] font-mono border border-amber-500/30 dark:border-[#BC881B]/30 shrink-0">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/[0.14] dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450] font-mono border border-amber-500/30 dark:border-[#BC881B]/30 shrink-0">
                   {selectedOption.badge}
                 </span>
               )}
@@ -336,7 +336,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
           )}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-500 dark:text-[#B3AABD] shrink-0 transition-transform duration-150 ${
+          className={`w-3.5 h-3.5 text-slate-500 dark:text-[#B3AABD] shrink-0 transition-transform duration-150 ${
             isOpen ? 'rotate-180 text-amber-700 dark:text-[#E0B450]' : ''
           }`}
         />
@@ -355,13 +355,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             left: `${coords.left}px`,
             width: `${coords.width}px`,
             maxHeight: `${coords.maxHeight}px`,
-            zIndex: 1000,
+            zIndex: 10050,
           }}
-          className={`rounded-[12px] border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100 ${panelClassName}`}
+          className={`ulm-preserve-glass rounded-2xl border border-slate-200/90 dark:border-white/[0.16] bg-white/95 dark:bg-[#171127]/95 backdrop-blur-2xl text-slate-900 dark:text-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100 ${panelClassName}`}
         >
           {/* Optional Search Input */}
           {isSearchable && (
-            <div className="p-2 border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#120D1D] flex items-center gap-1.5">
+            <div className="p-2 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.03] flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#B3AABD] shrink-0" />
               <input
                 ref={searchInputRef}
@@ -372,7 +372,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   setActiveIndex(0);
                 }}
                 placeholder="Search..."
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-[#B3AABD] focus:ring-1 focus:ring-[#BC881B] focus:border-[#BC881B]"
+                className="ulm-compact-control w-full h-8 text-xs px-2.5 rounded-lg border border-slate-300/90 dark:border-white/[0.14] bg-white dark:bg-[#110A20]/90 text-slate-900 dark:text-white outline-none placeholder:text-slate-400 dark:placeholder:text-[#B3AABD] focus:ring-1 focus:ring-[#BC881B] focus:border-[#BC881B]"
               />
               {searchQuery && (
                 <button
@@ -408,7 +408,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     aria-disabled={opt.disabled}
                     onClick={() => handleSelect(opt)}
                     onMouseEnter={() => !opt.disabled && setActiveIndex(idx)}
-                    className={`relative flex items-center justify-between gap-2 px-3 py-2 rounded-[8px] text-[13px] font-semibold cursor-pointer transition-colors ${
+                    className={`relative flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] font-semibold cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-[#BC881B] text-[#1A1A1A]'
                         : isActive
@@ -431,7 +431,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                           className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
                             isSelected
                               ? 'bg-black/20 text-[#1A1A1A]'
-                              : 'bg-amber-500/15 dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450]'
+                              : 'bg-amber-500/[0.14] dark:bg-[#BC881B]/20 text-amber-800 dark:text-[#E0B450]'
                           }`}
                         >
                           {opt.badge}
@@ -449,7 +449,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
           {/* Optional "Add New" footer */}
           {allowAdd && (
-            <div className="p-2 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#120D1D]">
+            <div className="p-2 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.03]">
               {!isAddingNew ? (
                 <button
                   type="button"
@@ -457,7 +457,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     setIsAddingNew(true);
                     setTimeout(() => addInputRef.current?.focus(), 50);
                   }}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/[0.05] text-amber-800 dark:text-[#E0B450] text-xs font-bold transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/[0.06] text-amber-800 dark:text-[#E0B450] text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Add custom entry...</span>
@@ -470,7 +470,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     value={newInputValue}
                     onChange={(e) => setNewInputValue(e.target.value)}
                     placeholder={addNewPlaceholder}
-                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#1A1625] text-slate-900 dark:text-white outline-none placeholder:text-slate-400 focus:ring-1 focus:ring-[#BC881B]"
+                    className="ulm-compact-control flex-1 h-8 text-xs px-2.5 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#110A20]/90 text-slate-900 dark:text-white outline-none placeholder:text-slate-400 focus:ring-1 focus:ring-[#BC881B]"
                   />
                   <button
                     type="submit"

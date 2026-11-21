@@ -348,7 +348,7 @@ export const UlmSmartIdCard: React.FC<{
   const CardFront = (
     <div
       data-member-card="true"
-      className="cr80-card relative w-[428px] h-[270px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
+      className="cr80-card relative w-[428px] min-h-[276px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
       style={{
         border: '1.5px solid #C8963E',
         boxShadow:
@@ -382,17 +382,17 @@ export const UlmSmartIdCard: React.FC<{
         </div>
       )}
 
-      {/* Top Institutional Header Band (58px) */}
+      {/* Top Institutional Header Band (60px — Full unclipped university title) */}
       <div
-        className="ulm-dark-plaque relative z-[2] h-[58px] px-3 flex items-center justify-between gap-2 shrink-0"
+        className="ulm-dark-plaque relative z-[2] h-[60px] px-3 flex items-center justify-between gap-2 shrink-0"
         style={{
           background:
             'linear-gradient(135deg, #240836 0%, #3B1054 52%, #541A72 100%)',
           borderBottom: '2.5px solid #C8963E',
         }}
       >
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          <div className="w-[38px] h-[38px] rounded-full bg-white p-[2.5px] border-2 border-[#FFD147] shadow-md flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="w-[36px] h-[36px] rounded-full bg-white p-[2px] border-2 border-[#FFD147] shadow-md flex items-center justify-center shrink-0">
             <img
               src={resolvedCrestSrc}
               alt="ULM 2017 Crest"
@@ -400,24 +400,24 @@ export const UlmSmartIdCard: React.FC<{
               className="w-full h-full object-contain rounded-full"
             />
           </div>
-          <div className="leading-tight min-w-0 flex-1 overflow-hidden">
+          <div className="leading-tight min-w-0 flex-1">
             <h1
-              className="text-[9.5px] font-black tracking-[0.02em] leading-tight whitespace-nowrap truncate !text-white uppercase"
+              className="text-[9.2px] font-black tracking-[0.015em] leading-[1.18] whitespace-nowrap !text-white uppercase"
               style={{ fontFamily: "'Cinzel', Georgia, serif", color: '#FFFFFF' }}
             >
               {identity.universityName.toUpperCase()}
             </h1>
-            <p className="text-[8px] font-bold tracking-[0.12em] !text-[#FFD147] uppercase mt-0.5 truncate">
+            <p className="text-[7.6px] font-bold tracking-[0.1em] !text-[#FFD147] uppercase mt-[1.5px] whitespace-nowrap truncate">
               {identity.libraryDepartmentName.toUpperCase()}
             </p>
-            <p className="text-[7px] font-medium !text-white/85 tracking-[0.03em] truncate">
+            <p className="text-[6.8px] font-medium !text-white/85 tracking-[0.02em] truncate">
               {identity.campusAddress}
             </p>
           </div>
         </div>
 
         <div
-          className="px-2 py-0.5 rounded-md text-[7.5px] font-black tracking-[0.06em] uppercase shrink-0 shadow-2xs"
+          className="px-2 py-[3px] rounded-md text-[7px] font-black tracking-[0.05em] uppercase whitespace-nowrap shrink-0 shadow-2xs"
           style={{
             background: 'linear-gradient(135deg, #FFD147 0%, #C8963E 100%)',
             color: '#1E0730',
@@ -429,11 +429,11 @@ export const UlmSmartIdCard: React.FC<{
       </div>
 
       {/* Center Body Content */}
-      <div className="relative z-[2] flex-1 px-3 py-2 grid grid-cols-[92px_1fr] gap-3 items-center text-[#1A1027]">
+      <div className="relative z-[2] flex-1 px-3 py-2 grid grid-cols-[90px_1fr] gap-3 items-center text-[#1A1027]">
         {/* Left Column: Photo & Active Pill */}
         <div className="flex flex-col items-center">
           <div
-            className="w-[88px] h-[108px] rounded-[8px] bg-[#F8FAFC] overflow-hidden flex flex-col items-center justify-center relative shadow-xs"
+            className="w-[86px] h-[106px] rounded-[8px] bg-[#F8FAFC] overflow-hidden flex flex-col items-center justify-center relative shadow-xs"
             style={{
               border: '2px solid #3B1054',
               outline: '1.5px solid #C8963E',
@@ -468,7 +468,7 @@ export const UlmSmartIdCard: React.FC<{
 
           <div className="mt-1.5 w-full py-[2px] px-1.5 rounded-full bg-[#ECFDF5] border border-[#10B981]/50 flex items-center justify-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-            <span className="text-[7px] font-extrabold tracking-wider !text-[#047857] uppercase">
+            <span className="text-[6.8px] font-extrabold tracking-wider !text-[#047857] uppercase whitespace-nowrap">
               ACTIVE MEMBER
             </span>
           </div>
@@ -476,21 +476,21 @@ export const UlmSmartIdCard: React.FC<{
 
         {/* Right Column: Metadata Grid */}
         <div className="flex flex-col justify-between h-full py-0.5 min-w-0">
-          <div className="border-b border-[#E2E8F0] pb-1 flex items-baseline justify-between gap-2">
-            <div className="min-w-0">
-              <span className="block text-[7px] font-bold uppercase tracking-[0.12em] !text-[#64748B]">
+          <div className="border-b border-[#E2E8F0] pb-1.5 flex items-end justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <span className="block text-[6.8px] font-bold uppercase tracking-[0.12em] !text-[#64748B]">
                 BORROWER FULL NAME
               </span>
-              <h2 className="text-[14px] font-extrabold !text-[#1A1027] tracking-tight leading-tight truncate">
+              <h2 className="text-[13.5px] font-extrabold !text-[#1A1027] tracking-tight leading-[1.15] line-clamp-1">
                 {member.name}
               </h2>
             </div>
             <div className="text-right shrink-0">
-              <span className="block text-[6.8px] font-bold uppercase tracking-[0.1em] !text-[#64748B]">
+              <span className="block text-[6.6px] font-bold uppercase tracking-[0.1em] !text-[#64748B]">
                 MEMBER ID
               </span>
               <span
-                className="inline-block px-1.5 py-[1px] rounded bg-[#F3E8FF] border border-[#C8963E]/60 text-[9.5px] font-extrabold !text-[#3B1054]"
+                className="inline-block px-1.5 py-[1px] rounded bg-[#F3E8FF] border border-[#C8963E]/60 text-[9px] font-extrabold !text-[#3B1054] whitespace-nowrap"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {member.memberId}
@@ -504,7 +504,7 @@ export const UlmSmartIdCard: React.FC<{
                 Roll No / Reg ID
               </span>
               <span
-                className="text-[9.5px] font-extrabold !text-[#1A1027]"
+                className="text-[9.2px] font-extrabold !text-[#1A1027] block truncate"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {member.rollNo}
@@ -515,7 +515,7 @@ export const UlmSmartIdCard: React.FC<{
               <span className="block text-[6.8px] font-bold uppercase tracking-wider !text-[#64748B]">
                 Academic Session
               </span>
-              <span className="text-[9.5px] font-extrabold !text-[#1A1027]">
+              <span className="text-[9.2px] font-extrabold !text-[#1A1027] block truncate">
                 {member.session}
               </span>
             </div>
@@ -524,7 +524,7 @@ export const UlmSmartIdCard: React.FC<{
               <span className="block text-[6.8px] font-bold uppercase tracking-wider !text-[#64748B]">
                 Degree Program / Designation
               </span>
-              <span className="text-[9.8px] font-extrabold !text-[#3B1054] block truncate">
+              <span className="text-[9.5px] font-extrabold !text-[#3B1054] block truncate">
                 {member.program}
               </span>
             </div>
@@ -533,7 +533,7 @@ export const UlmSmartIdCard: React.FC<{
               <span className="block text-[6.8px] font-bold uppercase tracking-wider !text-[#64748B]">
                 Department
               </span>
-              <span className="text-[9px] font-bold !text-[#1A1027] block truncate">
+              <span className="text-[8.8px] font-bold !text-[#1A1027] block truncate">
                 {member.department}
               </span>
             </div>
@@ -542,7 +542,7 @@ export const UlmSmartIdCard: React.FC<{
               <span className="block text-[6.8px] font-bold uppercase tracking-wider !text-[#64748B]">
                 Borrowing Privilege
               </span>
-              <span className="text-[8.8px] font-extrabold !text-[#047857]">
+              <span className="text-[8.6px] font-extrabold !text-[#047857]">
                 {member.borrowingLimit}
               </span>
             </div>
@@ -552,7 +552,7 @@ export const UlmSmartIdCard: React.FC<{
                 Valid Till
               </span>
               <span
-                className="text-[8.8px] font-extrabold !text-[#B45309]"
+                className="text-[8.6px] font-extrabold !text-[#B45309]"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {member.validTill}
@@ -562,14 +562,14 @@ export const UlmSmartIdCard: React.FC<{
         </div>
       </div>
 
-      {/* Bottom Barcode & Footer */}
+      {/* Bottom Barcode & Footer (46px — Generous 8px breathing room above bottom border) */}
       <div
-        className="relative z-[2] h-[38px] px-3 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between shrink-0"
+        className="relative z-[2] h-[46px] px-3 pt-1.5 pb-2 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between shrink-0"
       >
         <div className="flex flex-col justify-center">
-          <Code128Barcode value={member.memberId} width={175} height={19} />
+          <Code128Barcode value={member.memberId} width={175} height={20} />
           <span
-            className="text-[6.8px] font-bold tracking-[0.22em] text-[#334155] mt-[1px]"
+            className="text-[7px] font-bold tracking-[0.2em] text-[#334155] mt-[2px] leading-none"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             *{member.memberId}*
@@ -584,7 +584,7 @@ export const UlmSmartIdCard: React.FC<{
             >
               Chief Librarian
             </div>
-            <div className="w-24 border-b border-[#94A3B8] my-[2px]" />
+            <div className="w-24 border-b border-[#94A3B8] my-[2.5px]" />
             <span className="block text-[6.5px] font-bold uppercase tracking-[0.1em] text-[#475569]">
               Issuing Authority • ULM
             </span>
@@ -597,7 +597,7 @@ export const UlmSmartIdCard: React.FC<{
   const CardBack = (
     <div
       data-member-card="true"
-      className="cr80-card relative w-[428px] h-[270px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
+      className="cr80-card relative w-[428px] min-h-[276px] rounded-[12px] bg-white overflow-hidden select-none flex flex-col justify-between"
       style={{
         border: '1.5px solid #C8963E',
         boxShadow:
@@ -620,7 +620,7 @@ export const UlmSmartIdCard: React.FC<{
 
       {/* Top Strip */}
       <div
-        className="relative z-[2] h-[34px] px-3 flex items-center justify-between"
+        className="relative z-[2] h-[34px] px-3 flex items-center justify-between shrink-0"
         style={{
           background: 'linear-gradient(90deg, #1E0730 0%, #3B1054 60%, #1E0730 100%)',
           borderBottom: '2px solid #C8963E',
@@ -628,12 +628,12 @@ export const UlmSmartIdCard: React.FC<{
       >
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-[#FFD147]" />
-          <span className="text-[8.5px] font-extrabold tracking-[0.14em] text-[#FFD147] uppercase">
+          <span className="text-[8.2px] font-extrabold tracking-[0.12em] text-[#FFD147] uppercase whitespace-nowrap">
             INSTITUTIONAL LIBRARY MEMBERSHIP TERMS
           </span>
         </div>
         <span
-          className="text-[8px] font-bold text-white/90"
+          className="text-[8px] font-bold text-white/90 whitespace-nowrap"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           ID: {member.memberId}
@@ -644,9 +644,9 @@ export const UlmSmartIdCard: React.FC<{
       <div className="relative z-[2] flex-1 px-3.5 py-2.5 grid grid-cols-[1fr_102px] gap-3 items-center">
         <div className="space-y-1.5">
           <h3 className="text-[8.5px] font-extrabold uppercase tracking-[0.08em] text-[#3B1054] border-b border-[#E2E8F0] pb-0.5">
-            Library Borrowing Terms & Discipline
+            Library Borrowing Terms &amp; Discipline
           </h3>
-          <ul className="space-y-1 text-[7.6px] font-medium text-[#1E293B] leading-snug">
+          <ul className="space-y-1 text-[7.5px] font-medium text-[#1E293B] leading-snug">
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-2.5 h-2.5 text-[#C8963E] shrink-0 mt-[1px]" />
               <span>
@@ -673,7 +673,7 @@ export const UlmSmartIdCard: React.FC<{
             </li>
           </ul>
 
-          <div className="mt-1.5 p-1.5 rounded bg-[#F8FAFC] border border-[#CBD5E1] flex items-center justify-between text-[7.5px]">
+          <div className="mt-1.5 p-1.5 rounded bg-[#F8FAFC] border border-[#CBD5E1] flex items-center justify-between text-[7.4px]">
             <div className="flex items-center gap-1 text-[#0F172A] font-bold">
               <Phone className="w-2.5 h-2.5 text-[#3B1054]" />
               <span>Holder Contact:</span>
@@ -697,7 +697,7 @@ export const UlmSmartIdCard: React.FC<{
             SCAN TO VERIFY
           </span>
           <span
-            className="text-[6.5px] font-bold text-[#64748B]"
+            className="text-[6.5px] font-bold text-[#64748B] truncate max-w-full"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
             {member.memberId}
@@ -707,7 +707,7 @@ export const UlmSmartIdCard: React.FC<{
 
       {/* Return Address Footer */}
       <div
-        className="relative z-[2] h-[36px] px-3.5 bg-[#0F172A] text-white flex items-center justify-between text-[7.2px]"
+        className="relative z-[2] h-[38px] px-3.5 py-1 bg-[#0F172A] text-white flex items-center justify-between text-[7.2px] shrink-0"
         style={{ borderTop: '2px solid #C8963E' }}
       >
         <div className="min-w-0 pr-2">

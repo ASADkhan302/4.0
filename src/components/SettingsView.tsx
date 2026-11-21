@@ -589,7 +589,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <h4 className="font-['Plus_Jakarta_Sans'] text-[13px] font-bold text-slate-900 dark:text-white truncate">
                           {formData.university_name || 'University of Lakki Marwat'} LMS
                         </h4>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-['JetBrains_Mono'] font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/35">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 !rounded-md bg-amber-500/12 border border-amber-400/35 font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                           {formData.customLogoDataUri ? 'Custom Crest Active' : 'Official 2017 Crest Edition'}
                         </span>
                       </div>
@@ -600,7 +600,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <label className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-xl bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200/90 dark:border-white/[0.14] text-slate-800 dark:text-slate-100 text-[11px] font-bold transition-all cursor-pointer">
+                    <label className="!inline-flex !mb-0 items-center justify-center gap-2 h-9 px-3.5 !rounded-xl bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200/90 dark:border-white/[0.14] text-slate-800 dark:text-slate-100 text-[12px] font-semibold transition-all cursor-pointer">
                       <span>Upload Custom Crest PNG</span>
                       <input
                         type="file"
@@ -649,9 +649,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           setInstitutionalSaved(false);
                         }, 2600);
                       }}
-                      className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-800 dark:text-amber-300 text-[11px] font-bold transition-all cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 h-9 px-3.5 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-800 dark:text-amber-300 text-[12px] font-semibold transition-all cursor-pointer"
                     >
-                      <RotateCcw className="w-3 h-3 shrink-0" />
+                      <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                       <span>Reset to Official ULM 2017 Crest</span>
                     </button>
                   </div>
@@ -664,7 +664,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {/* Card 2 Header */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -815,7 +815,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   {/* 2-Column Frosted Toggle Tiles */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <label className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.10] bg-white/65 dark:bg-white/[0.035] hover:border-amber-500/40 transition-colors cursor-pointer">
+                    <label className="!flex !mb-0 items-center justify-between gap-3 p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.10] bg-white/65 dark:bg-white/[0.035] hover:border-amber-500/40 transition-colors cursor-pointer">
                       <div className="min-w-0">
                         <p className="text-[12px] font-bold text-slate-900 dark:text-white truncate">Hardware Audio Feedback</p>
                         <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">Chirp on barcode detection</p>
@@ -828,7 +828,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </label>
 
-                    <label className="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.10] bg-white/65 dark:bg-white/[0.035] hover:border-amber-500/40 transition-colors cursor-pointer">
+                    <label className="!flex !mb-0 items-center justify-between gap-3 p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.10] bg-white/65 dark:bg-white/[0.035] hover:border-amber-500/40 transition-colors cursor-pointer">
                       <div className="min-w-0">
                         <p className="text-[12px] font-bold text-slate-900 dark:text-white truncate">Auto-Submit Scan</p>
                         <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">Execute on 13-digit EAN</p>
@@ -860,9 +860,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <label className="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1 block">
                         Windows Title Bar Badge
                       </label>
-                      <div className="px-3 h-9 rounded-xl border border-slate-200/85 dark:border-white/[0.12] text-[11px] font-['JetBrains_Mono'] bg-white/60 dark:bg-white/[0.035] text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                      <div className="px-3 h-9 rounded-xl border border-slate-200/85 dark:border-white/[0.12] text-[11px] font-['JetBrains_Mono'] bg-white/60 dark:bg-white/[0.035] text-slate-600 dark:text-slate-400 flex items-center justify-between gap-2">
                         <span className="truncate">Top bar node:</span>
-                        <span className="text-amber-700 dark:text-amber-300 font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30">
+                        <span className="rounded-lg px-2.5 py-1 bg-amber-500/12 border border-amber-400/35 font-['JetBrains_Mono'] ulm-kpi-label text-[11px] font-bold text-amber-700 dark:text-amber-300 shrink-0">
                           {formData.station_id}
                         </span>
                       </div>
@@ -938,7 +938,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="space-y-3.5">
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                         <HardDrive className="w-4 h-4" />
                       </div>
                       <div>
@@ -950,9 +950,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </p>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-['JetBrains_Mono'] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                      <span className="w-1.5 h-1.5 rounded-xs bg-emerald-500" />
-                      <span>OFFLINE SECURE · DATABASE MOUNTED</span>
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.12] font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
+                      <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)] shrink-0" />
+                      OFFLINE SECURE · DATABASE MOUNTED
                     </span>
                   </div>
 
