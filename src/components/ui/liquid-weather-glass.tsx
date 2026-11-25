@@ -32,6 +32,7 @@ export const LiquidGlassCard = ({
   glowIntensity = 'sm',
   shadowIntensity = 'sm',
   enableDistortion = false,
+  style,
   ...props
 }: LiquidGlassCardProps) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
@@ -95,11 +96,6 @@ export const LiquidGlassCard = ({
           expandable && 'cursor-pointer',
           className
         )}
-        style={{
-          borderRadius,
-          ...(width && !expandable && { width }),
-          ...(height && !expandable && { height }),
-        }}
         variants={containerVariants}
         animate={expandable ? (isExpanded ? 'expanded' : 'collapsed') : undefined}
         onClick={expandable ? handleToggleExpansion : undefined}
@@ -109,6 +105,12 @@ export const LiquidGlassCard = ({
         dragTransition={draggable ? { bounceStiffness: 300, bounceDamping: 10, power: 0.3 } : undefined}
         whileDrag={draggable ? { scale: 1.02 } : undefined}
         {...props}
+        style={{
+          borderRadius,
+          ...(width && !expandable && { width }),
+          ...(height && !expandable && { height }),
+          ...style,
+        }}
       >
         {/* Frosted Bend Layer */}
         <div

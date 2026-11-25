@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Building2, 
@@ -15,12 +15,12 @@ import {
   Info,
   Lock,
   Unlock,
-  RotateCcw
 } from 'lucide-react';
-import { Almari, BookGroup, Book, AlmariPlanEntry } from '../../types/library';
+import { Almari, BookGroup } from '../../types/library';
 import { AlmariService } from '../../services/almariService';
 import { LibraryStorage } from '../../services/storage';
 import { DeleteAlmariModal } from '../modals/DeleteAlmariModal';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface AlmarisSettingsTabProps {
   onAlmarisChanged?: () => void;
@@ -29,7 +29,6 @@ interface AlmarisSettingsTabProps {
 export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmarisChanged }) => {
   const [almaris, setAlmaris] = useState<Almari[]>(() => AlmariService.getAlmaris());
   const [groups, setGroups] = useState<BookGroup[]>(() => AlmariService.getGroups());
-  const [almariPlan, setAlmariPlan] = useState<AlmariPlanEntry[]>(() => AlmariService.getAlmariPlan());
   const [editingAlmariId, setEditingAlmariId] = useState<string | null>(null);
 
   // Edit fields
@@ -51,13 +50,20 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
   const [newBooksPerShelf, setNewBooksPerShelf] = useState(30);
   const [newNotes, setNewNotes] = useState('');
   const [newGroupIds, setNewGroupIds] = useState<string[]>([]);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showUnassignedGroups, setShowUnassignedGroups] = useState(false);
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
-  };
+  useEffect(() => {
+    const syncState = () => {
+      setAlmaris(AlmariService.getAlmaris());
+      setGroups(AlmariService.getGroups());
+    };
+    window.addEventListener('ulm-library-sync', syncState);
+    window.addEventListener('ulm-library-data-changed', syncState);
+    return () => {
+      window.removeEventListener('ulm-library-sync', syncState);
+      window.removeEventListener('ulm-library-data-changed', syncState);
+    };
+  }, []);
 
   // Warning checks: groups with no almari or split groups
   const almariGroups = AlmariService.getAlmariGroups();
@@ -106,22 +112,23 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
     setAlmaris(AlmariService.getAlmaris());
     setEditingAlmariId(null);
     onAlmarisChanged?.();
-    showToast('Almari configuration updated.');
-  };
-
-  const handleResetPlanToDefault = () => {
-    const def = AlmariService.resetAlmariPlanToDefault();
-    setAlmariPlan([...def]);
-    showToast('Almari plan successfully reset to canonical 12 disciplines.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Almari Updated',
+      message: `Updated ${editCode.trim().toUpperCase()} (${editNameEn.trim()}).`,
+      meta: editCode.trim().toUpperCase(),
+    });
   };
 
   const handleSaveAdd = () => {
     if (!newCode.trim() || !newNameEn.trim()) return;
+    const savedCode = newCode.trim().toUpperCase();
+    const savedName = newNameEn.trim();
     AlmariService.addAlmari(
       {
-        code: newCode.trim().toUpperCase(),
-        name_en: newNameEn.trim(),
-        name_ur: newNameUr.trim() || newNameEn.trim(),
+        code: savedCode,
+        name_en: savedName,
+        name_ur: newNameUr.trim() || savedName,
         shelf_count: Number(newShelves) || 5,
         books_per_shelf: Number(newBooksPerShelf) || 30,
         notes: newNotes.trim() || undefined,
@@ -137,7 +144,12 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
     setNewNotes('');
     setNewGroupIds([]);
     onAlmarisChanged?.();
-    showToast('New Almari created.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Almari Created',
+      message: `Created Almari ${savedCode} (${savedName}).`,
+      meta: savedCode,
+    });
   };
 
   const [almariToDelete, setAlmariToDelete] = useState<Almari | null>(null);
@@ -155,7 +167,11 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
     if (res.success) {
       setAlmaris(AlmariService.getAlmaris());
       onAlmarisChanged?.();
-      showToast(res.message);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Almari Deleted',
+        message: res.message,
+      });
     }
   };
 
@@ -172,17 +188,9 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
   };
 
   return (
-    <div className="ulm-preserve-glass rounded-[22px] p-5 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-4">
-      {/* Toast */}
-      {toastMsg && (
-        <div className="p-2.5 bg-amber-500/[0.10] border border-amber-500/35 rounded-xl text-amber-800 dark:text-amber-300 text-[12px] font-semibold flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <span>{toastMsg}</span>
-        </div>
-      )}
-
-      {/* Sub-Section A: Sleek Collapsible Unassigned Book Groups Status Bar */}
-      {groupsWithNoAlmari.length > 0 && (
+    <div className="h-full flex flex-col ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-5">
+      {/* Sub-Section A: Sleek Collapsible Unassigned Book Groups Status Bar (hidden when 0 book groups) */}
+      {groups.length > 0 && groupsWithNoAlmari.length > 0 && (
         <div className="rounded-2xl px-4 py-3 bg-amber-500/[0.07] border border-amber-400/30">
           <div
             role="button"
@@ -233,16 +241,16 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
       )}
 
       {/* Header & Add Button */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200/70 dark:border-white/[0.09]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500/12 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Building2 className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-['Plus_Jakarta_Sans'] text-[14px] font-bold text-slate-900 dark:text-white leading-tight">
+            <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white leading-tight">
               Almaris &amp; Cupboards (الماریاں) Management
             </h3>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+            <p className="text-[12px] text-slate-600 dark:text-slate-400 mt-0.5">
               Physical cupboards, shelf capacity guidance, and assigned book groups.
             </p>
           </div>
@@ -254,10 +262,10 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
             setNewCode(`A-${String(nextNum).padStart(2, '0')}`);
             setIsAdding(true);
           }}
-          className="h-9 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+          className="h-9 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Add New Almari</span>
+          <span>+ Add New Almari</span>
         </button>
       </div>
 
@@ -424,18 +432,44 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
         document.body
       )}
 
-      {/* Physical Almaris Table */}
-      <div className="rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] overflow-hidden">
-        <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
+      {/* Physical Almaris Table or Clean 0-Item Empty State */}
+      <div className="flex-1 rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] overflow-hidden flex flex-col">
+        {almaris.length === 0 ? (
+          <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center p-8 text-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 max-w-xs">
+              <p className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white">
+                No physical Almaris configured yet.
+              </p>
+              <p className="text-[11.5px] text-slate-500 dark:text-slate-400">
+                Add your library&apos;s physical cupboards and shelf capacities to organize book placements.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setNewCode('A-01');
+                setIsAdding(true);
+              }}
+              className="h-9 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add New Almari</span>
+            </button>
+          </div>
+        ) : (
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-[#150E26]/95 backdrop-blur-md">
               <tr className="border-b border-slate-200/80 dark:border-white/[0.10] text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                <th className="py-2.5 px-3 w-16 text-center">Code</th>
-                <th className="py-2.5 px-3">Almari Name &amp; Location</th>
-                <th className="py-2.5 px-3">Shelves &amp; Capacity</th>
-                <th className="py-2.5 px-3">Assigned Book Groups</th>
-                <th className="py-2.5 px-3 text-center">Current Load</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
+                <th className="py-3 px-4 w-20 text-center whitespace-nowrap">Code</th>
+                <th className="py-3 px-4 whitespace-nowrap">Almari Name &amp; Location</th>
+                <th className="py-3 px-4 whitespace-nowrap">Shelves &amp; Capacity</th>
+                <th className="py-3 px-4 whitespace-nowrap">Assigned Book Groups</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Current Load</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/60 dark:divide-white/[0.06] text-[12px] text-slate-800 dark:text-slate-200">
@@ -674,78 +708,7 @@ export const AlmarisSettingsTab: React.FC<AlmarisSettingsTabProps> = ({ onAlmari
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Sub-Section B: Master Almari Plan (ماسٹر الماری پلان) — 12 Disciplines */}
-      <div className="pt-3 border-t border-slate-200/70 dark:border-white/[0.10] space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/12 dark:bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-300" />
-            </div>
-            <div>
-              <h4 className="font-['Plus_Jakarta_Sans'] text-[13px] font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                <span>Almari Plan (ماسٹر الماری پلان)</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 !rounded-md bg-amber-500/12 border border-amber-400/35 font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                  {almariPlan.length} Disciplines
-                </span>
-              </h4>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Canonical naming and group mappings for auto-arranging books and overflow Almaris.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleResetPlanToDefault}
-            className="h-8 px-3 !rounded-xl bg-white/75 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-800 dark:text-amber-300 border border-amber-400/35 ulm-kpi-label text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
-            title="Reset Almari Plan to canonical 12 disciplines"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span>Reset to default plan</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
-          {almariPlan.map((entry) => {
-            const assignedAlmaris = almaris.filter(
-              a => a.plan_key === entry.key || a.name_en.startsWith(entry.name_en)
-            );
-            const assignedCount = assignedAlmaris.length;
-            const assignedCodes = assignedAlmaris.map(a => a.code);
-            return (
-              <div
-                key={entry.key}
-                className="rounded-2xl p-3.5 bg-white/75 dark:bg-white/[0.035] hover:bg-white dark:hover:bg-white/[0.06] border border-slate-200/85 dark:border-white/[0.10] hover:border-amber-400/35 transition-all flex flex-col justify-between gap-2.5"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-['Plus_Jakarta_Sans'] text-[12.5px] font-bold text-slate-900 dark:text-white leading-tight">
-                    {entry.name_en}
-                  </div>
-                  <div className="font-urdu text-[12px] font-medium text-amber-700 dark:text-amber-300/90 shrink-0" dir="rtl">
-                    {entry.name_ur}
-                  </div>
-                </div>
-                <p className="ulm-kpi-label text-[11px] text-slate-500 dark:text-slate-400 leading-snug line-clamp-2">
-                  {(entry.group_names_en || []).join(', ')}
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-white/[0.07] flex items-center justify-between font-['JetBrains_Mono'] ulm-kpi-label text-[10px]">
-                  <span className="text-slate-400 dark:text-slate-500 uppercase tracking-wider">Almaris</span>
-                  <span
-                    className={
-                      assignedCount > 0
-                        ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-                        : 'text-slate-500 dark:text-slate-400'
-                    }
-                  >
-                    {assignedCount > 0 ? assignedCodes.join(', ') : 'Auto-create'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        )}
       </div>
 
       {/* Delete Almari Modal */}

@@ -99,14 +99,14 @@ export const DeleteAlmariModal: React.FC<DeleteAlmariModalProps> = ({
   return createPortal(
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%] animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%] ulm-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-almari-title"
     >
       <div 
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-[540px] rounded-[24px] p-6 bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1C1132]/95 dark:via-[#140C26]/95 dark:to-[#0E081C]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-rose-500/30 shadow-[0_24px_64px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.75)] overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150 text-slate-900 dark:text-white"
+        className="w-full max-w-[540px] rounded-[24px] p-6 bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1C1132]/95 dark:via-[#140C26]/95 dark:to-[#0E081C]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-rose-500/30 shadow-[0_24px_64px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.75)] overflow-hidden flex flex-col max-h-[92vh] ulm-modal-dialog text-slate-900 dark:text-white"
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200/80 dark:border-white/[0.10]">

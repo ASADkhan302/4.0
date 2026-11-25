@@ -5,6 +5,9 @@ import { LibraryDataFilesService } from './libraryDataFilesService';
 import { UsbBackupService } from './usbBackupService';
 import { BarcodeService } from './barcodeService';
 import { INITIAL_SETTINGS } from './initialData';
+import { AlmariService } from './almariService';
+import { idbClearAll } from './indexedDbStorage';
+import { RealStorageService } from './realStorageService';
 
 export interface DeletionSummary {
   booksCount: number;
@@ -261,15 +264,29 @@ export class ResetToZeroService {
         }
       }
 
-      // (b) Purge all database tables across IndexedDB, SQLite, and memory
+      // (b) Purge all database tables across IndexedDB, SQLite, AlmariService, and memory
+      await idbClearAll().catch(() => {});
       await LibraryStorage.clearAllDatabaseStores();
+      try {
+        RealStorageService.getActiveSqliteEngine()?.clearAllLibraryTables();
+      } catch {}
+      try {
+        const nativeApi = (window as any)?.electronAPI || (window as any)?.desktopAPI;
+        if (nativeApi?.sqliteExecute) {
+          for (const tbl of ['books', 'members', 'borrowers', 'transactions', 'almaris', 'book_groups', 'groups']) {
+            await nativeApi.sqliteExecute(`DELETE FROM ${tbl};`).catch(() => {});
+          }
+        }
+      } catch {}
+
       LibraryStorage.saveBooks([]);
       LibraryStorage.saveBorrowers([]);
       LibraryStorage.saveTransactions([]);
       LibraryStorage.saveHistory([]);
       LibraryStorage.clearBooksCache();
+      AlmariService.clearAllToZero();
 
-      // (c) Clear counters, queues, and caches
+      // (c) Clear counters, queues, and caches and explicitly write empty arrays across all keys
       BookSheetService.clearWithdrawnAccessions();
       BookSheetService.clearQueue();
       BookSheetService.clearAllCaches();
@@ -280,13 +297,9 @@ export class ResetToZeroService {
         localStorage.removeItem('ulm_lms_linked_sheet_v2');
         localStorage.removeItem('ulm_books');
         localStorage.removeItem('ulm_lms_books');
-        localStorage.removeItem('ulm_lms_books_v1');
-        localStorage.removeItem('ulm_library_books_master_v1');
         localStorage.removeItem('books');
         localStorage.removeItem('ulm_library_books');
         localStorage.removeItem('library_books');
-        localStorage.removeItem('ulm_highest_serial_number_v1');
-        localStorage.removeItem('ulm_almari_placements_master_v3');
         localStorage.removeItem('ulm_first_open_thumbnail_boot_cache_v1');
         localStorage.removeItem('ulm_sqlite_migration_verified_v1');
         localStorage.removeItem('ulm_lms_import_batches_v1');
@@ -299,6 +312,27 @@ export class ResetToZeroService {
         localStorage.removeItem('ulm_setup_complete');
         localStorage.removeItem('ulm_onboarding_complete');
         localStorage.removeItem('ulm_storage_location_configured_v1');
+        localStorage.removeItem('ulm_active_almari_id_v3');
+
+        // Explicit True-Zero Factory Reset persistence (never auto-reseed defaults!)
+        localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
+        localStorage.setItem('ulm_lms_books_v1', '[]');
+        localStorage.setItem('ulm_library_books_master_v1', '[]');
+        localStorage.setItem('ulm_storage_engine_books_v1', '[]');
+        localStorage.setItem('ulm_lms_transactions_v1', '[]');
+        localStorage.setItem('ulm_circulation_records_v1', '[]');
+        localStorage.setItem('ulm_lms_members_v1', '[]');
+        localStorage.setItem('ulm_lms_borrowers_v1', '[]');
+        localStorage.setItem('ulm_almaris_registry_v2', '[]');
+        localStorage.setItem('ulm_lms_almaris_v1', '[]');
+        localStorage.setItem('ulm_book_groups_v1', '[]');
+        localStorage.setItem('ulm_lms_book_groups_v1', '[]');
+        localStorage.setItem('ulm_lms_almari_groups_v1', '[]');
+        localStorage.setItem('ulm_lms_almari_shelves_v1', '[]');
+        localStorage.setItem('ulm_lms_location_history_v1', '[]');
+        localStorage.setItem('ulm_almari_placements_master_v3', '{}');
+        localStorage.setItem('ulm_shelf_capacities_v3', '{}');
+        localStorage.setItem('ulm_highest_serial_number_v1', '0');
         localStorage.setItem('ulm_setup_completed_v1', 'false');
         localStorage.setItem('ulm_database_cleared', 'true');
         localStorage.setItem('ulm_initialized_empty', 'true');
@@ -321,29 +355,38 @@ export class ResetToZeroService {
         console.warn('Data files notice during reset:', fileErr.message);
       }
 
+      // Enforce zeroed AlmariService & localStorage state again after snapshot refresh
+      AlmariService.clearAllToZero();
+
       // Broadcast real-time zeroed state across all active screens
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('ulm-library-sync', { detail: { books: [], loans: [] } }));
+        window.dispatchEvent(
+          new CustomEvent('ulm-library-sync', {
+            detail: { books: [], members: [], loans: [], almaris: [], bookGroups: [] },
+          })
+        );
         window.dispatchEvent(new CustomEvent('ulm-library-data-changed'));
       }
 
       // (g) Add clean audit entry
       LibraryStorage.logHistory({
         action: 'DATABASE_RESET',
-        description: `Reset to zero executed successfully. All tables purged. Backup preserved as "${backupFilename}".`,
+        description: `Reset to zero executed successfully. All tables, Almaris, and Book Groups purged to 0. Backup preserved as "${backupFilename}".`,
         barcode: 'RESET-0',
         user: 'Librarian-Admin',
       });
 
       // 5. Step 8: Automatic self-check
-      // Ensure clean initialization markers immediately
-      try {
-        localStorage.setItem('ulm_initialized_empty', 'true');
-        localStorage.setItem('ulm_database_cleared', 'true');
-      } catch (_) {}
-
+      await idbClearAll().catch(() => {});
       await LibraryStorage.clearAllDatabaseStores();
       LibraryStorage.saveBooks([]);
+      AlmariService.clearAllToZero();
+      try {
+        localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
+        localStorage.setItem('ulm_initialized_empty', 'true');
+        localStorage.setItem('ulm_database_cleared', 'true');
+        localStorage.setItem('ulm_setup_completed_v1', 'false');
+      } catch (_) {}
 
       const postBooks: any[] = [];
       const postBorrowers = LibraryStorage.getBorrowers();
@@ -360,6 +403,8 @@ export class ResetToZeroService {
         postBooks.length === 0 &&
         postBorrowers.length === 0 &&
         postTransactions.length === 0 &&
+        AlmariService.getAlmaris().length === 0 &&
+        AlmariService.getGroups().length === 0 &&
         postWithdrawn.length === 0 &&
         postQueue.length === 0 &&
         (nextAccInfo.accessionNo === '1' || nextAccInfo.accessionNo === '00001') &&
@@ -380,12 +425,6 @@ export class ResetToZeroService {
         testBookBarcode,
         passed,
       };
-
-      // Ensure clean initialization markers
-      try {
-        localStorage.setItem('ulm_initialized_empty', 'true');
-        localStorage.setItem('ulm_database_cleared', 'true');
-      } catch (_) {}
 
       onProgress(100, 'Reset complete.');
 
@@ -435,7 +474,12 @@ export class ResetToZeroService {
     const cb = onProgress || (() => {});
     cb(10, 'Retrieving pre-reset backup archive...');
 
-    const b64 = localStorage.getItem(UNDO_BACKUP_STORAGE_KEY);
+    let b64: string | null = null;
+    try {
+      b64 = localStorage.getItem(UNDO_BACKUP_STORAGE_KEY);
+    } catch {
+      b64 = null;
+    }
     if (!b64) {
       return { success: false, message: 'No pre-reset backup snapshot found to undo.' };
     }
@@ -457,6 +501,11 @@ export class ResetToZeroService {
       if (!restoreRes.success) {
         return { success: false, message: `Failed to undo reset: ${restoreRes.message}` };
       }
+
+      try {
+        localStorage.removeItem('ulm_factory_reset_empty_v1');
+      } catch {}
+      AlmariService.resetCaches();
 
       // Synchronize data files
       cb(95, 'Refreshing data files...');

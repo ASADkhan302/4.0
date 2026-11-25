@@ -187,6 +187,11 @@ export interface UlmLibraryElectronApi {
   lookupByScanCode: (code: string) => Promise<UlmBookRecord | null>;
   saveBook: (book: Partial<UlmBookRecord>, mode?: 'insert' | 'upsert') => Promise<UlmBookRecord>;
   deleteBook: (idOrAccession: string) => Promise<{ deleted: boolean; id?: string; accessionNumber?: string }>;
+  deleteBooksBatch?: (keys: {
+    ids: string[];
+    barcodes: string[];
+    accessions: string[];
+  }) => Promise<{ deletedCount: number }>;
   getDashboardStats: () => Promise<Record<string, unknown>>;
   migrateFromLocalStorage: (payload: Record<string, unknown>) => Promise<MigrationVerificationReport>;
   importSingleChunk?: (
@@ -752,25 +757,28 @@ export const SETUP_COMPLETED_KEY = 'ulm_workstation_setup_completed_v1';
 
 export function isWorkstationAlreadyInstalledAndConfigured(existingBookCount = 0): boolean {
   if (typeof window === 'undefined' || !window.localStorage) return false;
-  if (localStorage.getItem('ulm_setup_completed_v1') === 'false') {
-    return false;
+  try {
+    const setupFlag = localStorage.getItem('ulm_setup_completed_v1');
+    const repoPath = localStorage.getItem('ulm_library_repo_path_v1');
+    if (setupFlag === 'false') {
+      return false;
+    }
+    if (existingBookCount > 0 && (setupFlag === 'true' || Boolean(repoPath))) {
+      localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+      localStorage.setItem('ulm_setup_completed_v1', 'true');
+      return true;
+    }
+    if (setupFlag === 'true' && Boolean(repoPath)) {
+      return true;
+    }
+    return Boolean(
+      setupFlag === 'true' ||
+      (localStorage.getItem(SETUP_COMPLETED_KEY) === 'true' && Boolean(repoPath)) ||
+      (localStorage.getItem('ulm_data_folder_config_v1') && Boolean(repoPath))
+    );
+  } catch {
+    return existingBookCount > 0;
   }
-  if (existingBookCount > 0) {
-    localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
-    localStorage.setItem('ulm_setup_completed_v1', 'true');
-    return true;
-  }
-  return Boolean(
-    localStorage.getItem('ulm_setup_completed_v1') === 'true' ||
-    localStorage.getItem(SETUP_COMPLETED_KEY) === 'true' ||
-    localStorage.getItem('ulm_setup_complete') === 'true' ||
-    localStorage.getItem('ulm_onboarding_complete') === 'true' ||
-    localStorage.getItem('ulm_data_folder_config_v1') ||
-    localStorage.getItem('ulm_storage_location_configured_v1') === 'true' ||
-    localStorage.getItem('ulm_library_initialized') === 'true' ||
-    Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0) > 0 ||
-    Number(localStorage.getItem('ulm_master_excel_book_count') || 0) > 0
-  );
 }
 
 export function markWorkstationSetupCompleted(mode = 'configured'): void {
@@ -860,23 +868,28 @@ export async function resetEntireDatabaseToZero(): Promise<{ success: boolean; c
       try { localStorage.removeItem(k); } catch (_) {}
     }
     try {
+      localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
+      localStorage.setItem('ulm_lms_books_v1', '[]');
+      localStorage.setItem('ulm_library_books_master_v1', '[]');
+      localStorage.setItem('ulm_storage_engine_books_v1', '[]');
+      localStorage.setItem('ulm_lms_transactions_v1', '[]');
+      localStorage.setItem('ulm_circulation_records_v1', '[]');
+      localStorage.setItem('ulm_lms_members_v1', '[]');
+      localStorage.setItem('ulm_lms_borrowers_v1', '[]');
+      localStorage.setItem('ulm_almaris_registry_v2', '[]');
+      localStorage.setItem('ulm_lms_almaris_v1', '[]');
+      localStorage.setItem('ulm_book_groups_v1', '[]');
+      localStorage.setItem('ulm_lms_book_groups_v1', '[]');
+      localStorage.setItem('ulm_lms_almari_groups_v1', '[]');
+      localStorage.setItem('ulm_lms_almari_shelves_v1', '[]');
+      localStorage.setItem('ulm_lms_location_history_v1', '[]');
+      localStorage.setItem('ulm_almari_placements_master_v3', '{}');
+      localStorage.setItem('ulm_shelf_capacities_v3', '{}');
+      localStorage.removeItem('ulm_active_almari_id_v3');
+      localStorage.setItem('ulm_highest_serial_number_v1', '0');
       localStorage.setItem('ulm_setup_completed_v1', 'false');
       localStorage.setItem('ulm_database_cleared', 'true');
-      const defaultIh = {
-        id: 'alm-ih-01',
-        code: 'IH',
-        name_en: 'Institutional Holdings & Main Stack',
-        name_ur: 'ادارہ جاتی ذخیرہ کتب',
-        shelf_count: 5,
-        books_per_shelf: 25,
-        approx_capacity: 125,
-        location: 'Main Hall • Ground Floor',
-        location_note: 'Main Hall • Ground Floor',
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
-      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
-      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_initialized_empty', 'true');
     } catch (_) {}
 
     invalidateRamPageCache();
@@ -977,9 +990,11 @@ function getIndexedDb(): Promise<IDBDatabase> {
 
 export async function getTrueDatabaseBookCount(): Promise<number> {
   if (typeof window !== 'undefined') {
-    if (localStorage.getItem('ulm_database_cleared') === 'true') {
-      return 0;
-    }
+    try {
+      if (localStorage.getItem('ulm_database_cleared') === 'true') {
+        return 0;
+      }
+    } catch {}
     try {
       const primaryCatalog = await idbGet<unknown[]>('books_catalog');
       if (Array.isArray(primaryCatalog) && primaryCatalog.length > 0) {
@@ -1186,18 +1201,80 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
     },
 
     async deleteBook(idOrAccession: string) {
-      const match = await api.lookupByScanCode(idOrAccession);
-      if (!match) return { deleted: false };
+      const needle = String(idOrAccession || '').trim();
+      if (!needle) return { deleted: false };
+      const match = await api.lookupByScanCode(needle);
       const db = await getIndexedDb();
       const tx = db.transaction('books', 'readwrite');
       const store = tx.objectStore('books');
+      const targetKey = match ? match.id : needle;
       await new Promise<void>((resolve, reject) => {
-        const delReq = store.delete(match.id);
+        const delReq = store.delete(targetKey);
         delReq.onsuccess = () => resolve();
         delReq.onerror = () => reject(delReq.error);
       });
       invalidateRamPageCache();
-      return { deleted: true, id: match.id, accessionNumber: match.accession_number };
+      return {
+        deleted: true,
+        id: targetKey,
+        accessionNumber: match?.accession_number,
+      };
+    },
+
+    async deleteBooksBatch(keys: { ids: string[]; barcodes: string[]; accessions: string[] }) {
+      const idSet = new Set((keys.ids || []).map((v) => String(v || '').trim()).filter(Boolean));
+      const barcodeSet = new Set(
+        (keys.barcodes || []).map((v) => String(v || '').trim().toUpperCase()).filter(Boolean)
+      );
+      const accRawSet = new Set((keys.accessions || []).map((v) => String(v || '').trim()).filter(Boolean));
+      const accDigitSet = new Set(
+        (keys.accessions || []).map((v) => String(v || '').replace(/\D/g, '')).filter(Boolean)
+      );
+
+      if (idSet.size === 0 && barcodeSet.size === 0 && accRawSet.size === 0 && accDigitSet.size === 0) {
+        return { deletedCount: 0 };
+      }
+
+      const db = await getIndexedDb();
+      let deletedCount = 0;
+      await new Promise<void>((resolve) => {
+        try {
+          const tx = db.transaction('books', 'readwrite');
+          const store = tx.objectStore('books');
+          const cursorReq = store.openCursor();
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result;
+            if (!cursor) return;
+            const rec = (cursor.value || {}) as Record<string, unknown>;
+            const recId = String(rec.id || cursor.key || '').trim();
+            const recBarcode = String(rec.barcode || '').trim().toUpperCase();
+            const recAccRaw = String(
+              rec.accession_no || rec.accession_number || rec.accessionNumber || ''
+            ).trim();
+            const recAccDigits = recAccRaw.replace(/\D/g, '');
+
+            const matched =
+              (recId && idSet.has(recId)) ||
+              (recBarcode && barcodeSet.has(recBarcode)) ||
+              (recAccRaw && accRawSet.has(recAccRaw)) ||
+              (recAccDigits && accDigitSet.has(recAccDigits));
+
+            if (matched) {
+              cursor.delete();
+              deletedCount++;
+            }
+            cursor.continue();
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+
+      invalidateRamPageCache();
+      return { deletedCount };
     },
 
     async getDashboardStats() {
@@ -1288,7 +1365,11 @@ function createBrowserIndexedDbApi(): UlmLibraryElectronApi {
 
       let currentMaxSerial = 0;
       if (typeof window !== 'undefined' && window.localStorage) {
-        currentMaxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+        try {
+          currentMaxSerial = Number(localStorage.getItem('ulm_highest_serial_number_v1') || 0);
+        } catch {
+          currentMaxSerial = 0;
+        }
       }
 
       const { formattedSystemDateTime, isoTimestamp } = getCurrentSystemDateTimeStamp();
@@ -1586,9 +1667,11 @@ export async function runSafeLocalStorageMigration(): Promise<MigrationVerificat
   }
 
   // If user explicitly performed reset to zero, do not resurrect cleared books
-  if (window.localStorage.getItem('ulm_database_cleared') === 'true') {
-    return null;
-  }
+  try {
+    if (window.localStorage.getItem('ulm_database_cleared') === 'true') {
+      return null;
+    }
+  } catch {}
 
   const books = readFirstMatchingLocalStorageArray(LEGACY_BOOK_KEYS);
   const almaris = readFirstMatchingLocalStorageArray(LEGACY_ALMARI_KEYS);
@@ -1596,7 +1679,10 @@ export async function runSafeLocalStorageMigration(): Promise<MigrationVerificat
   const borrowers = readFirstMatchingLocalStorageArray(LEGACY_BORROWER_KEYS);
   const loans = readFirstMatchingLocalStorageArray(LEGACY_LOAN_KEYS);
 
-  const alreadyVerified = window.localStorage.getItem(MIGRATION_VERIFIED_FLAG);
+  let alreadyVerified: string | null = null;
+  try {
+    alreadyVerified = window.localStorage.getItem(MIGRATION_VERIFIED_FLAG);
+  } catch {}
   if (alreadyVerified && books.length === 0) {
     return null;
   }
@@ -1611,14 +1697,16 @@ export async function runSafeLocalStorageMigration(): Promise<MigrationVerificat
 
   if (report.success) {
     invalidateRamPageCache();
-    window.localStorage.setItem(
-      MIGRATION_VERIFIED_FLAG,
-      JSON.stringify({
-        verifiedAt: new Date().toISOString(),
-        backupPath: report.preMigrationBackupPath,
-        counts: report.counts,
-      })
-    );
+    try {
+      window.localStorage.setItem(
+        MIGRATION_VERIFIED_FLAG,
+        JSON.stringify({
+          verifiedAt: new Date().toISOString(),
+          backupPath: report.preMigrationBackupPath,
+          counts: report.counts,
+        })
+      );
+    } catch {}
     // Purge legacy localStorage books so 5MB limit is never hit again
     for (const k of [...LEGACY_BOOK_KEYS, FIRST_OPEN_BOOT_CACHE_KEY]) {
       try { window.localStorage.removeItem(k); } catch (_) {}

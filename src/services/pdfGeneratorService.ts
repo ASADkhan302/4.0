@@ -2,6 +2,30 @@ import { jsPDF } from 'jspdf';
 import { Book, Borrower } from '../types/library';
 import { encodeCode128B, evaluateScanSafety } from '../utils/code128';
 import { ULM_CREST_SRC, ULM_CREST_WATERMARK_SRC } from '../assets/ulmCrest';
+import { saveBinaryExport } from './desktopBridge';
+import {
+  CR80_HEIGHT_MM,
+  CR80_WIDTH_MM,
+  drawSmartPdfText,
+  renderCr80SideToDataUrl,
+} from './printAndPdfEngine';
+import {
+  borrowerToCardMemberData,
+  resolveCardRoleBadge,
+  type CardMemberData,
+} from '../components/library/UlmSmartIdCard';
+import type { InstitutionalIdentity } from '../utils/themeTransition';
+import { resolveMemberCardStanding } from '../utils/memberStanding';
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return [16, 185, 129];
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
 
 export type LabelSizePreset = 'standard' | 'medium' | 'small' | 'thin' | 'custom';
 export type LabelSheetLayout = 'avery_l7160' | 'avery_l7651' | 'plain_a4_grid' | 'thermal_roll';
@@ -134,6 +158,8 @@ export interface LabelJobOptions {
   startPosition?: number; // 1-based index on first sheet (1 to labelsPerPage)
   showCutLines?: boolean;
   autoThinSpineThreshold?: number; // Auto switch to thin spine if pages < threshold (e.g. 80)
+  universityName?: string;
+  libraryName?: string;
   onProgress?: (current: number, total: number, page: number) => void;
   shouldCancel?: () => boolean;
 }
@@ -142,6 +168,10 @@ export type CardPdfLayout = 'cr80_single' | 'a4_sheet_10' | 'a4_duplex';
 
 export interface CardPdfOptions {
   layout: CardPdfLayout;
+  side?: 'both' | 'front' | 'back';
+  watermarkAlpha?: number;
+  cards?: CardMemberData[];
+  identity?: Partial<InstitutionalIdentity>;
   onProgress?: (current: number, total: number) => void;
   shouldCancel?: () => boolean;
 }
@@ -320,7 +350,17 @@ export class PdfGeneratorService {
       }
 
       // Render Label Content
-      this.renderSingleLabelContent(doc, book, xMm, yMm, template.labelWidthMm, template.labelHeightMm, isThin);
+      this.renderSingleLabelContent(
+        doc,
+        book,
+        xMm,
+        yMm,
+        template.labelWidthMm,
+        template.labelHeightMm,
+        isThin,
+        options.universityName,
+        options.libraryName
+      );
 
       currentSheetSlot++;
       labelIndex++;
@@ -359,7 +399,9 @@ export class PdfGeneratorService {
     y: number,
     w: number,
     h: number,
-    isThin: boolean
+    isThin: boolean,
+    universityName?: string,
+    libraryName?: string
   ) {
     const pad = 1.8;
     const innerX = x + pad;
@@ -370,6 +412,8 @@ export class PdfGeneratorService {
     const barcode = book.barcode || 'ULM-00001';
     const accNo = book.accession_no || barcode.replace(/^[A-Z]+-/, '');
     const callNo = book.dewey_call_number || '000 ULM';
+    const univLabel = (universityName || 'UNIVERSITY OF LAKKI MARWAT').toUpperCase();
+    const libLabel = (libraryName || 'CENTRAL CAMPUS LIBRARY').toUpperCase();
 
     if (isThin) {
       // ================= THIN SPINE (15 × 38 mm rotated) =================
@@ -379,12 +423,14 @@ export class PdfGeneratorService {
       doc.rect(innerX, innerY, innerW, innerH, 'S');
 
       // Top: ULM Call Number
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(20, 20, 20);
-      doc.text(callNo.slice(0, 14), innerX + (innerW / 2), innerY + 3.2, { align: 'center' });
+      drawSmartPdfText(doc, callNo.slice(0, 14), innerX + (innerW / 2), innerY + 3.2, innerW - 1, {
+        fontSizePt: 5.5,
+        bold: true,
+        color: '#141414',
+        align: 'center',
+      });
 
-      // Middle: Rotated Barcode along the spine (vertical)
+      // Middle: Rotated Barcode along the spine (vertical) — crisp vector rectangles
       const barcodeH = 7.5;
       const barcodeW = innerH - 12; // length along spine
       const bcX = innerX + 3.2;
@@ -398,6 +444,7 @@ export class PdfGeneratorService {
       // Bottom: Barcode digits
       doc.setFont('courier', 'bold');
       doc.setFontSize(5);
+      doc.setTextColor(20, 20, 20);
       doc.text(barcode, innerX + (innerW / 2), innerY + innerH - 1.2, { align: 'center' });
       return;
     }
@@ -409,17 +456,21 @@ export class PdfGeneratorService {
 
     if (h < 26) {
       // ================= SMALL / MEDIUM COMPACT (e.g. Avery L7651: 38.1 × 21.2) =================
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      doc.setTextColor(40, 40, 40);
-      doc.text(callNo, innerX + 1, innerY + 2.5);
+      drawSmartPdfText(doc, callNo, innerX + 1, innerY + 2.5, (innerW - 2) * 0.56, {
+        fontSizePt: 6,
+        bold: true,
+        color: '#282828',
+        align: 'left',
+      });
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(80, 80, 80);
-      doc.text(`ACC: ${accNo}`, innerX + innerW - 1, innerY + 2.5, { align: 'right' });
+      drawSmartPdfText(doc, `ACC: ${accNo}`, innerX + innerW - 1, innerY + 2.5, (innerW - 2) * 0.44, {
+        fontSizePt: 5.5,
+        bold: true,
+        color: '#505050',
+        align: 'right',
+      });
 
-      // Barcode
+      // Barcode — crisp vector rectangles
       const bcH = Math.max(6, innerH - 8);
       const bcW = innerW - 2;
       this.drawVectorCode128(doc, barcode, innerX + 1, innerY + 4, bcW, bcH, {
@@ -431,39 +482,49 @@ export class PdfGeneratorService {
 
     // ================= STANDARD FULL (e.g. Avery L7160: 63.5 × 38.1 mm) =================
     // Header Row: Institutional Branding
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(40, 20, 60);
-    doc.text('UNIVERSITY OF LAKKI MARWAT', innerX + (innerW / 2), innerY + 3.0, { align: 'center' });
+    drawSmartPdfText(doc, univLabel, innerX + (innerW / 2), innerY + 3.0, innerW - 2, {
+      fontSizePt: 6.5,
+      bold: true,
+      color: '#28143c',
+      align: 'center',
+    });
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.2);
-    doc.setTextColor(100, 100, 100);
-    doc.text('CENTRAL CAMPUS LIBRARY', innerX + (innerW / 2), innerY + 5.5, { align: 'center' });
+    drawSmartPdfText(doc, libLabel, innerX + (innerW / 2), innerY + 5.5, innerW - 2, {
+      fontSizePt: 5.2,
+      bold: true,
+      color: '#646464',
+      align: 'center',
+    });
 
     // Hairline divider
     doc.setDrawColor(200, 200, 205);
     doc.line(innerX + 1, innerY + 6.8, innerX + innerW - 1, innerY + 6.8);
 
-    // Book Title (max 2 lines)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(15, 15, 15);
-    const titleLines = doc.splitTextToSize(book.book_name || 'Untitled Book', innerW - 2);
-    doc.text(titleLines.slice(0, 2), innerX + 1, innerY + 9.5);
+    // Book Title (max 2 lines; 300-DPI RTL canvas for Urdu/Arabic/Pashto, crisp vector for Latin)
+    drawSmartPdfText(doc, book.book_name || 'Untitled Book', innerX + 1, innerY + 9.5, innerW - 2, {
+      fontSizePt: 7,
+      bold: true,
+      color: '#0f0f0f',
+      align: 'left',
+      maxLines: 2,
+    });
 
     // Author
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(6);
-    doc.setTextColor(70, 70, 70);
-    const authorStr = (book.author || 'Author Unknown').slice(0, 36);
-    doc.text(authorStr, innerX + 1, innerY + 16.5);
+    drawSmartPdfText(doc, book.author || 'Author Unknown', innerX + 1, innerY + 16.5, innerW - 2, {
+      fontSizePt: 6,
+      italic: true,
+      color: '#464646',
+      align: 'left',
+    });
 
     // Call number
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(30, 70, 120);
-    doc.text(`Call: ${callNo}`, innerX + 1, innerY + 20.2);
+    drawSmartPdfText(doc, `Call: ${callNo}`, innerX + 1, innerY + 20.2, innerW - 2, {
+      fontSizePt: 6.5,
+      bold: true,
+      color: '#1e4678',
+      align: 'left',
+      font: 'courier',
+    });
 
     // Barcode Vector (exact module widths)
     const bcHeight = 8.5;
@@ -481,25 +542,52 @@ export class PdfGeneratorService {
   }
 
   /**
-   * Generates Member Cards PDF.
-   * Options:
-   * (a) exact CR80 pages (85.6 × 54.0 mm)
-   * (b) A4 sheet with 10 cards (2 × 5) and crop marks
-   * (c) Double-sided A4 mirrored for long-edge flipping
+   * Generates Member Cards PDF using the 300-DPI CR80 Master Canvas Renderer
+   * (1011 x 638 px = 85.60 x 53.98 mm) so PDF output is 100% pixel-identical
+   * to the on-screen preview and Print CR80 Card output.
    */
   static async generateMemberCardsPdf(
     members: Borrower[],
     options: CardPdfOptions
   ): Promise<{ doc: jsPDF; filename: string; pageCount: number; cardCount: number }> {
-    const cardW = 85.6;
-    const cardH = 54.0;
-    const totalMembers = members.length;
+    const cardW = CR80_WIDTH_MM; // 85.60 mm
+    const cardH = CR80_HEIGHT_MM; // 53.98 mm
+    const activeSide = options.side || 'both';
+    const cards: CardMemberData[] =
+      options.cards && options.cards.length > 0
+        ? options.cards.map((c) => ({ ...c, role: resolveCardRoleBadge(c) }))
+        : members.map((m) => borrowerToCardMemberData(m));
+
+    const totalCards = cards.length;
+    const renderOpts = {
+      watermarkAlpha: options.watermarkAlpha ?? 6.5,
+      identity: options.identity,
+    };
+
+    const drawCardSide = async (
+      doc: jsPDF,
+      card: CardMemberData,
+      fallbackMember: Borrower | undefined,
+      x: number,
+      y: number,
+      side: 'front' | 'back'
+    ) => {
+      if (typeof document !== 'undefined') {
+        const pngUrl = await renderCr80SideToDataUrl(card, side, renderOpts);
+        if (pngUrl) {
+          doc.addImage(pngUrl, 'PNG', x, y, cardW, cardH, undefined, 'FAST');
+          return;
+        }
+      }
+      if (fallbackMember) {
+        this.renderSingleCardPdf(doc, fallbackMember, x, y, cardW, cardH, side);
+      }
+    };
 
     let doc: jsPDF;
-    let pageCount = 1;
+    let pageCount = 0;
 
     if (options.layout === 'cr80_single') {
-      // Single CR80 pages: Page 1 Front, Page 2 Back, Page 3 Front...
       doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -507,28 +595,30 @@ export class PdfGeneratorService {
         compress: true,
       });
 
-      for (let i = 0; i < totalMembers; i++) {
+      const sidesToDraw: Array<'front' | 'back'> =
+        activeSide === 'front' ? ['front'] : activeSide === 'back' ? ['back'] : ['front', 'back'];
+
+      for (let i = 0; i < totalCards; i++) {
         if (options.shouldCancel && options.shouldCancel()) break;
-        const m = members[i];
+        const card = cards[i];
+        const fallbackMember = members[i];
 
-        if (i > 0) {
-          doc.addPage([cardW, cardH], 'landscape');
+        for (const side of sidesToDraw) {
+          if (pageCount > 0) {
+            doc.addPage([cardW, cardH], 'landscape');
+          }
           pageCount++;
+          await drawCardSide(doc, card, fallbackMember, 0, 0, side);
         }
-        this.renderSingleCardPdf(doc, m, 0, 0, cardW, cardH, 'front');
-
-        // Back page
-        doc.addPage([cardW, cardH], 'landscape');
-        pageCount++;
-        this.renderSingleCardPdf(doc, m, 0, 0, cardW, cardH, 'back');
 
         if (options.onProgress) {
-          options.onProgress(i + 1, totalMembers);
+          options.onProgress(i + 1, totalCards);
         }
-        await new Promise(r => setTimeout(r, 0));
+        await new Promise((r) => setTimeout(r, 0));
       }
-    } else {
-      // A4 Layout (10 cards: 2 columns × 5 rows)
+      if (pageCount === 0) pageCount = 1;
+    } else if (options.layout === 'a4_duplex') {
+      // Double-Sided A4 (Fronts on p1, Mirrored Backs on p2 — 2 cols x 5 rows = 10 cards/sheet)
       doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -540,58 +630,108 @@ export class PdfGeneratorService {
       const a4H = 297;
       const cols = 2;
       const rows = 5;
+      const colGap = 4;
+      const rowGap = 2.5;
       const cardsPerPage = cols * rows;
+      const leftMargin = (a4W - (cols * cardW + (cols - 1) * colGap)) / 2;
+      const topMargin = (a4H - (rows * cardH + (rows - 1) * rowGap)) / 2;
+      const totalSheets = Math.max(1, Math.ceil(totalCards / cardsPerPage));
 
-      // Margins to center 2×5 cards (total width: 2*85.6 = 171.2mm, total height: 5*54 = 270mm)
-      const leftMargin = (a4W - (cols * cardW)) / 2; // ~19.4 mm
-      const topMargin = (a4H - (rows * cardH)) / 2; // ~13.5 mm
-
-      const totalPages = Math.ceil(totalMembers / cardsPerPage);
-
-      for (let p = 0; p < totalPages; p++) {
+      for (let p = 0; p < totalSheets; p++) {
         if (options.shouldCancel && options.shouldCancel()) break;
+        const chunkCards = cards.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
+        const chunkMembers = members.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
 
-        const pageMembers = members.slice(p * cardsPerPage, (p + 1) * cardsPerPage);
-
-        if (p > 0) {
-          doc.addPage('a4', 'portrait');
+        if (activeSide === 'both' || activeSide === 'front') {
+          if (pageCount > 0) doc.addPage('a4', 'portrait');
           pageCount++;
-        }
-
-        // Draw Fronts on this page
-        for (let idx = 0; idx < pageMembers.length; idx++) {
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
-          const x = leftMargin + (col * cardW);
-          const y = topMargin + (row * cardH);
-
-          this.renderSingleCardPdf(doc, pageMembers[idx], x, y, cardW, cardH, 'front');
-          this.drawCardCropMarks(doc, x, y, cardW, cardH);
-        }
-
-        // If duplex, add mirrored Backs on next page
-        if (options.layout === 'a4_duplex') {
-          doc.addPage('a4', 'portrait');
-          pageCount++;
-
-          for (let idx = 0; idx < pageMembers.length; idx++) {
+          for (let idx = 0; idx < chunkCards.length; idx++) {
             const col = idx % cols;
-            // Mirrored column for flip-on-long-edge: col 0 becomes col 1, col 1 becomes col 0!
-            const mirroredCol = (cols - 1) - col;
             const row = Math.floor(idx / cols);
-            const x = leftMargin + (mirroredCol * cardW);
-            const y = topMargin + (row * cardH);
+            const x = leftMargin + col * (cardW + colGap);
+            const y = topMargin + row * (cardH + rowGap);
+            await drawCardSide(doc, chunkCards[idx], chunkMembers[idx], x, y, 'front');
+            this.drawCardCropMarks(doc, x, y, cardW, cardH);
+          }
+        }
 
-            this.renderSingleCardPdf(doc, pageMembers[idx], x, y, cardW, cardH, 'back');
+        if (activeSide === 'both' || activeSide === 'back') {
+          if (pageCount > 0) doc.addPage('a4', 'portrait');
+          pageCount++;
+          for (let idx = 0; idx < chunkCards.length; idx++) {
+            const col = idx % cols;
+            const mirroredCol = cols - 1 - col;
+            const row = Math.floor(idx / cols);
+            const x = leftMargin + mirroredCol * (cardW + colGap);
+            const y = topMargin + row * (cardH + rowGap);
+            await drawCardSide(doc, chunkCards[idx], chunkMembers[idx], x, y, 'back');
             this.drawCardCropMarks(doc, x, y, cardW, cardH);
           }
         }
 
         if (options.onProgress) {
-          options.onProgress(Math.min((p + 1) * cardsPerPage, totalMembers), totalMembers);
+          options.onProgress(Math.min((p + 1) * cardsPerPage, totalCards), totalCards);
         }
-        await new Promise(r => setTimeout(r, 0));
+        await new Promise((r) => setTimeout(r, 0));
       }
+      if (pageCount === 0) pageCount = 1;
+    } else {
+      // A4 Sheet: Front + Back side-by-side in crisp 2-column grid (up to 10 slots / page) with crop marks
+      doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      const a4W = 210;
+      const a4H = 297;
+      const cols = 2;
+      const rows = 5;
+      const colGap = 4;
+      const rowGap = 2.5;
+      const slotsPerPage = cols * rows;
+      const leftMargin = (a4W - (cols * cardW + (cols - 1) * colGap)) / 2;
+      const topMargin = (a4H - (rows * cardH + (rows - 1) * rowGap)) / 2;
+
+      const slotQueue: Array<{
+        card: CardMemberData;
+        member?: Borrower;
+        side: 'front' | 'back';
+      }> = [];
+
+      for (let i = 0; i < totalCards; i++) {
+        if (activeSide === 'both' || activeSide === 'front') {
+          slotQueue.push({ card: cards[i], member: members[i], side: 'front' });
+        }
+        if (activeSide === 'both' || activeSide === 'back') {
+          slotQueue.push({ card: cards[i], member: members[i], side: 'back' });
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(slotQueue.length / slotsPerPage));
+      for (let p = 0; p < totalPages; p++) {
+        if (options.shouldCancel && options.shouldCancel()) break;
+        if (p > 0) doc.addPage('a4', 'portrait');
+        pageCount++;
+
+        const pageSlots = slotQueue.slice(p * slotsPerPage, (p + 1) * slotsPerPage);
+        for (let idx = 0; idx < pageSlots.length; idx++) {
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          const x = leftMargin + col * (cardW + colGap);
+          const y = topMargin + row * (cardH + rowGap);
+          const item = pageSlots[idx];
+          await drawCardSide(doc, item.card, item.member, x, y, item.side);
+          this.drawCardCropMarks(doc, x, y, cardW, cardH);
+        }
+
+        if (options.onProgress) {
+          options.onProgress(Math.min((p + 1) * slotsPerPage, slotQueue.length), slotQueue.length);
+        }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      if (pageCount === 0) pageCount = 1;
     }
 
     const dateStr = new Date().toISOString().slice(0, 10);
@@ -601,7 +741,7 @@ export class PdfGeneratorService {
       doc,
       filename,
       pageCount,
-      cardCount: totalMembers,
+      cardCount: totalCards,
     };
   }
 
@@ -646,12 +786,7 @@ export class PdfGeneratorService {
     side: 'front' | 'back'
   ) {
     const rawRole = (m.role || 'Student').toLowerCase();
-    const roleBadge =
-      rawRole === 'faculty'
-        ? 'FACULTY CARD'
-        : rawRole === 'staff'
-        ? 'STAFF CARD'
-        : 'STUDENT CARD';
+    const roleBadge = resolveCardRoleBadge(m);
 
     const memberId = (m.barcode || m.university_id || m.student_id || 'ULM0329984').toUpperCase();
     const rollNo = m.roll_number || m.employee_no || m.university_id || m.student_id || 'BSCS-23-42';
@@ -672,6 +807,8 @@ export class PdfGeneratorService {
     const borrowingLimit = `${String(limitNum).padStart(2, '0')} Books (${rawRole === 'faculty' ? 30 : 14} Days)`;
     const phone = m.phone || '0342-5252555';
     const validTill = (m.valid_until || '30 JUN 2027').toUpperCase();
+    const standing = resolveMemberCardStanding(m, validTill);
+    const isInvalidStanding = standing.state === 'EXPIRED' || standing.state === 'SUSPENDED';
 
     // 1. White Card Background with 1.5px Gold (#C8963E) Border
     doc.setFillColor(255, 255, 255);
@@ -750,8 +887,9 @@ export class PdfGeneratorService {
       const photoW = 17.6;
       const photoH = 21.6;
       doc.setFillColor(241, 245, 249);
-      doc.setDrawColor(59, 16, 84);
-      doc.setLineWidth(0.4);
+      const [frameR, frameG, frameB] = isInvalidStanding ? hexToRgbTuple(standing.dotColor) : [59, 16, 84];
+      doc.setDrawColor(frameR, frameG, frameB);
+      doc.setLineWidth(0.45);
       doc.roundedRect(photoX, photoY, photoW, photoH, 1.5, 1.5, 'FD');
 
       const initials = name
@@ -760,10 +898,13 @@ export class PdfGeneratorService {
         .join('')
         .slice(0, 2)
         .toUpperCase();
-      doc.setFont('times', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(59, 16, 84);
-      doc.text(initials, photoX + photoW / 2, photoY + 11, { align: 'center' });
+      drawSmartPdfText(doc, initials, photoX + photoW / 2, photoY + 11, photoW - 2, {
+        fontSizePt: 11,
+        bold: true,
+        color: '#3b1054',
+        align: 'center',
+        font: 'times',
+      });
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(4.5);
       doc.setTextColor(71, 85, 105);
@@ -777,25 +918,30 @@ export class PdfGeneratorService {
       doc.setTextColor(255, 255, 255);
       doc.text(bloodGroup, photoX + photoW - 3.2, photoY + 2.9, { align: 'center' });
 
-      // Active Member Green Capsule Pill
-      doc.setFillColor(236, 253, 245);
-      doc.setDrawColor(16, 185, 129);
+      // Dynamic Account Standing Capsule Pill
+      const [bgR, bgG, bgB] = hexToRgbTuple(standing.bgColor);
+      const [bdR, bdG, bdB] = hexToRgbTuple(standing.borderColor);
+      const [txtR, txtG, txtB] = hexToRgbTuple(standing.textColor);
+      doc.setFillColor(bgR, bgG, bgB);
+      doc.setDrawColor(bdR, bdG, bdB);
       doc.setLineWidth(0.25);
       doc.roundedRect(photoX, photoY + photoH + 1.2, photoW, 3.2, 1.5, 1.5, 'FD');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(4.2);
-      doc.setTextColor(4, 120, 87);
-      doc.text('ACTIVE MEMBER', photoX + photoW / 2, photoY + photoH + 3.3, { align: 'center' });
+      doc.setFontSize(4.0);
+      doc.setTextColor(txtR, txtG, txtB);
+      doc.text(standing.label, photoX + photoW / 2, photoY + photoH + 3.25, { align: 'center' });
 
       // Right Info Column
       const infoX = x + 23.5;
       const infoW = w - 26.5;
 
       // Borrower Name + Member ID Pill
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.8);
-      doc.setTextColor(30, 7, 48);
-      doc.text(name.slice(0, 24), infoX, y + 16.8);
+      drawSmartPdfText(doc, name, infoX, y + 16.8, infoW - 20.5, {
+        fontSizePt: 8.8,
+        bold: true,
+        color: '#1e0730',
+        align: 'left',
+      });
 
       doc.setFillColor(243, 232, 255);
       doc.setDrawColor(233, 213, 255);
@@ -812,6 +958,7 @@ export class PdfGeneratorService {
 
       // 6-Field Metadata Grid
       const col2X = infoX + infoW / 2 + 1;
+      const halfColW = infoW / 2 - 1.5;
 
       // Row 1: Roll No | Academic Session
       doc.setFont('helvetica', 'bold');
@@ -820,40 +967,62 @@ export class PdfGeneratorService {
       doc.text('ROLL NO / REG ID', infoX, y + 20.8);
       doc.text('ACADEMIC SESSION', col2X, y + 20.8);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.6);
-      doc.setTextColor(59, 16, 84);
-      doc.text(rollNo.slice(0, 18), infoX, y + 23.2);
-      doc.setTextColor(15, 23, 42);
-      doc.text(session.slice(0, 18), col2X, y + 23.2);
+      drawSmartPdfText(doc, rollNo, infoX, y + 23.2, halfColW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: '#3b1054',
+        align: 'left',
+      });
+      drawSmartPdfText(doc, session, col2X, y + 23.2, halfColW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: '#0f172a',
+        align: 'left',
+      });
 
       // Row 2: Program / Designation
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(4.2);
       doc.setTextColor(100, 116, 139);
       doc.text('PROGRAM / DESIGNATION', infoX, y + 26.2);
-      doc.setFontSize(5.6);
-      doc.setTextColor(15, 23, 42);
-      doc.text(program.slice(0, 38), infoX, y + 28.6);
+      drawSmartPdfText(doc, program, infoX, y + 28.6, infoW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: '#0f172a',
+        align: 'left',
+      });
 
       // Row 3: Department
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(4.2);
       doc.setTextColor(100, 116, 139);
       doc.text('DEPARTMENT', infoX, y + 31.6);
-      doc.setFontSize(5.6);
-      doc.setTextColor(15, 23, 42);
-      doc.text(department.slice(0, 38), infoX, y + 34.0);
+      drawSmartPdfText(doc, department, infoX, y + 34.0, infoW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: '#0f172a',
+        align: 'left',
+      });
 
       // Row 4: Borrowing Limit | Valid Till
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(4.2);
       doc.setTextColor(100, 116, 139);
       doc.text('BORROWING LIMIT', infoX, y + 37.0);
       doc.text('VALID TILL', col2X, y + 37.0);
 
-      doc.setFontSize(5.6);
-      doc.setTextColor(15, 23, 42);
-      doc.text(borrowingLimit.slice(0, 18), infoX, y + 39.4);
-      doc.setTextColor(180, 83, 9);
-      doc.text(validTill.slice(0, 16), col2X, y + 39.4);
+      drawSmartPdfText(doc, borrowingLimit, infoX, y + 39.4, halfColW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: '#0f172a',
+        align: 'left',
+      });
+      drawSmartPdfText(doc, validTill, col2X, y + 39.4, halfColW, {
+        fontSizePt: 5.6,
+        bold: true,
+        color: standing.validTillColor,
+        align: 'left',
+      });
 
       // Footer Barcode Band (Height: 38px -> 7.6mm)
       const footerY = y + h - 7.8;
@@ -1071,8 +1240,20 @@ export class PdfGeneratorService {
 
   /**
    * Triggers download of generated jsPDF instance.
+   * Uses native Windows Save dialog in Desktop .exe builds and Blob download in browsers.
    */
   static downloadPdf(doc: jsPDF, filename: string): void {
-    doc.save(filename);
+    const safeName = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+    try {
+      const dataUri = doc.output('datauristring');
+      const base64 = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+      void saveBinaryExport(safeName, base64).then((saved) => {
+        if (!saved) {
+          doc.save(safeName);
+        }
+      });
+    } catch {
+      doc.save(safeName);
+    }
   }
 }

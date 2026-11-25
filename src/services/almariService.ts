@@ -61,16 +61,39 @@ export class AlmariService {
   private static almariPlanCache: AlmariPlanEntry[] | null = null;
   private static historyCache: BookLocationHistory[] | null = null;
 
+  private static readonly FACTORY_RESET_EMPTY_KEY = 'ulm_factory_reset_empty_v1';
+  private static readonly ALT_GROUPS_KEY = 'ulm_book_groups_v1';
+
+  private static isFactoryResetEmpty(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem(this.FACTORY_RESET_EMPTY_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
   // --- GROUPS ---
   static getGroups(): BookGroup[] {
-    if (this.groupsCache) return this.groupsCache;
+    if (this.groupsCache !== null) return this.groupsCache;
+    const isFactoryEmpty = this.isFactoryResetEmpty();
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.GROUPS);
-      if (raw) {
-        this.groupsCache = JSON.parse(raw);
-        return this.groupsCache!;
+      const raw =
+        localStorage.getItem(STORAGE_KEYS.GROUPS) ??
+        localStorage.getItem(this.ALT_GROUPS_KEY);
+      // If the key exists (even as "[]"), NEVER auto-reseed defaults!
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.groupsCache = parsed;
+          return this.groupsCache;
+        }
       }
     } catch {}
+    if (isFactoryEmpty) {
+      this.groupsCache = [];
+      return [];
+    }
     this.groupsCache = [...INITIAL_BOOK_GROUPS];
     this.saveGroups(this.groupsCache);
     return this.groupsCache;
@@ -78,11 +101,28 @@ export class AlmariService {
 
   static saveGroups(groups: BookGroup[]): void {
     this.groupsCache = groups;
-    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+    try {
+      const serialized = JSON.stringify(groups);
+      localStorage.setItem(STORAGE_KEYS.GROUPS, serialized);
+      localStorage.setItem(this.ALT_GROUPS_KEY, serialized);
+    } catch {}
+  }
+
+  /**
+   * Manual user-triggered action to load the default institutional book groups.
+   * Never invoked automatically during factory reset or empty-state loads.
+   */
+  static loadDefaultGroups(): BookGroup[] {
+    const defaults = [...INITIAL_BOOK_GROUPS];
+    this.saveGroups(defaults);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ulm-library-data-changed'));
+    }
+    return defaults;
   }
 
   static addGroup(group: Omit<BookGroup, 'id'>): BookGroup {
-    const groups = this.getGroups();
+    const groups = [...this.getGroups()];
     const id = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const newGroup: BookGroup = { ...group, id };
     groups.push(newGroup);
@@ -103,7 +143,7 @@ export class AlmariService {
     this.saveAlmariGroups(links);
   }
 
-  // --- ALMARIS (Persistent Cupboard Registry with Default IH Cupboard) ---
+  // --- ALMARIS (Persistent Cupboard Registry — strictly honors [] and factory-reset empty state) ---
   private static readonly ALMARI_STORAGE_KEY_V2 = 'ulm_almaris_registry_v2';
   private static readonly LEGACY_SEEDED_ALMARI_IDS = new Set([
     'alm-01',
@@ -130,28 +170,34 @@ export class AlmariService {
   };
 
   static getAlmaris(): Almari[] {
-    if (this.almarisCache) return this.almarisCache;
+    if (this.almarisCache !== null) return this.almarisCache;
+    const isFactoryEmpty = this.isFactoryResetEmpty();
     try {
       const rawV2 = localStorage.getItem(this.ALMARI_STORAGE_KEY_V2);
       const rawV1 = localStorage.getItem(STORAGE_KEYS.ALMARIS);
       const raw = rawV2 ?? rawV1;
+      // If the key exists (even as "[]"), NEVER auto-reseed defaults!
       if (raw !== null) {
-        const parsed: Almari[] = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const valid = parsed.filter(
-            (a) => !this.LEGACY_SEEDED_ALMARI_IDS.has(a.id) && a.is_active !== false
+            (a: Almari) => !this.LEGACY_SEEDED_ALMARI_IDS.has(a.id) && a.is_active !== false
           );
-          // Only seed default IH if storage was never initialized or only had legacy IDs
-          const list = rawV2 !== null ? valid : (valid.length > 0 ? valid : [this.DEFAULT_IH_ALMARI]);
-          this.almarisCache = list.map((a) => this.ensureAlmariShelves(a));
+          this.almarisCache = valid.map((a) => this.ensureAlmariShelves(a));
           try {
-            localStorage.setItem(this.ALMARI_STORAGE_KEY_V2, JSON.stringify(this.almarisCache));
-            localStorage.setItem(STORAGE_KEYS.ALMARIS, JSON.stringify(this.almarisCache));
+            const serialized = JSON.stringify(this.almarisCache);
+            localStorage.setItem(this.ALMARI_STORAGE_KEY_V2, serialized);
+            localStorage.setItem(STORAGE_KEYS.ALMARIS, serialized);
           } catch {}
           return this.almarisCache;
         }
       }
     } catch {}
+
+    if (isFactoryEmpty) {
+      this.almarisCache = [];
+      return [];
+    }
 
     const initialList = [this.DEFAULT_IH_ALMARI].map((a) => this.ensureAlmariShelves(a));
     this.saveAlmaris(initialList);
@@ -159,10 +205,39 @@ export class AlmariService {
   }
 
   static resetCaches(): void {
+    this.groupsCache = null;
     this.almarisCache = null;
     this.almariGroupsCache = null;
     this.almariShelvesCache = null;
+    this.almariPlanCache = null;
     this.historyCache = null;
+  }
+
+  /**
+   * Explicitly wipes Book Groups, Almaris, links, shelf capacities, and placements to strictly 0
+   * and sets the factory-reset empty guard so defaults are never re-seeded automatically.
+   */
+  static clearAllToZero(): void {
+    this.groupsCache = [];
+    this.almarisCache = [];
+    this.almariGroupsCache = [];
+    this.almariShelvesCache = [];
+    this.historyCache = [];
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(this.FACTORY_RESET_EMPTY_KEY, 'true');
+        localStorage.setItem(this.ALMARI_STORAGE_KEY_V2, '[]');
+        localStorage.setItem(STORAGE_KEYS.ALMARIS, '[]');
+        localStorage.setItem(STORAGE_KEYS.GROUPS, '[]');
+        localStorage.setItem(this.ALT_GROUPS_KEY, '[]');
+        localStorage.setItem(STORAGE_KEYS.ALMARI_GROUPS, '[]');
+        localStorage.setItem(STORAGE_KEYS.ALMARI_SHELVES, '[]');
+        localStorage.setItem(STORAGE_KEYS.LOCATION_HISTORY, '[]');
+        localStorage.setItem(this.MASTER_PLACEMENTS_KEY, '{}');
+        localStorage.setItem(this.SHELF_CAPACITIES_KEY, '{}');
+        localStorage.removeItem('ulm_active_almari_id_v3');
+      } catch {}
+    }
   }
 
   static saveAlmaris(almaris: Almari[]): void {
@@ -453,7 +528,9 @@ export class AlmariService {
     // Remove undone entries from location history
     const remainingHistory = history.filter(h => h.batch_id !== batchId);
     this.historyCache = remainingHistory;
-    localStorage.setItem(STORAGE_KEYS.LOCATION_HISTORY, JSON.stringify(remainingHistory));
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCATION_HISTORY, JSON.stringify(remainingHistory));
+    } catch {}
 
     // Log undo action
     LibraryStorage.logHistory({
@@ -476,23 +553,21 @@ export class AlmariService {
 
   // --- ALMARI SHELVES & CAPACITY ---
   static ensureAlmariShelves(almari: Almari): Almari {
-    const count = almari.shelf_count || 5;
-    const defaultCap = almari.books_per_shelf || 30;
-    let existingShelves = almari.shelves || [];
-
-    if (existingShelves.length !== count) {
-      const newShelves: AlmariShelf[] = [];
-      for (let s = 1; s <= count; s++) {
-        const prev = existingShelves.find(sh => sh.shelf_no === s);
-        newShelves.push({
-          almari_id: almari.id,
-          shelf_no: s,
-          capacity: prev?.capacity || defaultCap,
-        });
-      }
-      existingShelves = newShelves;
+    const count = Math.max(
+      1,
+      Number(almari.shelf_count) ||
+        (Array.isArray(almari.shelves) && almari.shelves.length > 0 ? almari.shelves.length : 5)
+    );
+    const capMap = this.getShelfCapacities();
+    const hydratedShelves: AlmariShelf[] = [];
+    for (let s = 1; s <= count; s++) {
+      hydratedShelves.push({
+        almari_id: almari.id,
+        shelf_no: s,
+        capacity: this.getShelfCapacity(almari, s, capMap),
+      });
     }
-    return { ...almari, shelves: existingShelves };
+    return { ...almari, shelf_count: count, shelves: hydratedShelves };
   }
 
   static getShelvesForAlmari(almariId: string): AlmariShelf[] {
@@ -506,34 +581,55 @@ export class AlmariService {
     const almari = almaris.find(a => a.id === almariId);
     if (!almari) return [];
 
-    const numShelves = shelfCount || almari.shelf_count || 5;
-    const baseCap = Math.floor(totalCapacity / numShelves);
-    let remainder = totalCapacity % numShelves;
+    const numShelves = Math.max(1, shelfCount || almari.shelf_count || 5);
+    const baseCap = Math.max(1, Math.floor(totalCapacity / numShelves));
+    let remainder = Math.max(0, totalCapacity - baseCap * numShelves);
 
     const newShelves: AlmariShelf[] = [];
+    const capMap = { ...this.getShelfCapacities() };
     for (let s = 1; s <= numShelves; s++) {
-      const cap = baseCap + (remainder > 0 ? 1 : 0);
+      const cap = Math.max(1, Math.min(200, baseCap + (remainder > 0 ? 1 : 0)));
       if (remainder > 0) remainder--;
       newShelves.push({
         almari_id: almariId,
         shelf_no: s,
         capacity: cap,
       });
+      capMap[`${almari.id}::shelf-${s}`] = cap;
+      delete capMap[`${almari.id}::${s}`];
     }
 
+    const totalSum = newShelves.reduce((acc, sh) => acc + sh.capacity, 0);
     almari.shelf_count = numShelves;
     almari.books_per_shelf = baseCap;
+    almari.approx_capacity = totalSum;
     almari.shelves = newShelves;
     this.saveAlmaris(almaris);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(this.SHELF_CAPACITIES_KEY, JSON.stringify(capMap));
+      } catch {}
+      window.dispatchEvent(
+        new CustomEvent('ulm-almari-capacity-sync', {
+          detail: { almariId: almari.id, totalCapacity: totalSum },
+        })
+      );
+    }
     return newShelves;
   }
 
-  static getAlmariTotalCapacity(almari: Almari): number {
-    const ensured = this.ensureAlmariShelves(almari);
-    if (ensured.shelves && ensured.shelves.length > 0) {
-      return ensured.shelves.reduce((acc, s) => acc + (s.capacity || 0), 0);
+  static getAlmariTotalCapacity(almari: Almari, capacitiesMap?: Record<string, number>): number {
+    const shelfCount = Math.max(
+      1,
+      Number(almari.shelf_count) ||
+        (Array.isArray(almari.shelves) && almari.shelves.length > 0 ? almari.shelves.length : 5)
+    );
+    const map = capacitiesMap || this.getShelfCapacities();
+    let total = 0;
+    for (let s = 1; s <= shelfCount; s++) {
+      total += this.getShelfCapacity(almari, s, map);
     }
-    return (almari.shelf_count || 5) * (almari.books_per_shelf || 30);
+    return total;
   }
 
   // --- ALMARI PLAN MANAGEMENT ---
@@ -553,7 +649,9 @@ export class AlmariService {
 
   static saveAlmariPlan(plan: AlmariPlanEntry[]): void {
     this.almariPlanCache = plan;
-    localStorage.setItem(STORAGE_KEYS.ALMARI_PLAN, JSON.stringify(plan));
+    try {
+      localStorage.setItem(STORAGE_KEYS.ALMARI_PLAN, JSON.stringify(plan));
+    } catch {}
   }
 
   static resetAlmariPlanToDefault(): AlmariPlanEntry[] {
@@ -1252,7 +1350,9 @@ export class AlmariService {
     // Clean batch from history
     const remainingHistory = history.filter(h => h.batch_id !== batchId);
     this.historyCache = remainingHistory;
-    localStorage.setItem(STORAGE_KEYS.LOCATION_HISTORY, JSON.stringify(remainingHistory));
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCATION_HISTORY, JSON.stringify(remainingHistory));
+    } catch {}
 
     return { updatedBooks, undoneCount, message: `Reverted ${undoneCount} book placements.` };
   }
@@ -1308,14 +1408,22 @@ export class AlmariService {
 
   // --- ALMARI_GROUPS (Many-to-Many) ---
   static getAlmariGroups(): AlmariGroup[] {
-    if (this.almariGroupsCache) return this.almariGroupsCache;
+    if (this.almariGroupsCache !== null) return this.almariGroupsCache;
+    const isFactoryEmpty = this.isFactoryResetEmpty();
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.ALMARI_GROUPS);
-      if (raw) {
-        this.almariGroupsCache = JSON.parse(raw);
-        return this.almariGroupsCache!;
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.almariGroupsCache = parsed;
+          return this.almariGroupsCache;
+        }
       }
     } catch {}
+    if (isFactoryEmpty) {
+      this.almariGroupsCache = [];
+      return [];
+    }
     this.almariGroupsCache = [...INITIAL_ALMARI_GROUPS];
     this.saveAlmariGroups(this.almariGroupsCache);
     return this.almariGroupsCache;
@@ -1323,7 +1431,9 @@ export class AlmariService {
 
   static saveAlmariGroups(links: AlmariGroup[]): void {
     this.almariGroupsCache = links;
-    localStorage.setItem(STORAGE_KEYS.ALMARI_GROUPS, JSON.stringify(links));
+    try {
+      localStorage.setItem(STORAGE_KEYS.ALMARI_GROUPS, JSON.stringify(links));
+    } catch {}
   }
 
   static getGroupsForAlmari(almariId: string): BookGroup[] {
@@ -1544,6 +1654,10 @@ export class AlmariService {
     }
   }
 
+  static getSavedShelfCapacities(): Record<string, number> {
+    return this.getShelfCapacities();
+  }
+
   static getShelfCapacity(
     almari: Almari,
     shelfNo: number,
@@ -1552,16 +1666,34 @@ export class AlmariService {
     const map = capacitiesMap || this.getShelfCapacities();
     const canonicalKey = `${almari.id}::shelf-${shelfNo}`;
     const legacyKey = `${almari.id}::${shelfNo}`;
-    const stored = map[canonicalKey] ?? map[legacyKey];
-    if (stored !== undefined && Number.isFinite(Number(stored))) {
+    const dashKey = `${almari.id}-${shelfNo}`;
+    const codeShelfKey = almari.code ? `${almari.code}::shelf-${shelfNo}` : '';
+    const codeDashKey = almari.code ? `${almari.code}-${shelfNo}` : '';
+
+    const stored =
+      map[canonicalKey] ??
+      map[legacyKey] ??
+      map[dashKey] ??
+      (codeShelfKey ? map[codeShelfKey] : undefined) ??
+      (codeDashKey ? map[codeDashKey] : undefined);
+
+    if (stored !== undefined && Number.isFinite(Number(stored)) && Number(stored) > 0) {
       return Math.max(1, Math.min(200, Math.round(Number(stored))));
     }
-    if (almari.books_per_shelf && Number.isFinite(Number(almari.books_per_shelf))) {
+
+    if (Array.isArray(almari.shelves)) {
+      const shelfEntry = almari.shelves.find((sh) => Number(sh.shelf_no) === shelfNo);
+      if (shelfEntry && Number.isFinite(Number(shelfEntry.capacity)) && Number(shelfEntry.capacity) > 0) {
+        return Math.max(1, Math.min(200, Math.round(Number(shelfEntry.capacity))));
+      }
+    }
+
+    if (almari.books_per_shelf && Number.isFinite(Number(almari.books_per_shelf)) && Number(almari.books_per_shelf) > 0) {
       return Math.max(1, Math.min(200, Math.round(Number(almari.books_per_shelf))));
     }
-    const perShelf = Math.round(
-      (almari.approx_capacity || 120) / Math.max(1, almari.shelf_count || 5)
-    );
+
+    const shelfCount = Math.max(1, Number(almari.shelf_count) || 5);
+    const perShelf = Math.round((almari.approx_capacity || 120) / shelfCount);
     return Math.max(1, Math.min(200, perShelf || 24));
   }
 
@@ -1574,19 +1706,122 @@ export class AlmariService {
     const current = this.getShelfCapacities();
     const canonicalKey = `${almari.id}::shelf-${shelfNo}`;
     const legacyKey = `${almari.id}::${shelfNo}`;
+    const dashKey = `${almari.id}-${shelfNo}`;
     const updated: Record<string, number> = {
       ...current,
       [canonicalKey]: clamped,
     };
-    if (legacyKey in updated) {
-      delete updated[legacyKey];
-    }
+    if (legacyKey in updated) delete updated[legacyKey];
+    if (dashKey in updated) delete updated[dashKey];
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(this.SHELF_CAPACITIES_KEY, JSON.stringify(updated));
       } catch {}
     }
+
+    // Keep ulm_almaris_registry_v2 approx_capacity & per-shelf array in sync so every screen agrees
+    try {
+      const almaris = this.getAlmaris();
+      const idx = almaris.findIndex((a) => a.id === almari.id);
+      if (idx !== -1) {
+        const target = almaris[idx];
+        const shelfCount = Math.max(1, Number(target.shelf_count) || 5);
+        const syncedShelves: AlmariShelf[] = [];
+        let totalCap = 0;
+        for (let s = 1; s <= shelfCount; s++) {
+          const cap = this.getShelfCapacity(target, s, updated);
+          totalCap += cap;
+          syncedShelves.push({
+            almari_id: target.id,
+            shelf_no: s,
+            capacity: cap,
+          });
+        }
+        almaris[idx] = {
+          ...target,
+          approx_capacity: totalCap,
+          shelves: syncedShelves,
+          updated_at: new Date().toISOString(),
+        };
+        this.saveAlmaris(almaris);
+      }
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('ulm-almari-capacity-sync', {
+          detail: { almariId: almari.id, shelfNo, capacity: clamped },
+        })
+      );
+    }
+
     return updated;
+  }
+
+  /**
+   * Computes live physical occupancy per Almari and per (Almari, Shelf) merging
+   * `allBooks` with `ulm_almari_placements_master_v3`, optionally excluding a set of
+   * book IDs/barcodes (such as the books currently selected for bulk relocation).
+   */
+  static getLiveShelfOccupancyMap(
+    allBooks: Book[],
+    almarisInput?: Almari[],
+    excludeBookIds?: Set<string>
+  ): {
+    byAlmari: Map<string, number>;
+    byAlmariShelf: Map<string, number>;
+  } {
+    const almaris = almarisInput || this.getAlmaris();
+    const almariById = new Map<string, Almari>();
+    const almariByCode = new Map<string, Almari>();
+    for (const a of almaris) {
+      if (a.id) almariById.set(a.id, a);
+      if (a.code) almariByCode.set(a.code.toUpperCase(), a);
+    }
+
+    const masterPlacements = this.getMasterPlacements();
+    const byAlmari = new Map<string, number>();
+    const byAlmariShelf = new Map<string, number>();
+
+    for (let i = 0; i < allBooks.length; i++) {
+      const b = allBooks[i];
+      if (!b || b.is_active === false) continue;
+
+      const idKey = b.id ? String(b.id).trim() : '';
+      const bcKey = b.barcode ? String(b.barcode).trim() : '';
+      if (excludeBookIds && ((idKey && excludeBookIds.has(idKey)) || (bcKey && excludeBookIds.has(bcKey)))) {
+        continue;
+      }
+
+      const override =
+        (idKey && masterPlacements[idKey]) ||
+        (bcKey && masterPlacements[bcKey]) ||
+        null;
+
+      const rawAlmariId = override?.almari_id ?? (b.almari_id ? String(b.almari_id).trim() : '');
+      const rawAlmariCode =
+        override?.almari_code ??
+        (b.almari_code ? String(b.almari_code).trim() : '') ??
+        (b.cupboard ? String(b.cupboard).trim() : '');
+      const rawShelfNo = override ? Number(override.shelf_no) || 0 : Number(b.shelf_no) || 0;
+
+      const matched =
+        (rawAlmariId && almariById.get(rawAlmariId)) ||
+        (rawAlmariCode && almariByCode.get(rawAlmariCode.toUpperCase())) ||
+        (b.cupboard && almariByCode.get(String(b.cupboard).toUpperCase())) ||
+        null;
+
+      if (!matched) continue;
+      const maxShelves = Math.max(1, Number(matched.shelf_count) || 5);
+      if (rawShelfNo < 1 || rawShelfNo > maxShelves) continue;
+
+      byAlmari.set(matched.id, (byAlmari.get(matched.id) || 0) + 1);
+      const shelfKey = `${matched.id}::${rawShelfNo}`;
+      byAlmariShelf.set(shelfKey, (byAlmariShelf.get(shelfKey) || 0) + 1);
+    }
+
+    return { byAlmari, byAlmariShelf };
   }
 
   /**
@@ -2070,4 +2305,25 @@ export class AlmariService {
     };
   }
 }
+
+export const getSavedShelfCapacities = (): Record<string, number> =>
+  AlmariService.getSavedShelfCapacities();
+
+export const getShelfCapacity = (
+  almari: Almari,
+  shelfNo: number,
+  capacitiesMap?: Record<string, number>
+): number => AlmariService.getShelfCapacity(almari, shelfNo, capacitiesMap);
+
+export const getAlmariTotalCapacity = (
+  almari: Almari,
+  capacitiesMap?: Record<string, number>
+): number => AlmariService.getAlmariTotalCapacity(almari, capacitiesMap);
+
+export const setShelfCapacity = (
+  almari: Almari,
+  shelfNo: number,
+  newMax: number
+): Record<string, number> => AlmariService.setShelfCapacity(almari, shelfNo, newMax);
+
 

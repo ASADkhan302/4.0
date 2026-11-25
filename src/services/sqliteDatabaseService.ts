@@ -882,6 +882,91 @@ export class SqliteDatabaseService {
   }
 
   /**
+   * Transactional multi-key batch deletion (matches id, barcode, or accession_no)
+   */
+  deleteBooksBatch(
+    ids: string[],
+    barcodes: string[],
+    accessions: string[],
+    permanent: boolean = true
+  ): number {
+    if (!this.db) return 0;
+    let affected = 0;
+    try {
+      this.db.run('BEGIN TRANSACTION;');
+      const idStmt = this.db.prepare(
+        permanent
+          ? 'DELETE FROM books WHERE id = ?;'
+          : "UPDATE books SET is_active = 0, updated_at = datetime('now') WHERE id = ?;"
+      );
+      for (const id of ids) {
+        if (!id) continue;
+        idStmt.run([id]);
+        affected++;
+      }
+      idStmt.free();
+
+      const bcStmt = this.db.prepare(
+        permanent
+          ? 'DELETE FROM books WHERE UPPER(barcode) = ?;'
+          : "UPDATE books SET is_active = 0, updated_at = datetime('now') WHERE UPPER(barcode) = ?;"
+      );
+      for (const bc of barcodes) {
+        if (!bc) continue;
+        bcStmt.run([bc.toUpperCase()]);
+      }
+      bcStmt.free();
+
+      const accStmt = this.db.prepare(
+        permanent
+          ? 'DELETE FROM books WHERE accession_no = ?;'
+          : "UPDATE books SET is_active = 0, updated_at = datetime('now') WHERE accession_no = ?;"
+      );
+      for (const acc of accessions) {
+        if (!acc) continue;
+        accStmt.run([acc]);
+      }
+      accStmt.free();
+
+      this.db.run('COMMIT;');
+      return affected;
+    } catch (e) {
+      try {
+        this.db.run('ROLLBACK;');
+      } catch {}
+      console.error('Failed to batch delete books in SQLite:', e);
+      return 0;
+    }
+  }
+
+  /**
+   * Purges all library domain tables in SQLite to strictly 0 records for Factory Reset.
+   */
+  clearAllLibraryTables(): void {
+    if (!this.db) return;
+    const tables = [
+      'books',
+      'borrowers',
+      'members',
+      'transactions',
+      'almaris',
+      'groups',
+      'book_groups',
+      'almari_groups',
+      'history',
+      'location_history',
+      'book_images',
+    ];
+    for (const table of tables) {
+      try {
+        this.db.run(`DELETE FROM ${table};`);
+      } catch {
+        // Table may not exist in all schema revisions
+      }
+    }
+  }
+
+  /**
    * Returns binary export of the SQLite database (format 3)
    */
   exportBinary(): Uint8Array {

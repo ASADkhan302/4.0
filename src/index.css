@@ -304,14 +304,20 @@ label {
   color: var(--text-primary) !important;
   border: 1px solid var(--border-control) !important;
   border-radius: 8px !important;
-  padding: 8px 12px;
+  padding: 0 12px;
   font-size: 14px !important;
   font-family: var(--font-sans);
-  line-height: 1.5;
+  line-height: normal;
   transition: border-color 150ms var(--ease-out),
               box-shadow 150ms var(--ease-out),
               background-color 150ms var(--ease-out);
   outline: none;
+}
+
+input.ulm-compact-control {
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: normal;
 }
 
 select.ulm-inline-select,
@@ -323,16 +329,18 @@ select.w-auto {
   color: var(--text-primary) !important;
   border: 1px solid var(--border-control) !important;
   border-radius: 8px !important;
-  padding: 4px 10px;
+  padding: 0 10px;
   font-size: 12px !important;
   font-family: var(--font-mono);
-  line-height: 1.4;
+  line-height: normal;
   outline: none;
 }
 
 :where(textarea) {
   height: auto !important;
   min-height: 80px;
+  padding: 8px 12px;
+  line-height: 1.5;
 }
 
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.ulm-scanner-bare-input), select, textarea):hover {
@@ -436,9 +444,9 @@ button,
 }
 
 /* Ensure all text labels and icons are strictly ABOVE decorative elements */
-button > *,
-[role="button"] > *,
-.btn > *,
+button > *:not(.absolute):not(.fixed),
+[role="button"] > *:not(.absolute):not(.fixed),
+.btn > *:not(.absolute):not(.fixed),
 .btn-label {
   position: relative;
   z-index: 1;
@@ -938,9 +946,7 @@ html.light-theme .fixed.inset-0:has([class*="max-w-"]) {
 }
 
 .badge-available,
-.badge-success,
-[class*="bg-emerald-500/10"],
-[class*="bg-emerald-500/15"] {
+.badge-success {
   background-color: rgba(52, 211, 153, 0.15) !important;
   color: var(--success) !important;
   border-color: rgba(52, 211, 153, 0.35) !important;
@@ -949,9 +955,7 @@ html.light-theme .fixed.inset-0:has([class*="max-w-"]) {
 }
 
 .badge-due-soon,
-.badge-warning,
-[class*="bg-amber-500/10"],
-[class*="bg-amber-500/15"] {
+.badge-warning {
   background-color: rgba(188, 136, 27, 0.15) !important;
   color: var(--gold-text) !important;
   border-color: rgba(188, 136, 27, 0.35) !important;
@@ -960,11 +964,7 @@ html.light-theme .fixed.inset-0:has([class*="max-w-"]) {
 }
 
 .badge-overdue,
-.badge-danger,
-[class*="bg-rose-500/10"],
-[class*="bg-rose-500/15"],
-[class*="bg-red-500/10"],
-[class*="bg-red-500/15"] {
+.badge-danger {
   background-color: rgba(251, 113, 133, 0.15) !important;
   color: var(--danger) !important;
   border-color: rgba(251, 113, 133, 0.35) !important;
@@ -973,9 +973,7 @@ html.light-theme .fixed.inset-0:has([class*="max-w-"]) {
 }
 
 .badge-accent,
-.badge-info,
-[class*="bg-blue-500/10"],
-[class*="bg-blue-500/15"] {
+.badge-info {
   background-color: rgba(41, 101, 142, 0.15) !important;
   color: var(--blue-text) !important;
   border-color: rgba(41, 101, 142, 0.35) !important;
@@ -1443,6 +1441,8 @@ svg:not([fill="none"]):not([class*="fill-"]):not([data-preserve-fill="true"]) {
     visibility: hidden;
   }
 
+  #ulm-print-mount,
+  #ulm-print-mount *,
   #printable-barcode-label,
   #printable-barcode-label *,
   [data-barcode-container="true"],
@@ -2178,10 +2178,213 @@ html.light-theme .ulm-preserve-dark .ulm-cover-gold {
   color: #FDE68A !important;
 }
 
+/* ============================================================================
+   ULM GLASSCHARTS ENGINE — SILKY 60FPS SVG & BAR ENTRANCE ANIMATIONS
+   ============================================================================ */
+@keyframes ulmChartRevealX {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.4;
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+    opacity: 1;
+  }
+}
 
+.ulm-line-reveal {
+  animation: ulmChartRevealX 0.74s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
+@keyframes ulmBarRise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
 
+.ulm-stack-bar {
+  transform-origin: center bottom;
+  animation: ulmBarRise 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
+@keyframes ulmDonutSweep {
+  from {
+    stroke-dasharray: 0 100;
+  }
+  to {
+    stroke-dasharray: 100 0;
+  }
+}
 
+.ulm-donut-mask {
+  animation: ulmDonutSweep 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
+@keyframes ulmDonutCenterPop {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
 
+.ulm-donut-center-pop {
+  animation: ulmDonutCenterPop 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ulmShareGrowX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ulm-share-bar {
+  transform-origin: left center;
+  animation: ulmShareGrowX 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ============================================================================
+   ULM GLOBAL 60 FPS GPU-ONLY MOTION SYSTEM
+   ============================================================================ */
+@keyframes ulmPageFocusIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0px);
+  }
+}
+
+@keyframes ulmCardStaggerIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ulmModalBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ulmModalDialogIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ulmScannerSweep {
+  0%,
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  20%,
+  80% {
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateX(100%);
+    opacity: 0.9;
+  }
+}
+
+@keyframes ulmCardFlipIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ulm-page-enter {
+  animation: ulmPageFocusIn 0.30s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.ulm-stagger-card {
+  animation: ulmCardStaggerIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.ulm-modal-backdrop {
+  animation: ulmModalBackdropIn 0.20s ease-out both;
+}
+
+.ulm-modal-dialog {
+  animation: ulmModalDialogIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ulm-scanner-sweep {
+  animation: ulmScannerSweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.ulm-card-flip {
+  animation: ulmCardFlipIn 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ulm-btn-tactile {
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ulm-btn-tactile:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.ulm-card-hover {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease;
+}
+.ulm-card-hover:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ulm-line-reveal,
+  .ulm-stack-bar,
+  .ulm-donut-mask,
+  .ulm-donut-center-pop,
+  .ulm-share-bar,
+  .ulm-page-enter,
+  .ulm-stagger-card,
+  .ulm-modal-backdrop,
+  .ulm-modal-dialog,
+  .ulm-scanner-sweep,
+  .ulm-card-flip {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    filter: none !important;
+  }
+  .ulm-card-hover:hover,
+  .ulm-btn-tactile:active {
+    transform: none !important;
+  }
+}

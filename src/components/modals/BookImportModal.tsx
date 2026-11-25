@@ -23,6 +23,7 @@ import { StagedImportEngine, StagedImportProgressUpdate } from '../../services/s
 import { AlmariService } from '../../services/almariService';
 import { ImportJob } from '../../types/library';
 import { LibraryStorage } from '../../services/storage';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface BookImportModalProps {
   isOpen: boolean;
@@ -99,7 +100,9 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
       );
 
       if (!res.success && res.acceptedCount === 0) {
-        setErrorMsg(res.message || '0 books found: all rows were rejected or the sheet is empty.');
+        const msg = res.message || '0 books found: all rows were rejected or the sheet is empty.';
+        setErrorMsg(msg);
+        notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg, meta: file.name });
         setStage('upload');
         return;
       }
@@ -113,7 +116,9 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
       setStage('complete');
       onImportComplete('batch_' + Date.now(), res.acceptedCount, res.acceptedBooks.map(b => b.id), res.acceptedBooks);
     } catch (err: any) {
-      setErrorMsg(err.message || '0 books found: the sheet is empty or has invalid columns.');
+      const msg = err.message || '0 books found: the sheet is empty or has invalid columns.';
+      setErrorMsg(msg);
+      notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg, meta: file.name });
       setStage('upload');
     }
   };
@@ -127,8 +132,16 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
       a.download = 'ULM_Book_Entry_Sheet.xlsx';
       a.click();
       URL.revokeObjectURL(url);
+      notifyGlassToast({
+        type: 'info',
+        title: 'Export Saved',
+        message: 'Blank Book Entry Sheet template downloaded.',
+        meta: 'ULM_Book_Entry_Sheet.xlsx',
+      });
     } catch (err: any) {
-      setErrorMsg(`Failed to generate template: ${err.message}`);
+      const msg = `Failed to generate template: ${err.message}`;
+      setErrorMsg(msg);
+      notifyGlassToast({ type: 'danger', title: 'Export Failed', message: msg });
     }
   };
 
@@ -137,10 +150,17 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
     const blob = ImporterEngine.generateProblemReportCsv(previewReport);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const filename = `ULM_Import_Problem_Report_${new Date().toISOString().split('T')[0]}.csv`;
     a.href = url;
-    a.download = `ULM_Import_Problem_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Export Saved',
+      message: 'Import validation problem report downloaded.',
+      meta: filename,
+    });
   };
 
   const handleExecuteImport = async () => {
@@ -187,11 +207,14 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
           setProgressMsg('Import job paused cleanly. All completed rounds preserved.');
         } else {
           setErrorMsg(result.message);
+          notifyGlassToast({ type: 'danger', title: 'Import Failed', message: result.message });
           setStage('preview');
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Import execution failed');
+      const msg = err.message || 'Import execution failed';
+      setErrorMsg(msg);
+      notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
       setStage('preview');
     }
   };
@@ -228,7 +251,9 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
         onImportComplete(result.job.id, result.job.total_rows, result.job.all_imported_book_ids);
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to resume import');
+      const msg = err.message || 'Failed to resume import';
+      setErrorMsg(msg);
+      notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
     }
   };
 
@@ -243,6 +268,11 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
     if (!lastBatchResult) return;
     const res = StagedImportEngine.undoWholeJob(lastBatchResult.batchId);
     setUndoStatusMsg(res.message);
+    notifyGlassToast({
+      type: 'danger',
+      title: 'Import Batch Undone',
+      message: res.message,
+    });
   };
 
   const handleDownloadShelvingList = () => {
@@ -296,11 +326,11 @@ export const BookImportModal: React.FC<BookImportModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto ulm-modal-backdrop"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-4xl max-h-[92vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-[#C8963E]/45 rounded-[26px] shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden flex flex-col relative my-auto"
+        className="w-full max-w-4xl max-h-[92vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-[#C8963E]/45 rounded-[26px] shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] overflow-hidden flex flex-col relative my-auto ulm-modal-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Accent Stripe */}

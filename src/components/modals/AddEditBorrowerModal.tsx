@@ -21,6 +21,7 @@ import { Borrower, BorrowerRole, BorrowerStatus } from '../../types/library';
 import CustomSelect from '../ui/CustomSelect';
 import { MemberCard } from '../cards/MemberCard';
 import { PhotoCropModal } from '../shared/PhotoCropModal';
+import { resolveMemberCardStanding } from '../../utils/memberStanding';
 
 interface AddEditBorrowerModalProps {
   isOpen: boolean;
@@ -703,12 +704,17 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
     notes,
   ]);
 
+  const previewStanding = useMemo(
+    () => resolveMemberCardStanding(previewMember),
+    [previewMember]
+  );
+
   if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-150"
+        className="ulm-modal-backdrop fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-md"
         onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
@@ -716,7 +722,7 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       >
         {/* Unified Frosted Crystal Modal Container */}
         <div
-          className="ulm-preserve-glass w-full max-w-[1040px] max-h-[90vh] flex flex-col rounded-[26px] bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.14] shadow-[0_28px_80px_rgba(15,23,42,0.32)] dark:shadow-[0_28px_80px_rgba(0,0,0,0.85)] overflow-hidden transition-all text-slate-900 dark:text-slate-100"
+          className="ulm-modal-dialog ulm-preserve-glass w-full max-w-[1040px] max-h-[90vh] flex flex-col rounded-[26px] bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/80 dark:border-white/[0.14] shadow-[0_28px_80px_rgba(15,23,42,0.32)] dark:shadow-[0_28px_80px_rgba(0,0,0,0.85)] overflow-hidden transition-all text-slate-900 dark:text-slate-100"
         >
           {/* Header */}
           <div className="shrink-0 px-6 py-4 bg-white/70 dark:bg-white/[0.03] border-b border-slate-200/80 dark:border-white/[0.10] flex items-center justify-between gap-3">
@@ -829,7 +835,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                     </div>
                   </div>
                   <div className="overflow-x-auto w-full flex justify-center py-1 ulm-preserve-dark rounded-xl">
-                    <MemberCard member={previewMember} side={previewSide} scale={0.82} />
+                    <div key={previewSide} className="ulm-card-flip">
+                      <MemberCard member={previewMember} side={previewSide} scale={0.82} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1303,7 +1311,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                 {/* Scaled CR80 Preview Wrapper — Fits cleanly inside lg:col-span-5 without clipping */}
                 <div className="py-2 flex justify-center items-center ulm-preserve-dark rounded-2xl bg-slate-900/[0.04] dark:bg-black/25 border border-slate-200/70 dark:border-white/[0.08]">
                   <div className="transition-transform duration-200 hover:scale-[1.015]">
-                    <MemberCard member={previewMember} side={previewSide} scale={0.84} />
+                    <div key={previewSide} className="ulm-card-flip">
+                      <MemberCard member={previewMember} side={previewSide} scale={0.84} />
+                    </div>
                   </div>
                 </div>
 
@@ -1327,9 +1337,36 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       <span className="text-amber-800 dark:text-[#FFD147] font-urdu">{previewMember.name_urdu}</span>
                     </div>
                   )}
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">Card Standing:</span>
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
+                      style={{
+                        backgroundColor: previewStanding.bgColor,
+                        border: `1px solid ${previewStanding.borderColor}`,
+                        color: previewStanding.textColor,
+                      }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: previewStanding.dotColor }}
+                      />
+                      <span>{previewStanding.label}</span>
+                    </span>
+                  </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-slate-500 dark:text-slate-400">Valid Until:</span>
-                    <span className="text-slate-900 dark:text-slate-100 font-semibold">{previewMember.valid_until || 'PERMANENT'}</span>
+                    <span
+                      className="font-bold"
+                      style={{
+                        color:
+                          previewStanding.state === 'EXPIRED' || previewStanding.state === 'SUSPENDED'
+                            ? previewStanding.validTillColor
+                            : undefined,
+                      }}
+                    >
+                      {previewMember.valid_until || 'PERMANENT'}
+                    </span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-slate-500 dark:text-slate-400">Circulation Limit:</span>

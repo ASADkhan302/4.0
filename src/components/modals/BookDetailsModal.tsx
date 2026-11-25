@@ -88,12 +88,12 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/70 backdrop-blur-[10px] backdrop-saturate-150 transition-all overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/70 backdrop-blur-[10px] backdrop-saturate-150 transition-all overflow-y-auto"
       onClick={onClose}
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="ulm-preserve-glass relative w-full max-w-2xl rounded-[26px] bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-[#1A102E]/88 dark:via-[#140C24]/82 dark:to-[#0F081C]/78 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/85 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_1px_rgba(200,150,62,0.18),0_24px_60px_rgba(15,23,42,0.22)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.25),0_24px_60px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-white"
+        className="ulm-modal-dialog ulm-preserve-glass relative w-full max-w-2xl rounded-[26px] bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-[#1A102E]/88 dark:via-[#140C24]/82 dark:to-[#0F081C]/78 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/85 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_1px_rgba(200,150,62,0.18),0_24px_60px_rgba(15,23,42,0.22)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.25),0_24px_60px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-white"
       >
         {/* Top Gold Accent Rim */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#541A72] via-[#FFD147] to-[#C8963E] z-20" />

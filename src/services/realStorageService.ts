@@ -177,12 +177,16 @@ export class RealStorageService {
     } catch {}
 
     const loc = LibraryStorage.getStorageLocation();
+    let tempBrowserStorage = false;
+    try {
+      tempBrowserStorage = localStorage.getItem(TEMP_BROWSER_WARN_KEY) === 'true';
+    } catch {}
     return {
       folderPath: loc.folderPath || 'Documents\\ULM Library',
       folderName: loc.folderName || 'ULM Library',
       fileName: 'Library.ulmlib',
       isConfigured: loc.isConfigured || false,
-      temporaryBrowserStorage: localStorage.getItem(TEMP_BROWSER_WARN_KEY) === 'true',
+      temporaryBrowserStorage: tempBrowserStorage,
     };
   }
 
@@ -196,12 +200,14 @@ export class RealStorageService {
     isConfigured: boolean;
     temporaryBrowserStorage: boolean;
   }): void {
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(cfg));
-    if (cfg.temporaryBrowserStorage) {
-      localStorage.setItem(TEMP_BROWSER_WARN_KEY, 'true');
-    } else {
-      localStorage.removeItem(TEMP_BROWSER_WARN_KEY);
-    }
+    try {
+      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(cfg));
+      if (cfg.temporaryBrowserStorage) {
+        localStorage.setItem(TEMP_BROWSER_WARN_KEY, 'true');
+      } else {
+        localStorage.removeItem(TEMP_BROWSER_WARN_KEY);
+      }
+    } catch {}
 
     LibraryStorage.saveStorageLocation({
       mode: 'LOCAL_DISK',
@@ -882,7 +888,9 @@ export class RealStorageService {
     }
 
     // Now that file is created and verified, we can clear legacy browser storage keys
-    localStorage.removeItem(TEMP_BROWSER_WARN_KEY);
+    try {
+      localStorage.removeItem(TEMP_BROWSER_WARN_KEY);
+    } catch {}
 
     return {
       success: true,

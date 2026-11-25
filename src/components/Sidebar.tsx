@@ -297,14 +297,14 @@ export function Sidebar({
                     data-liquid-active={isActive ? 'true' : undefined}
                     className={`group relative z-10 flex items-center justify-between ${
                       isRail ? 'px-0 justify-center' : 'px-3 gap-3'
-                    } ${itemHeightClass} rounded-[10px] cursor-pointer transition-colors duration-150 text-left w-full border border-transparent text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
+                    } ${itemHeightClass} !rounded-[10px] cursor-pointer transition-colors duration-150 text-left w-full border border-transparent text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#0B1220] ${
                       isActive
                         ? '!text-white'
                         : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5'
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
+                      <span className="!absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#FFD147] rounded-r-full pointer-events-none" />
                     )}
 
                     <div className="relative flex items-center gap-3 min-w-0">
@@ -366,8 +366,8 @@ export function Sidebar({
         </div>
 
         {/* Pinned Bottom Items */}
-        <div className={`relative z-10 border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-1.5 ${
-          isShortScreen ? 'p-2' : 'p-3'
+        <div className={`relative z-10 border-t border-slate-200/70 dark:border-white/10 shrink-0 flex flex-col gap-2 px-2.5 sm:px-3 ${
+          isShortScreen ? 'py-2' : 'py-3'
         }`}>
           {bottomItems.map(item => {
             const isActive = visualActiveTab === item.id;
@@ -381,25 +381,25 @@ export function Sidebar({
                 onClick={() => handleItemClick(item.id)}
                 title={item.title}
                 data-liquid-active={isActive ? 'true' : undefined}
-                className={`group relative z-10 flex items-center justify-between ${
-                  isRail ? 'px-0 justify-center' : 'px-3 gap-3'
-                } ${itemHeightClass} rounded-[10px] cursor-pointer transition-colors duration-150 w-full border border-transparent text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
+                className={`group relative z-10 flex items-center ${
+                  isRail ? 'px-0 justify-center' : 'px-3 gap-3 justify-between'
+                } ${itemHeightClass} !rounded-[10px] cursor-pointer transition-colors duration-150 text-left w-full border border-transparent text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214] ${
                   isActive
                     ? '!text-white' 
                     : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5'
                 }`}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FFD147] rounded-l-[10px]" />
+                  <span className="!absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#FFD147] rounded-r-full pointer-events-none" />
                 )}
-                <div className="relative flex items-center gap-3">
+                <div className="relative flex items-center gap-3 min-w-0">
                   <span
                     className="ulm-nv-ico"
                     key={isActive ? animTick : 0}
                     data-fx={isActive ? iconFxForTab(item.id) : undefined}
                   >
                     <Icon 
-                      className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
+                      className={`w-5 h-5 shrink-0 transition-colors ${isActive ? 'text-[#FFD147]' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-950 dark:group-hover:text-white'}`} 
                       strokeWidth={1.75}
                     />
                   </span>
@@ -409,10 +409,14 @@ export function Sidebar({
                     </span>
                   )}
                 </div>
-                {!isRail && item.shortcut && (
-                  <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30 ml-auto shrink-0">
-                    {item.shortcut}
-                  </kbd>
+                {!isRail && (
+                  <div className="relative flex items-center gap-2 ml-auto shrink-0">
+                    {item.shortcut && (
+                      <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[11px] font-mono rounded border border-[var(--border-subtle)] text-[var(--text-muted)] bg-black/10 dark:bg-black/30">
+                        {item.shortcut}
+                      </kbd>
+                    )}
+                  </div>
                 )}
               </button>
             );
@@ -423,7 +427,7 @@ export function Sidebar({
             title={isRail ? "Expand Sidebar" : "Collapse Sidebar"}
             className={`group relative z-10 flex items-center ${
               isRail ? 'justify-center px-0' : 'justify-between px-3 gap-3'
-            } ${itemHeightClass} rounded-[10px] transition-all duration-150 w-full border border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
+            } ${itemHeightClass} !rounded-[10px] transition-all duration-150 w-full border border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#BC881B] focus-visible:ring-offset-1 focus-visible:ring-offset-[#141214]`}
           >
             {isRail ? (
               <PanelLeftOpen className="w-5 h-5 text-[var(--text-accent)]" strokeWidth={1.75} />

@@ -17,7 +17,7 @@ import { LmsSidebar } from './components/LmsSidebar';
 import { AlmariView } from './components/AlmariView';
 import { AlmariErrorBoundary } from './components/catalog/AlmariErrorBoundary';
 import { AppOpeningSplash } from './components/AppOpeningSplash';
-import { ToastSuccessDeco } from './components/decorative/ToastSuccessDeco';
+import { LiquidGlassToastContainer, notifyGlassToast } from './components/ui/LiquidGlassToast';
 
 import { AddEditBookModal } from './components/modals/AddEditBookModal';
 import { BookDetailsModal } from './components/modals/BookDetailsModal';
@@ -35,7 +35,8 @@ import { IssueBookFlowModal } from './components/modals/IssueBookFlowModal';
 import { AddEditBorrowerModal } from './components/modals/AddEditBorrowerModal';
 
 import { Book, Borrower, BorrowerStatus, Transaction, HistoryEntry, SystemSettings, NavigationTab, StorageLocationConfig } from './types/library';
-import { LibraryStorage } from './services/storage';
+import { LibraryStorage, hardDeleteBooksCascade } from './services/storage';
+import { AlmariService } from './services/almariService';
 import { SharedCountService } from './services/sharedCountService';
 import { playSuccessBarcodeBeep, playClickSound, playErrorBeep } from './services/audio';
 import { LibraryDataFilesService, ExternalChangesSummary } from './services/libraryDataFilesService';
@@ -60,6 +61,7 @@ import {
   startHeavyTask,
   updateHeavyTaskProgress,
   finishHeavyTask,
+  runHeavyLibraryTask,
 } from './utils/heavyTaskRunner';
 
 export default function App() {
@@ -147,22 +149,44 @@ export default function App() {
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
   const [waitingSheetCount, setWaitingSheetCount] = useState<number>(0);
 
-  // Rule 1: Mandatory Setup Gate ONLY ONCE on First Install (or after explicit Factory Reset)
-  const [isStorageSetupModalOpen, setIsStorageSetupModalOpen] = useState(() => {
-    return !isWorkstationAlreadyInstalledAndConfigured(0);
+  // Rule 1: First-Priority Setup Gate on Fresh Install (`ulm_setup_completed_v1 !== 'true'`) or after Factory Reset
+  const initialNeedsSetup = useMemo(() => {
+    try {
+      const setupFlag = localStorage.getItem('ulm_setup_completed_v1');
+      if (setupFlag === 'false') return true;
+      if (setupFlag !== 'true' && !isWorkstationAlreadyInstalledAndConfigured(0)) return true;
+      return false;
+    } catch {
+      return !isWorkstationAlreadyInstalledAndConfigured(0);
+    }
+  }, []);
+
+  const [isStorageSetupModalOpen, setIsStorageSetupModalOpen] = useState<boolean>(initialNeedsSetup);
+  const [isStorageSetupResetMode, setIsStorageSetupResetMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ulm_setup_completed_v1') === 'false';
+    } catch {
+      return false;
+    }
   });
-  const [isStorageSetupResetMode, setIsStorageSetupResetMode] = useState(false);
   const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
 
-  // App opening animation state
-  const [showSplash, setShowSplash] = useState<boolean>(true);
-  const [isAppEntered, setIsAppEntered] = useState<boolean>(false);
+  // App opening animation state — skip splash straight into WorkstationSetupModal on fresh install / post-reset
+  const [showSplash, setShowSplash] = useState<boolean>(!initialNeedsSetup);
+  const [isAppEntered, setIsAppEntered] = useState<boolean>(initialNeedsSetup);
 
   // True Database Total Book Count (Queried from SQLite / IndexedDB without 5,000 localStorage limit)
   const [dbTotalBooksCount, setDbTotalBooksCount] = useState<number>(0);
 
+  const [booksToBulkDelete, setBooksToBulkDelete] = useState<Book[]>([]);
+
   // Auto-mark setup completed if IndexedDB / SQLite hydrates with existing books (> 0)
   useEffect(() => {
+    let explicitlyReset = false;
+    try {
+      explicitlyReset = localStorage.getItem('ulm_setup_completed_v1') === 'false';
+    } catch {}
+    if (explicitlyReset) return;
     const currentBooks = Math.max(dbTotalBooksCount, books.length);
     if (currentBooks > 0) {
       markWorkstationSetupCompleted('existing_catalog_hydrated');
@@ -268,13 +292,22 @@ export default function App() {
     const res = await BookSheetService.processQueue();
     const q = BookSheetService.getQueue();
     setWaitingSheetCount(q.filter(i => i.status === 'waiting').length);
-    showToast(res.message);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Sheet Queue Sync',
+      message: res.message,
+    });
   };
 
   const handleStorageLocationSaved = (config: StorageLocationConfig) => {
     setStorageConfig(config);
     reloadData();
-    showToast(`Storage repository mounted: ${config.folderPath}. Saved permanently for future app launches.`);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Repository Folder Updated',
+      message: 'Storage repository mounted permanently for future launches.',
+      meta: config.folderPath,
+    });
   };
 
   const handleReplaySplash = useCallback(() => {
@@ -298,51 +331,13 @@ export default function App() {
     }, 120);
   }, [activeTab, VALID_TABS]);
 
-  // Status toast with slide in (200ms), pause on hover, slide out right (150ms)
-  const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
-  const [isToastExiting, setIsToastExiting] = useState(false);
-  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const toastRemainingRef = useRef<number>(3500);
-  const toastStartRef = useRef<number>(0);
-  const isToastHoveredRef = useRef(false);
-
-  const dismissToast = useCallback(() => {
-    setIsToastExiting(true);
-    setTimeout(() => {
-      setToastMessage(null);
-      setIsToastExiting(false);
-    }, 150);
-  }, []);
-
   const showToast = useCallback((text: string, isError = false) => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setIsToastExiting(false);
-    setToastMessage({ text, isError });
-    toastRemainingRef.current = 3500;
-    toastStartRef.current = Date.now();
-    isToastHoveredRef.current = false;
-
-    toastTimeoutRef.current = setTimeout(() => {
-      dismissToast();
-    }, 3500);
-  }, [dismissToast]);
-
-  const handleToastMouseEnter = () => {
-    isToastHoveredRef.current = true;
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-      const elapsed = Date.now() - toastStartRef.current;
-      toastRemainingRef.current = Math.max(500, toastRemainingRef.current - elapsed);
-    }
-  };
-
-  const handleToastMouseLeave = () => {
-    isToastHoveredRef.current = false;
-    toastStartRef.current = Date.now();
-    toastTimeoutRef.current = setTimeout(() => {
-      dismissToast();
-    }, toastRemainingRef.current);
-  };
+    notifyGlassToast({
+      type: isError ? 'danger' : 'success',
+      title: isError ? 'Action Notice' : 'Operation Complete',
+      message: text,
+    });
+  }, []);
 
   // Reload all data from local repository & persistent IndexedDB directly
   const reloadData = useCallback(async (showLoadingOverlay = false) => {
@@ -401,8 +396,8 @@ export default function App() {
   }, [refreshTrueCount]);
 
   useEffect(() => {
-    void reloadData(true);
-  }, [reloadData]);
+    void reloadData(!initialNeedsSetup);
+  }, [reloadData, initialNeedsSetup]);
 
   // Rule #5 & User Choice: Automatically repair legacy duplicate barcodes on launch
   useEffect(() => {
@@ -427,11 +422,12 @@ export default function App() {
     const handleSyncEvent = (e: Event) => {
       const custom = e as CustomEvent<{ books?: Book[]; loans?: Transaction[] }>;
       if (custom.detail?.books && Array.isArray(custom.detail.books)) {
-        setBooks(custom.detail.books);
+        // Always replace authoritatively — NEVER merge back stale deleted books
+        setBooks([...custom.detail.books]);
         setDbTotalBooksCount(custom.detail.books.length);
       }
       if (custom.detail?.loans && Array.isArray(custom.detail.loans)) {
-        setTransactions(custom.detail.loans);
+        setTransactions([...custom.detail.loans]);
       }
       setBorrowers(LibraryStorage.getBorrowers());
       setHistory(LibraryStorage.getHistory());
@@ -500,11 +496,18 @@ export default function App() {
       reloadData();
       playSuccessBarcodeBeep();
       const batchTotal = Number(bookData.copy_total_in_batch) || 1;
-      showToast(
-        batchTotal > 1
-          ? `Book "${bookData.book_name}" (${batchTotal} total copies in series) saved to database.`
-          : `Book "${bookData.book_name}" saved to SQLite database.`
-      );
+      const metaLabel = bookData.accession_no
+        ? `Acc #${bookData.accession_no}${bookData.barcode ? ` · ${bookData.barcode}` : ''}`
+        : bookData.barcode || undefined;
+      notifyGlassToast({
+        type: 'success',
+        title: batchTotal > 1 ? 'Series Copies Added' : 'Book Saved to Catalog',
+        message:
+          batchTotal > 1
+            ? `"${bookData.book_name}" (${batchTotal} total copies in series) saved.`
+            : `"${bookData.book_name}" saved to catalog database.`,
+        meta: metaLabel,
+      });
       return { success: true, message: 'Saved via AccessionSeriesEngine.' };
     }
 
@@ -516,7 +519,15 @@ export default function App() {
       }
       reloadData();
       playSuccessBarcodeBeep();
-      showToast(`Book "${bookData.book_name}" saved to SQLite database.`);
+      const metaLabel = bookData.accession_no
+        ? `Acc #${bookData.accession_no}${bookData.barcode ? ` · ${bookData.barcode}` : ''}`
+        : bookData.barcode || undefined;
+      notifyGlassToast({
+        type: 'success',
+        title: 'Book Saved to Catalog',
+        message: `"${bookData.book_name}" saved to catalog database.`,
+        meta: metaLabel,
+      });
     }
     return res;
   };
@@ -526,7 +537,15 @@ export default function App() {
     if (res.success) {
       reloadData();
       playClickSound();
-      showToast('Book record updated successfully.');
+      const metaLabel = updates.accession_no
+        ? `Acc #${updates.accession_no}${updates.barcode ? ` · ${updates.barcode}` : ''}`
+        : updates.barcode || undefined;
+      notifyGlassToast({
+        type: 'success',
+        title: 'Book Record Updated',
+        message: updates.book_name ? `Updated "${updates.book_name}".` : 'Book record updated successfully.',
+        meta: metaLabel,
+      });
       if (selectedBookForDetails && selectedBookForDetails.id === id) {
         setSelectedBookForDetails(prev => prev ? { ...prev, ...updates } : null);
       }
@@ -535,30 +554,130 @@ export default function App() {
   };
 
   const handleDeleteBookRequest = (book: Book) => {
+    setBooksToBulkDelete([]);
     setBookToDelete(book);
   };
 
-  const handleConfirmDeleteBook = (
-    bookId: string,
+  const handleBulkDeleteBooksRequest = (selectedBooks: Book[]) => {
+    if (!selectedBooks || selectedBooks.length === 0) return;
+    if (selectedBooks.length === 1) {
+      setBooksToBulkDelete([]);
+      setBookToDelete(selectedBooks[0]);
+      return;
+    }
+    setBookToDelete(null);
+    setBooksToBulkDelete(selectedBooks);
+  };
+
+  const executeBooksDeletion = useCallback(
+    async (
+      targetBooks: Book[],
+      permanent: boolean,
+      forceCloseActiveLoans: boolean = false
+    ) => {
+      if (!targetBooks || targetBooks.length === 0) return;
+
+      const runCascade = async (
+        onProgress?: (processed: number, total: number, detail: string) => void
+      ) =>
+        hardDeleteBooksCascade(books, targetBooks, transactions, {
+          forceDeleteCheckedOut: forceCloseActiveLoans,
+          mode: permanent ? 'purge' : 'archive',
+          onProgress,
+        });
+
+      const res =
+        targetBooks.length > 200
+          ? await runHeavyLibraryTask(
+              `Deleting ${targetBooks.length.toLocaleString()} Selected Volumes`,
+              'Purging volumes across SQLite, IndexedDB, Almari shelves & Master Excel...',
+              async (update) =>
+                runCascade((processed, total, detail) => update(processed, total, detail))
+            )
+          : await runCascade();
+
+      if (res.deletedCount > 0) {
+        const deletedIds = new Set(res.deletedBooks.map((b) => String(b.id || '').trim()).filter(Boolean));
+        const deletedBarcodes = new Set(
+          res.deletedBooks.map((b) => String(b.barcode || '').trim().toUpperCase()).filter(Boolean)
+        );
+
+        setBooks(res.remainingBooks);
+        setDbTotalBooksCount(res.remainingBooks.length);
+        setTransactions(res.updatedLoans);
+        setHistory(LibraryStorage.getHistory());
+        setBookToDelete(null);
+        setBooksToBulkDelete([]);
+
+        if (
+          selectedBookForDetails &&
+          (deletedIds.has(String(selectedBookForDetails.id || '').trim()) ||
+            (selectedBookForDetails.barcode &&
+              deletedBarcodes.has(String(selectedBookForDetails.barcode).trim().toUpperCase())))
+        ) {
+          setSelectedBookForDetails(null);
+        }
+        if (
+          bookToEdit &&
+          (deletedIds.has(String(bookToEdit.id || '').trim()) ||
+            (bookToEdit.barcode &&
+              deletedBarcodes.has(String(bookToEdit.barcode).trim().toUpperCase())))
+        ) {
+          setIsAddEditOpen(false);
+          setBookToEdit(null);
+        }
+
+        playClickSound();
+        const skippedNote =
+          res.skippedCheckedOut.length > 0
+            ? `${res.skippedCheckedOut.length} checked-out skipped`
+            : undefined;
+        notifyGlassToast({
+          type: 'danger',
+          title: res.deletedCount === 1 ? 'Volume Deleted' : 'Volumes Deleted',
+          message:
+            res.deletedCount === 1
+              ? 'Deleted 1 volume & synced Master Excel.'
+              : `Deleted ${res.deletedCount.toLocaleString()} volumes & synced Master Excel.`,
+          meta: skippedNote,
+        });
+      } else if (res.skippedCheckedOut.length > 0) {
+        playErrorBeep();
+        const names = res.skippedCheckedOut
+          .slice(0, 2)
+          .map((b) => `"${b.book_name}"`)
+          .join(', ');
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Checked-Out Volume Protected',
+          message: `Cannot delete ${res.skippedCheckedOut.length} checked-out volume(s) (${names}). Return first or enable Force-Close Loan.`,
+        });
+      } else {
+        playErrorBeep();
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Deletion Failed',
+          message: 'Selected volume(s) could not be deleted.',
+        });
+      }
+    },
+    [books, transactions, selectedBookForDetails, bookToEdit]
+  );
+
+  const handleConfirmDeleteBook = async (
+    targetBook: Book,
     permanent: boolean,
     forceCloseActiveLoan: boolean = false
   ) => {
-    const res = LibraryStorage.deleteBook(bookId, permanent, forceCloseActiveLoan);
-    if (res.success) {
-      reloadData();
-      playClickSound();
-      showToast(res.message);
-      if (selectedBookForDetails && selectedBookForDetails.id === bookId) {
-        setSelectedBookForDetails(null);
-      }
-      if (bookToEdit && bookToEdit.id === bookId) {
-        setIsAddEditOpen(false);
-        setBookToEdit(null);
-      }
-    } else {
-      playErrorBeep();
-      showToast(res.message, true);
-    }
+    await executeBooksDeletion([targetBook], permanent, forceCloseActiveLoan);
+  };
+
+  const handleConfirmBulkDeleteBooks = async (
+    targetBooks: Book[],
+    permanent: boolean,
+    forceCloseActiveLoans: boolean = false
+  ) => {
+    await executeBooksDeletion(targetBooks, permanent, forceCloseActiveLoans);
   };
 
   // Borrower CRUD actions
@@ -567,10 +686,19 @@ export default function App() {
     if (res.success) {
       reloadData();
       playClickSound();
-      showToast(`Member "${borrowerData.name}" enrolled successfully.`);
+      notifyGlassToast({
+        type: 'success',
+        title: 'Member Enrolled',
+        message: `Member "${borrowerData.name}" enrolled successfully.`,
+        meta: borrowerData.university_id || borrowerData.student_id || undefined,
+      });
     } else {
       playErrorBeep();
-      showToast(res.message, true);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Enrollment Failed',
+        message: res.message,
+      });
     }
     return res;
   };
@@ -580,10 +708,19 @@ export default function App() {
     if (res.success) {
       reloadData();
       playClickSound();
-      showToast('Member profile updated successfully.');
+      notifyGlassToast({
+        type: 'success',
+        title: 'Member Profile Updated',
+        message: updates.name ? `Updated profile for "${updates.name}".` : 'Member profile updated successfully.',
+        meta: updates.university_id || undefined,
+      });
     } else {
       playErrorBeep();
-      showToast(res.message, true);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Update Failed',
+        message: res.message,
+      });
     }
     return res;
   };
@@ -602,7 +739,12 @@ export default function App() {
     if (imported > 0) {
       reloadData();
       playSuccessBarcodeBeep();
-      showToast(`Batch import complete: ${imported} members enrolled into database.`);
+      notifyGlassToast({
+        type: 'success',
+        title: 'Members Batch Imported',
+        message: `Enrolled ${imported} member(s) into database.`,
+        meta: errors.length > 0 ? `${errors.length} skipped` : undefined,
+      });
     }
     return { success: true, imported, errors };
   };
@@ -616,13 +758,21 @@ export default function App() {
     if (res.success) {
       reloadData();
       playClickSound();
-      showToast(res.message);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Member Removed',
+        message: res.message,
+      });
       if (selectedBorrowerIdForDetails === borrowerId) {
         setSelectedBorrowerIdForDetails(null);
       }
     } else {
       playErrorBeep();
-      showToast(res.message, true);
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Member Removal Blocked',
+        message: res.message,
+      });
     }
   };
 
@@ -637,10 +787,21 @@ export default function App() {
     if (res.success) {
       reloadData();
       playSuccessBarcodeBeep();
-      showToast(res.message);
+      notifyGlassToast({
+        type: 'success',
+        title: 'Book Issued to Member',
+        message: res.message,
+        meta: res.transaction
+          ? `Due ${res.transaction.due_date}${res.transaction.barcode ? ` · ${res.transaction.barcode}` : ''}`
+          : undefined,
+      });
     } else {
       playErrorBeep();
-      showToast(res.message, true);
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: res.message,
+      });
     }
     return res;
   };
@@ -652,14 +813,41 @@ export default function App() {
   };
 
   const handleReturnBook = (transactionId: string) => {
+    const txBefore = transactions.find(
+      t =>
+        t.id === transactionId ||
+        ((t.book_id === transactionId || t.barcode === transactionId) &&
+          String(t.status || '').toUpperCase() !== 'RETURNED' &&
+          !t.return_date)
+    );
     const res = LibraryStorage.returnBook(transactionId);
     if (res.success) {
       reloadData();
       playSuccessBarcodeBeep();
-      showToast(res.message);
+      let fineMeta = 'On Time · Rs. 0';
+      if (txBefore?.due_date) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (txBefore.due_date < todayStr) {
+          const diffMs = new Date(todayStr).getTime() - new Date(txBefore.due_date).getTime();
+          const diffDays = Number.isFinite(diffMs) && diffMs > 0 ? Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24))) : 0;
+          const fineRate = Number.isFinite(Number(settings.fine_per_day_pkr)) ? Math.max(0, Number(settings.fine_per_day_pkr)) : 50;
+          const fine = diffDays * fineRate;
+          fineMeta = fine > 0 ? `Overdue ${diffDays}d · Fine: Rs. ${fine}` : 'On Time · Rs. 0';
+        }
+      }
+      notifyGlassToast({
+        type: 'success',
+        title: 'Book Returned to Shelf',
+        message: txBefore ? `"${txBefore.book_name}" returned by ${txBefore.borrower_name}.` : res.message,
+        meta: txBefore?.barcode ? `${fineMeta} · ${txBefore.barcode}` : fineMeta,
+      });
     } else {
       playErrorBeep();
-      showToast(res.message, true);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Return Failed',
+        message: res.message,
+      });
     }
     return res;
   };
@@ -678,8 +866,14 @@ export default function App() {
       Shelf: b.shelf,
       DeweyCallNumber: b.dewey_call_number,
     }));
-    LibraryStorage.exportCsv(data, `ULM_LMS_Catalog_Export_${todayStr}.csv`);
-    showToast('Catalog exported to CSV/Excel format.');
+    const exportFilename = `ULM_LMS_Catalog_Export_${todayStr}.csv`;
+    LibraryStorage.exportCsv(data, exportFilename);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${data.length.toLocaleString()} catalog record(s) to CSV.`,
+      meta: exportFilename,
+    });
   };
 
   // Reset to Demo Data & First-Time Launch State
@@ -703,7 +897,11 @@ export default function App() {
     setDbTotalBooksCount(0);
     await reloadData();
     playClickSound();
-    showToast(res.message);
+    notifyGlassToast({
+      type: 'danger',
+      title: 'Catalog Reset to Zero',
+      message: res.message,
+    });
     setIsStorageSetupResetMode(true);
     setIsStorageSetupModalOpen(true);
   };
@@ -713,7 +911,13 @@ export default function App() {
     return SharedCountService.computeCounts(books, borrowers, transactions);
   }, [books, borrowers, transactions]);
 
-  const isExplicitlyCleared = typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true';
+  const isExplicitlyCleared = (() => {
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true';
+    } catch {
+      return false;
+    }
+  })();
   const activeLoansCount = sharedCounts.activeLoans;
   const totalBooksCount = isExplicitlyCleared ? 0 : Math.max(dbTotalBooksCount, sharedCounts.totalTitles);
   const totalBorrowersCount = sharedCounts.totalRegisteredBorrowers;
@@ -837,11 +1041,11 @@ export default function App() {
           <main 
             id="ulm-main-scroll-view"
             ref={mainScrollRef}
-            key={activeTab}
             className={`ulm-page-scroll-container custom-scrollbar flex-1 flex flex-col min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden relative z-10 overscroll-y-contain ${
-              isScreenExiting ? 'screen-view-exit' : 'screen-view-enter'
+              isScreenExiting ? 'screen-view-exit' : ''
             }`}
           >
+        <div key={activeTab} className="ulm-page-enter w-full flex-1 flex flex-col min-h-0">
         {(activeTab === 'catalog' || !['almaris', 'circulation', 'borrowers', 'reports', 'scanner', 'excel', 'settings'].includes(activeTab)) && (
           <BooksCatalogView
             books={books}
@@ -854,6 +1058,7 @@ export default function App() {
               setIsAddEditOpen(true);
             }}
             onDeleteBook={handleDeleteBookRequest}
+            onDeleteSelectedBooks={handleBulkDeleteBooksRequest}
             onQuickLoan={(book) => {
               handleOpenIssueFlow(book, null);
             }}
@@ -865,16 +1070,15 @@ export default function App() {
             }}
             onPrintBarcode={(book) => setBookForPrint(book)}
             onOpenImportBookEntrySheet={() => setIsExcelImportModalOpen(true)}
-            onOpenBatchLabelPrint={() => {
-              setBatchPrintBookIds([]);
+            onOpenBatchLabelPrint={(ids) => {
+              setBatchPrintBookIds(Array.isArray(ids) && ids.length > 0 ? ids : []);
               setIsBatchLabelPrintOpen(true);
             }}
             onUpdateBooks={(updatedBooks) => {
               setBooks(updatedBooks);
             }}
-            onBooksUpdated={(updatedBooks, msg) => {
+            onBooksUpdated={(updatedBooks, _msg) => {
               setBooks(updatedBooks);
-              showToast(msg);
             }}
           />
         )}
@@ -893,9 +1097,8 @@ export default function App() {
                 setIsAddEditOpen(true);
               }}
               onOpenSettingsTab={() => handleTabChange('settings')}
-              onCatalogBooksUpdated={(updatedBooks, msg) => {
+              onCatalogBooksUpdated={(updatedBooks, _msg) => {
                 setBooks(updatedBooks);
-                showToast(msg);
               }}
             />
           </AlmariErrorBoundary>
@@ -979,9 +1182,8 @@ export default function App() {
             onUpdateBooks={(updatedBooks) => {
               setBooks(updatedBooks);
             }}
-            onCatalogBooksUpdated={(updatedBooks, msg) => {
+            onCatalogBooksUpdated={(updatedBooks, _msg) => {
               setBooks(updatedBooks);
-              showToast(msg);
             }}
           />
         )}
@@ -1006,13 +1208,14 @@ export default function App() {
             settings={settings}
             onUpdateSettings={(newSettings) => {
               setSettings(newSettings);
-              showToast('✓ App Name, Header & Splash Branding Synchronized!');
             }}
             onResetDemoData={handleResetDemoData}
             onClearDemoData={handleClearDemoData}
             onResetToZeroComplete={async () => {
               await resetEntireDatabaseToZero();
+              AlmariService.clearAllToZero();
               try {
+                localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
                 localStorage.setItem('ulm_setup_completed_v1', 'false');
               } catch (_) {}
               setBooks([]);
@@ -1020,10 +1223,22 @@ export default function App() {
               setTransactions([]);
               setHistory([]);
               setDbTotalBooksCount(0);
+              window.dispatchEvent(
+                new CustomEvent('ulm-library-sync', {
+                  detail: { books: [], members: [], loans: [], almaris: [], bookGroups: [] },
+                })
+              );
+              window.dispatchEvent(new CustomEvent('ulm-library-data-changed'));
+              setShowSplash(false);
+              setIsAppEntered(true);
               setIsWelcomeModalOpen(false);
               setIsStorageSetupResetMode(true);
               setIsStorageSetupModalOpen(true);
-              showToast('Library database reset to zero (0 books, 0 members, 0 loans).');
+              notifyGlassToast({
+                type: 'danger',
+                title: 'Workstation Reset to Zero',
+                message: 'All books, members, loans, Almaris & groups purged cleanly.',
+              });
             }}
             onPlayBootAnimation={handleReplaySplash}
             onOpenStorageModal={() => setIsStorageModalOpen(true)}
@@ -1034,6 +1249,7 @@ export default function App() {
             }}
           />
         )}
+        </div>
         </main>
         </div>
       </div>
@@ -1081,13 +1297,18 @@ export default function App() {
         }}
       />
 
-      {/* Delete Book Confirmation Modal */}
+      {/* Delete Book Confirmation Modal (Single & Bulk) */}
       <DeleteBookConfirmModal
         book={bookToDelete}
+        booksToDelete={booksToBulkDelete}
         transactions={transactions}
-        isOpen={!!bookToDelete}
-        onClose={() => setBookToDelete(null)}
+        isOpen={!!bookToDelete || booksToBulkDelete.length > 0}
+        onClose={() => {
+          setBookToDelete(null);
+          setBooksToBulkDelete([]);
+        }}
         onConfirmDelete={handleConfirmDeleteBook}
+        onConfirmBulkDelete={handleConfirmBulkDeleteBooks}
       />
 
       {/* Borrower Details & History Modal */}
@@ -1154,7 +1375,12 @@ export default function App() {
             setDbTotalBooksCount(prev => prev + acceptedBooks.length);
           }
           reloadData();
-          showToast(`Successfully imported ${count} books from entry sheet.`);
+          notifyGlassToast({
+            type: 'success',
+            title: 'Import Complete',
+            message: `Successfully imported ${count.toLocaleString()} book(s) from entry sheet.`,
+            meta: batchId ? `Batch ${batchId}` : undefined,
+          });
           if (bookIds && bookIds.length > 0) {
             setBatchPrintBookIds(bookIds);
           }
@@ -1171,7 +1397,11 @@ export default function App() {
         onClose={() => setIsExcelImportModalOpen(false)}
         onImportComplete={(importedCount) => {
           reloadData();
-          showToast(`Successfully imported ${importedCount.toLocaleString()} books directly to persistent storage.`);
+          notifyGlassToast({
+            type: 'success',
+            title: 'Excel Import Complete',
+            message: `Imported ${importedCount.toLocaleString()} book(s) into persistent storage.`,
+          });
         }}
       />
 
@@ -1190,7 +1420,11 @@ export default function App() {
         onCompleteMessage={(msg) => {
           reloadData();
           void refreshTrueCount();
-          showToast(msg);
+          notifyGlassToast({
+            type: 'success',
+            title: 'Workstation Ready',
+            message: msg,
+          });
         }}
         onConfigured={(_path, action) => {
           markWorkstationSetupCompleted(action || 'configured');
@@ -1219,13 +1453,21 @@ export default function App() {
           reloadData();
           setIsDataFileDiffOpen(false);
           setDataFileDiffSummary(null);
-          showToast('External changes incorporated into local catalog.');
+          notifyGlassToast({
+            type: 'success',
+            title: 'External Changes Synced',
+            message: 'External data file changes incorporated into local catalog.',
+          });
         }}
         onIgnoreAndRewrite={() => {
           LibraryDataFilesService.writeLibraryDataFiles().then(() => {
             setIsDataFileDiffOpen(false);
             setDataFileDiffSummary(null);
-            showToast('Rewrote data files with active library catalog.');
+            notifyGlassToast({
+              type: 'info',
+              title: 'Data Files Rewritten',
+              message: 'Rewrote external data files with active library catalog.',
+            });
           });
         }}
         onClose={() => {
@@ -1271,29 +1513,8 @@ export default function App() {
 
       {/* Note: Duplicate WelcomeLibraryModal removed — unified into WorkstationSetupModal above */}
 
-      {/* Floating System Toast with Countdown Bar (Slide in from bottom right 200ms, pause on hover, slide out right 150ms) */}
-      {toastMessage && (
-        <div 
-          onMouseEnter={handleToastMouseEnter}
-          onMouseLeave={handleToastMouseLeave}
-          className={`fixed bottom-6 right-6 z-50 overflow-hidden rounded-[8px] border border-[var(--border)] shadow-[var(--shadow-modal)] bg-[var(--card)] toast-container ${
-            isToastExiting ? 'toast-exit' : ''
-          }`}
-        >
-          <div className="px-4 py-3 text-[14px] flex items-center gap-3">
-            {toastMessage.isError ? (
-              <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" />
-            ) : (
-              <ToastSuccessDeco />
-            )}
-            <span className="text-[var(--text-primary)] font-medium">{toastMessage.text}</span>
-          </div>
-          {/* Thin auto-dismiss countdown bar */}
-          <div className="h-[2px] w-full bg-[var(--border)]">
-            <div className={`h-full toast-countdown-bar ${toastMessage.isError ? 'bg-rose-500' : 'bg-[#2563EB]'}`} />
-          </div>
-        </div>
-      )}
+      {/* Global Frosted Crystal Liquid-Glass Notification Portal */}
+      <LiquidGlassToastContainer />
 
       {/* App Opening / Boot Animation Ceremony */}
       {showSplash && (

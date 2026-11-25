@@ -33,11 +33,13 @@ import { MemberCardPrintModal } from './modals/MemberCardPrintModal';
 import { KpiCard } from './shared/SharedCards';
 import { StatusPill } from './shared/StatusPill';
 import CustomSelect from './ui/CustomSelect';
-import { CountUp } from '@/components/ui/count-up';
 import { SharedCsvWriter } from '../utils/csvWriter';
 import { matchesUrduSearch } from '../utils/urduUtils';
 import { ULM_OFFICIAL_CREST_SRC } from '../constants/ulmOfficialAssets';
 import { LiquidPillOverlay, LiquidIconFx } from './ui/liquid-pill-physics';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
+import { AnimatedCounter } from './ui/MotionPrimitives';
+import { resolveMemberCardStanding } from '../utils/memberStanding';
 
 export interface BorrowersViewProps {
   borrowers: Borrower[];
@@ -222,6 +224,12 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
       { header: 'Enrollment Date', key: 'joined_date' },
     ];
     SharedCsvWriter.downloadCsv(filteredBorrowers, 'ULM_Borrowers_Export.csv', cols);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${filteredBorrowers.length.toLocaleString()} member profile(s) to CSV.`,
+      meta: 'ULM_Borrowers_Export.csv',
+    });
   };
 
   // CSV Template download
@@ -236,6 +244,12 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Export Saved',
+      message: 'Member batch CSV import template downloaded.',
+      meta: 'ULM_Borrowers_Class_Import_Template.csv',
+    });
   };
 
   return (
@@ -327,7 +341,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
       {/* 2. TOP 4 MEMBER KPI CARDS (Exact 3-Tier Frosted Crystal Spec — Zero Dotted Lines) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* KPI 1: TOTAL MEMBERS */}
-        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+        <div
+          style={{ animationDelay: '0ms' }}
+          className="ulm-stagger-card ulm-card-hover ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
               TOTAL MEMBERS
@@ -338,7 +355,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
-              <CountUp end={totalBorrowers} />
+              <AnimatedCounter value={totalBorrowers} />
             </span>
             <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
               registered
@@ -350,7 +367,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         </div>
 
         {/* KPI 2: STUDENTS */}
-        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+        <div
+          style={{ animationDelay: '45ms' }}
+          className="ulm-stagger-card ulm-card-hover ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
               STUDENTS
@@ -361,7 +381,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
-              <CountUp end={studentCount} />
+              <AnimatedCounter value={studentCount} />
             </span>
             <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
               enrolled
@@ -373,7 +393,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         </div>
 
         {/* KPI 3: FACULTY & STAFF */}
-        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+        <div
+          style={{ animationDelay: '90ms' }}
+          className="ulm-stagger-card ulm-card-hover ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
               FACULTY &amp; STAFF
@@ -384,7 +407,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none text-slate-900 dark:text-white">
-              <CountUp end={facultyStaffCount} />
+              <AnimatedCounter value={facultyStaffCount} />
             </span>
             <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
               personnel
@@ -396,7 +419,10 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         </div>
 
         {/* KPI 4: ACTIVE BORROWERS / LOANS */}
-        <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5">
+        <div
+          style={{ animationDelay: '135ms' }}
+          className="ulm-stagger-card ulm-card-hover ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] p-4 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-2.5"
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="ulm-kpi-label text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-[#B3AABD]">
               ACTIVE BORROWERS
@@ -413,7 +439,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             <span className={`font-['Space_Grotesk'] text-[26px] font-bold tabular-nums leading-none ${
               totalActiveLoansCount > 0 ? 'text-amber-700 dark:text-[#FFD147]' : 'text-slate-900 dark:text-white'
             }`}>
-              <CountUp end={totalActiveLoansCount} />
+              <AnimatedCounter value={totalActiveLoansCount} />
             </span>
             <span className="text-[11.5px] italic text-slate-500 dark:text-[#B3AABD] pr-1">
               active loans
@@ -601,17 +627,18 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
               setSelectedStatus('ALL');
               setSelectedDepartment('ALL');
             }}
-            className="h-9 px-4 rounded-xl bg-amber-500/[0.14] hover:bg-amber-500/25 border border-amber-500/35 text-xs font-bold text-amber-900 dark:text-[#FFD147] transition-colors cursor-pointer"
+            className="ulm-btn-tactile h-9 px-4 rounded-xl bg-amber-500/[0.14] hover:bg-amber-500/25 border border-amber-500/35 text-xs font-bold text-amber-900 dark:text-[#FFD147] transition-colors cursor-pointer"
           >
             Reset Filters
           </button>
         </div>
       )}
 
-      {/* 4. MEMBER REGISTRY CARDS — GRID VIEW */}
+      {/* 4. MEMBER REGISTRY CARDS — GRID & TABLE VIEWS */}
+      <div key={viewMode} className="ulm-page-enter">
       {viewMode === 'grid' && filteredBorrowers.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredBorrowers.map((borrower) => {
+          {filteredBorrowers.map((borrower, idx) => {
             const loansCount = activeLoansMap.countMap.get(borrower.id) || 0;
             const overduesCount = activeLoansMap.overdueMap.get(borrower.id) || 0;
             const maxLimit = borrower.borrow_limit || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3);
@@ -622,7 +649,8 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
             return (
               <div
                 key={borrower.id}
-                className="ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] hover:border-[#BC881B]/60 dark:hover:border-[#FFD147]/55 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out hover:-translate-y-0.5 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] overflow-hidden"
+                style={{ animationDelay: `${Math.min(idx, 11) * 28}ms` }}
+                className="ulm-stagger-card ulm-card-hover ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.035] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/80 dark:border-white/[0.14] hover:border-[#BC881B]/60 dark:hover:border-[#FFD147]/55 p-4 flex flex-col justify-between transition-all duration-[180ms] ease-out shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.5),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.10),0_10px_28px_rgba(0,0,0,0.28)] overflow-hidden"
               >
                 {/* User Card Background Watermark */}
                 <img
@@ -657,34 +685,50 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                         </span>
 
                         {/* Architectural Status Micro-Tag with 6px Square LED Dot */}
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                            borrower.status === 'active'
-                              ? isQuotaFull
-                                ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
-                                : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
-                              : borrower.status === 'suspended'
+                        {(() => {
+                          const standing = resolveMemberCardStanding(borrower);
+                          const isLeft = borrower.status === 'left';
+                          const badgeClass =
+                            standing.state === 'SUSPENDED'
                               ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300 border-rose-500/35'
-                              : 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${
-                              borrower.status === 'active'
-                                ? isQuotaFull
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500'
-                                : borrower.status === 'suspended'
-                                ? 'bg-rose-500'
-                                : 'bg-slate-400'
-                            }`}
-                          />
-                          <span>
-                            {borrower.status === 'active' && isQuotaFull
+                              : standing.state === 'EXPIRED'
+                              ? 'bg-red-500/12 text-red-700 dark:text-red-300 border-red-500/40'
+                              : isLeft
+                              ? 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
+                              : standing.state === 'EXPIRING_SOON' || isQuotaFull
+                              ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
+                              : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30';
+                          const dotClass =
+                            standing.state === 'SUSPENDED'
+                              ? 'bg-rose-500'
+                              : standing.state === 'EXPIRED'
+                              ? 'bg-red-600'
+                              : isLeft
+                              ? 'bg-slate-400'
+                              : standing.state === 'EXPIRING_SOON' || isQuotaFull
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500';
+                          const badgeLabel =
+                            standing.state === 'SUSPENDED'
+                              ? 'SUSPENDED'
+                              : standing.state === 'EXPIRED'
+                              ? 'CARD EXPIRED'
+                              : isLeft
+                              ? 'LEFT'
+                              : standing.state === 'EXPIRING_SOON'
+                              ? 'EXPIRING SOON'
+                              : isQuotaFull
                               ? 'QUOTA FULL'
-                              : borrower.status.toUpperCase()}
-                          </span>
-                        </span>
+                              : 'ACTIVE';
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${badgeClass}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${dotClass}`} />
+                              <span>{badgeLabel}</span>
+                            </span>
+                          );
+                        })()}
 
                         {overduesCount > 0 && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/12 text-rose-700 dark:text-rose-300 border border-rose-500/35">
@@ -842,7 +886,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                       type="button"
                       onClick={() => onIssueBook(borrower)}
                       disabled={borrower.status !== 'active' || loansCount >= maxLimit}
-                      className="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-8 px-2.5 rounded-lg bg-amber-500/[0.14] hover:bg-amber-500/25 active:scale-[0.98] text-amber-900 dark:text-[#FFD147] text-[11.5px] font-bold border border-amber-500/35 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                      className="ulm-btn-tactile flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-8 px-2.5 rounded-lg bg-amber-500/[0.14] hover:bg-amber-500/25 text-amber-900 dark:text-[#FFD147] text-[11.5px] font-bold border border-amber-500/35 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                       title={
                         borrower.status !== 'active'
                           ? 'Member suspended/inactive'
@@ -858,7 +902,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedBorrowerForDetails(borrower)}
-                      className="inline-flex items-center justify-center whitespace-nowrap shrink-0 h-8 px-2.5 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 dark:text-slate-200 text-[11.5px] font-semibold border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
+                      className="ulm-btn-tactile inline-flex items-center justify-center whitespace-nowrap shrink-0 h-8 px-2.5 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 dark:text-slate-200 text-[11.5px] font-semibold border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
                     >
                       History
                     </button>
@@ -866,7 +910,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenSinglePrint(borrower)}
-                      className="inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-700 dark:text-[#FFD147] border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
+                      className="ulm-btn-tactile inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-amber-700 dark:text-[#FFD147] border border-slate-300/80 dark:border-white/[0.12] transition-colors cursor-pointer"
                       title="View / Print CR80 ID Card"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -875,7 +919,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onDeleteBorrower(borrower)}
-                      className="inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-rose-50 dark:bg-white/[0.06] dark:hover:bg-rose-950/50 text-slate-500 hover:text-rose-600 dark:text-[#B3AABD] dark:hover:text-rose-400 border border-slate-300/80 dark:border-white/[0.12] hover:border-rose-400/40 transition-colors cursor-pointer"
+                      className="ulm-btn-tactile inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-white/80 hover:bg-rose-50 dark:bg-white/[0.06] dark:hover:bg-rose-950/50 text-slate-500 hover:text-rose-600 dark:text-[#B3AABD] dark:hover:text-rose-400 border border-slate-300/80 dark:border-white/[0.12] hover:border-rose-400/40 transition-colors cursor-pointer"
                       title="Delete member"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -964,32 +1008,50 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
                           >
                             {b.role}
                           </span>
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                              b.status === 'active'
-                                ? isQuotaFull
-                                  ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
-                                  : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
-                                : b.status === 'suspended'
+                          {(() => {
+                            const standing = resolveMemberCardStanding(b);
+                            const isLeft = b.status === 'left';
+                            const badgeClass =
+                              standing.state === 'SUSPENDED'
                                 ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300 border-rose-500/35'
-                                : 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${
-                                b.status === 'active'
-                                  ? isQuotaFull
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500'
-                                  : b.status === 'suspended'
-                                  ? 'bg-rose-500'
-                                  : 'bg-slate-400'
-                              }`}
-                            />
-                            <span>
-                              {b.status === 'active' && isQuotaFull ? 'QUOTA FULL' : b.status.toUpperCase()}
-                            </span>
-                          </span>
+                                : standing.state === 'EXPIRED'
+                                ? 'bg-red-500/12 text-red-700 dark:text-red-300 border-red-500/40'
+                                : isLeft
+                                ? 'bg-slate-200/80 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-white/[0.15]'
+                                : standing.state === 'EXPIRING_SOON' || isQuotaFull
+                                ? 'bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/35'
+                                : 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-300 border-emerald-500/30';
+                            const dotClass =
+                              standing.state === 'SUSPENDED'
+                                ? 'bg-rose-500'
+                                : standing.state === 'EXPIRED'
+                                ? 'bg-red-600'
+                                : isLeft
+                                ? 'bg-slate-400'
+                                : standing.state === 'EXPIRING_SOON' || isQuotaFull
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500';
+                            const badgeLabel =
+                              standing.state === 'SUSPENDED'
+                                ? 'SUSPENDED'
+                                : standing.state === 'EXPIRED'
+                                ? 'CARD EXPIRED'
+                                : isLeft
+                                ? 'LEFT'
+                                : standing.state === 'EXPIRING_SOON'
+                                ? 'EXPIRING SOON'
+                                : isQuotaFull
+                                ? 'QUOTA FULL'
+                                : 'ACTIVE';
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${badgeClass}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-[1.5px] shrink-0 ${dotClass}`} />
+                                <span>{badgeLabel}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
                       </td>
 
@@ -1087,6 +1149,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
           </div>
         </div>
       )}
+      </div>
 
       {/* MODALS */}
       {/* 1. Add / Edit Borrower Modal */}
@@ -1162,6 +1225,7 @@ export const BorrowersView: React.FC<BorrowersViewProps> = ({
         isOpen={isPrintModalOpen}
         borrower={printMembersList.length === 1 ? printMembersList[0] : null}
         members={printMembersList}
+        allMembers={borrowers}
         onClose={() => {
           setIsPrintModalOpen(false);
           setPrintMembersList([]);

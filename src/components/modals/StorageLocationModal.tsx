@@ -26,6 +26,7 @@ import { StorageLocationConfig } from '../../types/library';
 import { RealStorageService, FolderChecklistResult, LibraryCreationProgressStep, StorageStatus } from '../../services/realStorageService';
 import { LibraryStorage } from '../../services/storage';
 import { ULM_CREST_LOGO } from '../../constants/branding';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface StorageLocationModalProps {
   isOpen: boolean;
@@ -173,7 +174,14 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
       setExistingFileName(file.name);
       setDisplayPath(file.name);
     } catch (err: any) {
-      setExecutionError(`Failed to read file: ${err.message}`);
+      const msg = `Failed to read file: ${err.message}`;
+      setExecutionError(msg);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'File Read Failed',
+        message: err?.message || 'Could not read selected library file.',
+        meta: file.name,
+      });
     }
   };
 
@@ -199,6 +207,11 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
         });
       } else {
         setExecutionError(res.message);
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Open Library Failed',
+          message: res.message,
+        });
       }
       return;
     }
@@ -235,6 +248,11 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
       });
     } else {
       setExecutionError(res.message);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Storage Setup Failed',
+        message: res.message,
+      });
     }
   };
 
@@ -273,8 +291,19 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
       setMigrationResult(res.message);
       const st = await RealStorageService.getStatus();
       setCreationSuccessStatus(st);
+      notifyGlassToast({
+        type: 'success',
+        title: 'Browser Data Migrated',
+        message: res.message,
+        meta: st.folderPath || displayPath,
+      });
     } else {
       setExecutionError(res.message);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Migration Failed',
+        message: res.message,
+      });
     }
   };
 
@@ -282,11 +311,11 @@ export const StorageLocationModal: React.FC<StorageLocationModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md"
       onClick={() => !isExecuting && !isMigrating && onClose()}
     >
       <div 
-        className="w-full max-w-2xl bg-[#141118] border border-amber-500/30 rounded-[18px] shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden relative flex flex-col max-h-[94vh]"
+        className="ulm-modal-dialog w-full max-w-2xl bg-[#141118] border border-amber-500/30 rounded-[18px] shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden relative flex flex-col max-h-[94vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Top Gold Institutional Hairline */}

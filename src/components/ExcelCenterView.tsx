@@ -45,6 +45,7 @@ import { PageHeaderCard } from './shared/PageHeaderCard';
 import { TabCards, TabCardItem } from './shared/TabCards';
 import { PanelCard } from './shared/SharedCards';
 import { StatusPill } from './shared/StatusPill';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
 
 export type MigrationTabId = 'import' | 'move' | 'export';
 
@@ -125,9 +126,20 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
         setIsSuccessMorph(true);
         setTimeout(() => setIsSuccessMorph(false), 1500);
         onRefreshData();
+        notifyGlassToast({
+          type: 'success',
+          title: 'Test Catalog Ready',
+          message: 'Inserted +25,000 volumes in strict Accession & Barcode series.',
+          meta: `${res.newTotal.toLocaleString()} Books`,
+        });
       }
     } catch (e: any) {
       setImportError(`Failed to insert test books: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Bulk Generation Failed',
+        message: e.message || 'Unable to generate test volumes.',
+      });
     } finally {
       finishHeavyTask();
       setIsGeneratingTestBooks(false);
@@ -142,8 +154,19 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       setImportStatus(`Database sync verified: Total verified active books across SQLite / IndexedDB = ${count.toLocaleString()}.`);
       setIsSuccessMorph(true);
       setTimeout(() => setIsSuccessMorph(false), 1200);
+      notifyGlassToast({
+        type: 'info',
+        title: 'Database Sync Verified',
+        message: 'Recounted verified volumes across SQLite / IndexedDB.',
+        meta: `${count.toLocaleString()} Books`,
+      });
     } catch (e: any) {
       setImportError(`Recount failed: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Recount Failed',
+        message: e.message || 'Unable to verify book count.',
+      });
     }
   };
 
@@ -171,10 +194,20 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       LibraryStorage.saveBooks([]);
       onRefreshData();
       setImportStatus('Library completely wiped to 0 books. Database reset to zero.');
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Catalog Cleared',
+        message: 'Library completely wiped to 0 books.',
+      });
       setIsSuccessMorph(true);
       setTimeout(() => setIsSuccessMorph(false), 1500);
     } catch (e: any) {
       setImportError(`Reset failed: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Reset Failed',
+        message: e.message || 'Could not wipe catalog.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -190,8 +223,19 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       a.download = 'ULM_Book_Entry_Sheet.xlsx';
       a.click();
       URL.revokeObjectURL(url);
+      notifyGlassToast({
+        type: 'info',
+        title: 'Export Saved',
+        message: 'Blank Book Entry Sheet downloaded.',
+        meta: 'ULM_Book_Entry_Sheet.xlsx',
+      });
     } catch (e: any) {
       setImportError(`Failed to generate entry sheet: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Export Failed',
+        message: e.message || 'Failed to generate entry sheet.',
+      });
     }
   };
 
@@ -200,8 +244,19 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
     try {
       await LibraryDataFilesService.downloadLibraryDataXlsx();
       setImportStatus('Generated and downloaded comprehensive LibraryData.xlsx workbook.');
+      notifyGlassToast({
+        type: 'success',
+        title: 'Export Saved',
+        message: 'Comprehensive LibraryData.xlsx workbook downloaded.',
+        meta: 'LibraryData.xlsx',
+      });
     } catch (e: any) {
       setImportError(`Failed to download LibraryData.xlsx: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Export Failed',
+        message: e.message || 'Failed to download LibraryData.xlsx.',
+      });
     }
   };
 
@@ -220,13 +275,29 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       });
       if (res.success) {
         setImportStatus(`ZIP Transfer Archive saved successfully (${res.filename}).`);
+        notifyGlassToast({
+          type: 'success',
+          title: 'Transfer ZIP Saved',
+          message: 'Workstation backup ZIP archive packaged cleanly.',
+          meta: res.filename,
+        });
         setIsSuccessMorph(true);
         setTimeout(() => setIsSuccessMorph(false), 1200);
       } else {
         setImportError(res.message);
+        notifyGlassToast({
+          type: 'danger',
+          title: 'ZIP Export Failed',
+          message: res.message,
+        });
       }
     } catch (e: any) {
       setImportError(`ZIP transfer export failed: ${e.message}`);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'ZIP Export Failed',
+        message: e.message || 'Could not build transfer ZIP.',
+      });
     } finally {
       finishHeavyTask();
       setIsProcessing(false);
@@ -237,11 +308,23 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
   const handleExportMasterCsv = () => {
     LibraryStorage.exportMasterMigrationCsv();
     setImportStatus('Generated Master Migration CSV package. Transfer this file to your other PC via USB or network.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: 'Master Migration CSV package exported for PC transfer.',
+      meta: `ULM_Master_Migration_${todayStr}.csv`,
+    });
   };
 
   const handleExportMasterJson = () => {
     LibraryStorage.exportMasterMigrationJson();
     setImportStatus('Generated complete SQLite JSON database clone. Transfer this file to your other PC for setup.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: 'Complete JSON database clone exported.',
+      meta: `ULM_Master_Clone_${todayStr}.json`,
+    });
   };
 
   // TAB 3: Dedicated Departmental Sheet Exports using SharedCsvWriter
@@ -265,7 +348,14 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       CallNumber: b.dewey_call_number,
       DateAdded: b.date_added || (b.created_at ? b.created_at.split(' ')[0] : todayStr),
     }));
-    SharedCsvWriter.downloadCsv(data, `ULM_Books_Catalog_${todayStr}.csv`);
+    const filename = `ULM_Books_Catalog_${todayStr}.csv`;
+    SharedCsvWriter.downloadCsv(data, filename);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${data.length.toLocaleString()} book record(s).`,
+      meta: filename,
+    });
   };
 
   const handleExportBorrowers = () => {
@@ -279,7 +369,14 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       Email: b.email,
       Status: b.status,
     }));
-    SharedCsvWriter.downloadCsv(data, `ULM_Borrowers_Register_${todayStr}.csv`);
+    const filename = `ULM_Borrowers_Register_${todayStr}.csv`;
+    SharedCsvWriter.downloadCsv(data, filename);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${data.length.toLocaleString()} member record(s).`,
+      meta: filename,
+    });
   };
 
   const handleExportTransactions = () => {
@@ -295,7 +392,14 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       ReturnDate: t.return_date || 'N/A',
       Status: t.status,
     }));
-    SharedCsvWriter.downloadCsv(data, `ULM_Circulation_Ledger_${todayStr}.csv`);
+    const filename = `ULM_Circulation_Ledger_${todayStr}.csv`;
+    SharedCsvWriter.downloadCsv(data, filename);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${data.length.toLocaleString()} transaction record(s).`,
+      meta: filename,
+    });
   };
 
   const handleExportHistory = () => {
@@ -307,7 +411,14 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
       User: h.user,
       Timestamp: h.created_at,
     }));
-    SharedCsvWriter.downloadCsv(data, `ULM_Audit_Log_${todayStr}.csv`);
+    const filename = `ULM_Audit_Log_${todayStr}.csv`;
+    SharedCsvWriter.downloadCsv(data, filename);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Export Saved',
+      message: `Exported ${data.length.toLocaleString()} audit log record(s).`,
+      meta: filename,
+    });
   };
 
   // Master Ingestion from uploaded file
@@ -329,24 +440,32 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
         try {
           const content = event.target?.result as string;
           if (!content || !content.trim()) {
-            setImportError('File is empty or could not be read. Live database was not modified.');
+            const msg = 'File is empty or could not be read. Live database was not modified.';
+            setImportError(msg);
+            notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
             setIsProcessing(false);
             return;
           }
           setCsvText(content);
           executeMigration(content);
         } catch (parseErr: any) {
-          setImportError(`Malformed migration file: ${parseErr?.message || 'Unable to parse file'}. Live database was not modified.`);
+          const msg = `Malformed migration file: ${parseErr?.message || 'Unable to parse file'}. Live database was not modified.`;
+          setImportError(msg);
+          notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
           setIsProcessing(false);
         }
       };
       reader.onerror = () => {
-        setImportError('Failed to read migration file. Live database was not modified.');
+        const msg = 'Failed to read migration file. Live database was not modified.';
+        setImportError(msg);
+        notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
         setIsProcessing(false);
       };
       reader.readAsText(file);
     } catch (err: any) {
-      setImportError(`File upload error: ${err?.message || 'Unknown error'}`);
+      const msg = `File upload error: ${err?.message || 'Unknown error'}`;
+      setImportError(msg);
+      notifyGlassToast({ type: 'danger', title: 'Import Failed', message: msg });
       setIsProcessing(false);
     } finally {
       inputEl.value = '';
@@ -371,12 +490,28 @@ export const ExcelCenterView: React.FC<ExcelCenterProps> = ({
             setIsSuccessMorph(true);
             setTimeout(() => setIsSuccessMorph(false), 1200);
             onRefreshData();
+            notifyGlassToast({
+              type: 'success',
+              title: 'Backup Restored',
+              message: res.message,
+              meta: `${res.stats.books} books · ${res.stats.borrowers} members`,
+            });
           } else {
             setImportError(res.message);
+            notifyGlassToast({
+              type: 'danger',
+              title: 'Import Failed',
+              message: res.message,
+            });
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           setImportError(`Migration process failed: ${msg}`);
+          notifyGlassToast({
+            type: 'danger',
+            title: 'Import Failed',
+            message: `Migration process failed: ${msg}`,
+          });
         } finally {
           setIsProcessing(false);
         }
@@ -420,13 +555,13 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
   ];
 
   return (
-    <div className="w-full h-auto min-h-0 flex flex-col gap-4 px-4 sm:px-6 lg:px-8 pt-4 pb-12 overflow-visible">
-      <div className="max-w-[1920px] w-full mx-auto space-y-4">
+    <div className="w-full h-auto min-h-0 flex flex-col gap-5 px-4 sm:px-6 lg:px-8 pt-4 pb-12 overflow-visible">
+      <div className="max-w-[1920px] w-full mx-auto space-y-5">
 
         {/* =========================================================================
-            1. TOP HEADER BANNER (rounded-[26px] Frosted Crystal Shell)
+            1. CLEAN MINIMAL HEADER BANNER (rounded-[26px] Frosted Crystal Shell)
             ========================================================================= */}
-        <div className="ulm-preserve-glass rounded-[26px] px-6 py-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.08] dark:via-[#18102B]/60 dark:to-[#120B22]/45 backdrop-blur-2xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.15] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.85),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.22),0_12px_32px_rgba(0,0,0,0.28)] flex flex-wrap items-center justify-between gap-4">
+        <div className="ulm-preserve-glass rounded-[26px] px-6 py-4 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.08] dark:via-[#18102B]/60 dark:to-[#120B22]/45 backdrop-blur-2xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.15] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.85),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.22),0_12px_32px_rgba(0,0,0,0.28)] flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center shrink-0">
               <FileSpreadsheet className="w-5 h-5 text-amber-600 dark:text-amber-300" />
@@ -436,13 +571,13 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                 Excel &amp; PC Migration
               </h2>
               <p className="text-[12px] text-slate-500 dark:text-slate-300/80 truncate">
-                Import books, move the library to another PC, and export spreadsheets.
+                Import books, transfer your library between PCs, and export official spreadsheets.
               </p>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-white/[0.05] border border-slate-200/80 dark:border-white/[0.12] font-['JetBrains_Mono'] text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.12] font-['JetBrains_Mono'] text-[10.5px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shrink-0" />
             <span>Unified Migration &amp; Export Console</span>
           </div>
         </div>
@@ -481,93 +616,102 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
         )}
 
         {/* =========================================================================
-            2. ROW 1 (MERGED JSX): 2-COLUMN BENTO SPLIT (Book Entry Sheet Import + Move to Another PC)
+            2. ZONE 1 — PRIMARY WORKFLOWS (Book Entry Sheet Import + Move to Another PC)
             ========================================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-          {/* Left Card (lg:col-span-5): Book Entry Sheet Import */}
-          <div className="ulm-preserve-glass lg:col-span-5 h-full rounded-[22px] p-5 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between">
-            <div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* A. Left Panel (lg:col-span-5): Book Entry Sheet Import */}
+          <div
+            style={{ animationDelay: '0ms' }}
+            className="ulm-stagger-card ulm-preserve-glass lg:col-span-5 h-full rounded-[22px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between gap-5"
+          >
+            <div className="space-y-3.5">
               <div className="flex flex-wrap items-center gap-2.5">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
                   <span>ENTRY SHEET</span>
                 </span>
-                <h3 className="text-[14px] font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans']">
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white">
                   Book Entry Sheet Import
                 </h3>
               </div>
 
-              <p className="text-[12px] leading-relaxed text-slate-600 dark:text-slate-300/85 my-3">
-                The official <strong>ULM_Master_Books_Register.xlsx</strong> spreadsheet supports universal unlimited rows for entering library acquisitions with dropdown validations.
-                Physical barcodes and sequential accession series are assigned automatically upon import.
+              <p className="text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-300/85">
+                Bulk-import acquisitions directly from Excel with automatic accession sequencing and 13-digit barcode assignment.
               </p>
+
+              <div className="px-3.5 py-2.5 rounded-xl bg-slate-900/[0.035] dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.09] font-['JetBrains_Mono'] text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                ULM_Master_Books_Register.xlsx · Auto 0092 Barcode Series
+              </div>
             </div>
 
-            {/* Buttons: Import Book Entry Sheet (.xlsx) and Blank Entry Sheet (.xlsx) */}
-            <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            {/* Calm Button Hierarchy */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {onOpenImportEntrySheet ? (
                 <button
                   type="button"
                   onClick={onOpenImportEntrySheet}
-                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold text-[12px] inline-flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  className="ulm-btn-tactile h-10 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] inline-flex items-center justify-center gap-2 whitespace-nowrap shadow-sm transition-all cursor-pointer"
                 >
-                  <Upload className="w-4 h-4 stroke-[2.5]" />
-                  <span>Import Book Entry Sheet (.xlsx)</span>
+                  <Upload className="w-4 h-4 stroke-[2.5] shrink-0" />
+                  <span className="truncate">Import Book Entry Sheet (.xlsx)</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold text-[12px] inline-flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  className="ulm-btn-tactile h-10 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] inline-flex items-center justify-center gap-2 whitespace-nowrap shadow-sm transition-all cursor-pointer"
                 >
-                  <Upload className="w-4 h-4 stroke-[2.5]" />
-                  <span>Import Book Entry Sheet (.xlsx)</span>
+                  <Upload className="w-4 h-4 stroke-[2.5] shrink-0" />
+                  <span className="truncate">Import Book Entry Sheet (.xlsx)</span>
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={handleDownloadBlankEntrySheet}
-                className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#581C87] to-[#6B21A8] hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 font-semibold text-[12px] inline-flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                className="ulm-btn-tactile h-10 px-4 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-slate-900/[0.09] dark:hover:bg-white/[0.11] border border-slate-300/80 dark:border-white/[0.14] text-slate-800 dark:text-white font-semibold text-[12px] inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all cursor-pointer"
               >
-                <Download className="w-4 h-4 text-purple-200" />
-                <span>Blank Entry Sheet (.xlsx)</span>
+                <Download className="w-4 h-4 text-slate-600 dark:text-slate-300 shrink-0" />
+                <span className="truncate">Blank Entry Sheet (.xlsx)</span>
               </button>
             </div>
           </div>
 
-          {/* Right Card (lg:col-span-7): Move to Another PC 3-Step Pipeline */}
-          <div className="ulm-preserve-glass lg:col-span-7 h-full rounded-[22px] p-5 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5">
+          {/* B. Right Panel (lg:col-span-7): Move Library to Another PC (3-Step Transfer) */}
+          <div
+            style={{ animationDelay: '55ms' }}
+            className="ulm-stagger-card ulm-preserve-glass lg:col-span-7 h-full rounded-[22px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between gap-4"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-500/12 border border-purple-500/30 text-purple-700 dark:text-purple-300 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-[1.5px] bg-purple-400 shrink-0" />
                   <span>WORKSTATION TRANSFER</span>
                 </span>
-                <h3 className="text-[14px] font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans']">
-                  Move to Another PC
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white">
+                  Move Library to Another PC
                 </h3>
               </div>
               <span className="font-['JetBrains_Mono'] text-[10.5px] text-slate-500 dark:text-slate-400">
-                3-Step Offline ZIP Pipeline
+                3-Step Transfer
               </span>
             </div>
 
             {/* 3-Column Step Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1">
-              {/* Step 1 */}
-              <div className="rounded-2xl p-3.5 bg-white/60 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10] flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 flex-1">
+              {/* Step 1: Export This PC */}
+              <div className="rounded-2xl p-4 bg-white/60 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.09] flex flex-col justify-between gap-4">
+                <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-700 dark:text-amber-300 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
-                      1
-                    </div>
-                    <h4 className="text-[11.5px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Plus_Jakarta_Sans']">
-                      Step 1: Export from this PC
+                    <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] font-bold text-[10.5px] leading-none shrink-0">
+                      01
+                    </span>
+                    <h4 className="font-['Plus_Jakarta_Sans'] text-[12.5px] font-bold text-slate-900 dark:text-white">
+                      Export This PC
                     </h4>
                   </div>
-                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 leading-relaxed">
-                    Packages all local library records, active borrower accounts, book barcodes, and SQLite database tables into a single Transfer ZIP archive.
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/80 leading-relaxed">
+                    Bundle books, members, loans, and SQLite tables into one offline ZIP archive.
                   </p>
                 </div>
 
@@ -575,47 +719,47 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                   type="button"
                   onClick={handleExportZipArchive}
                   disabled={isProcessing}
-                  className="w-full h-9 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold text-[11.5px] shadow-sm transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="ulm-btn-tactile w-full h-9 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] shadow-sm transition-all inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <Download className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                   <span>Export Transfer ZIP</span>
                 </button>
               </div>
 
-              {/* Step 2 */}
-              <div className="rounded-2xl p-3.5 bg-white/60 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10] flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
+              {/* Step 2: Copy to New PC */}
+              <div className="rounded-2xl p-4 bg-white/60 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.09] flex flex-col justify-between gap-4">
+                <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-sky-500/15 border border-sky-500/35 text-sky-700 dark:text-sky-300 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
-                      2
-                    </div>
-                    <h4 className="text-[11.5px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Plus_Jakarta_Sans']">
-                      Step 2: Install app on new PC
+                    <span className="px-1.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/35 text-sky-700 dark:text-sky-300 font-['JetBrains_Mono'] font-bold text-[10.5px] leading-none shrink-0">
+                      02
+                    </span>
+                    <h4 className="font-['Plus_Jakarta_Sans'] text-[12.5px] font-bold text-slate-900 dark:text-white">
+                      Copy to New PC
                     </h4>
                   </div>
-                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 leading-relaxed">
-                    Copy the Transfer ZIP to a USB flash drive. Launch the LMS application on the destination computer and open this Migration screen.
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/80 leading-relaxed">
+                    Move the archive via USB flash drive and open Migration on the target workstation.
                   </p>
                 </div>
 
-                <div className="h-9 px-2.5 rounded-xl bg-slate-100/80 dark:bg-white/[0.04] text-[10.5px] font-mono text-slate-700 dark:text-slate-300 flex items-center justify-center border border-slate-200/80 dark:border-white/[0.08]">
-                  Ready on Destination Workstation
+                <div className="h-9 px-3 rounded-xl bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/60 dark:border-white/[0.08] font-['JetBrains_Mono'] text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center justify-center whitespace-nowrap">
+                  Copy ZIP via USB
                 </div>
               </div>
 
-              {/* Step 3 */}
-              <div className="rounded-2xl p-3.5 bg-white/60 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10] flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
+              {/* Step 3: Restore on New PC */}
+              <div className="rounded-2xl p-4 bg-white/60 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.09] flex flex-col justify-between gap-4">
+                <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/15 border border-purple-500/35 text-purple-700 dark:text-purple-300 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
-                      3
-                    </div>
-                    <h4 className="text-[11.5px] font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Plus_Jakarta_Sans']">
-                      Step 3: Restore on new PC
+                    <span className="px-1.5 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/35 text-purple-700 dark:text-purple-300 font-['JetBrains_Mono'] font-bold text-[10.5px] leading-none shrink-0">
+                      03
+                    </span>
+                    <h4 className="font-['Plus_Jakarta_Sans'] text-[12.5px] font-bold text-slate-900 dark:text-white">
+                      Restore on New PC
                     </h4>
                   </div>
-                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 leading-relaxed">
-                    Select the Transfer ZIP archive from your USB drive to restore library data, active circulation loans, and user configuration.
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300/80 leading-relaxed">
+                    Import the Transfer ZIP to restore your complete catalog, loans, and settings.
                   </p>
                 </div>
 
@@ -623,18 +767,18 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                   <button
                     type="button"
                     onClick={onOpenTransferZipModal}
-                    className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87] to-[#6B21A8] hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 font-semibold text-[11.5px] transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    className="ulm-btn-tactile w-full h-9 px-3 rounded-xl bg-purple-500/18 hover:bg-purple-500/28 border border-purple-400/40 text-purple-700 dark:text-purple-200 font-semibold text-[12px] transition-all inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                   >
-                    <Upload className="w-3.5 h-3.5 text-purple-200" />
+                    <Upload className="w-3.5 h-3.5 shrink-0" />
                     <span>Restore Transfer ZIP</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87] to-[#6B21A8] hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 font-semibold text-[11.5px] transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                    className="ulm-btn-tactile w-full h-9 px-3 rounded-xl bg-purple-500/18 hover:bg-purple-500/28 border border-purple-400/40 text-purple-700 dark:text-purple-200 font-semibold text-[12px] transition-all inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                   >
-                    <Upload className="w-3.5 h-3.5 text-purple-200" />
+                    <Upload className="w-3.5 h-3.5 shrink-0" />
                     <span>Restore Transfer ZIP</span>
                   </button>
                 )}
@@ -644,186 +788,214 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
         </div>
 
         {/* =========================================================================
-            3. ROW 2 (MERGED JSX): 5-CARD SPREADSHEET EXPORTS ROW
+            3. ZONE 2 — UNIFIED Dataset & Spreadsheet Exports PANEL
             ========================================================================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          {/* 1. Master LibraryData.xlsx */}
-          <div className="ulm-preserve-glass rounded-[22px] p-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5 transition-all duration-200 hover:-translate-y-[1px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 shrink-0">
-                  <FileSpreadsheet className="w-4 h-4" />
-                </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300">
-                  XLSX
-                </span>
+        <div
+          style={{ animationDelay: '110ms' }}
+          className="ulm-stagger-card ulm-preserve-glass rounded-[22px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-4"
+        >
+          {/* Panel Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.05] border border-slate-300/75 dark:border-white/[0.12] text-slate-700 dark:text-slate-300 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-[1.5px] bg-purple-400 shrink-0" />
+                <span>DATA EXPORTS</span>
+              </span>
+              <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white">
+                Official Spreadsheets &amp; CSV Ledgers
+              </h3>
+            </div>
+            <span className="text-[11.5px] text-slate-500 dark:text-slate-400">
+              Instant offline exports synced with live catalog
+            </span>
+          </div>
+
+          {/* Featured Master Workbook Row (LibraryData.xlsx) */}
+          <div className="rounded-2xl p-4 bg-gradient-to-r from-purple-500/[0.10] via-amber-500/[0.06] to-transparent border border-purple-400/30 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-amber-500/15 border border-amber-400/35 text-amber-600 dark:text-amber-300 shrink-0">
+                <FileSpreadsheet className="w-5 h-5" />
               </div>
-              <h4 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight font-['Plus_Jakarta_Sans']">
-                LibraryData.xlsx
-              </h4>
-              <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 line-clamp-2 leading-snug">
-                Comprehensive multi-sheet workbook containing catalog, members, circulation, and audit logs.
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-['Plus_Jakarta_Sans'] text-[14.5px] font-bold text-slate-900 dark:text-white">
+                    LibraryData.xlsx
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/30 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300 leading-none">
+                    XLSX
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-0.5">
+                  Complete multi-sheet workbook (Catalog, Members, Circulation Loans &amp; Almaris).
+                </p>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={handleDownloadLibraryData}
-              className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87]/90 to-[#6B21A8]/90 hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              style={{ color: '#FFFFFF' }}
+              className="ulm-btn-tactile h-10 px-5 rounded-xl bg-gradient-to-r from-[#581C87] to-[#7E22CE] hover:opacity-95 text-white font-semibold text-[12px] whitespace-nowrap shadow-sm inline-flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
             >
-              <Download className="w-3.5 h-3.5 text-purple-200" />
+              <Download className="w-4 h-4 shrink-0" />
               <span>Download LibraryData.xlsx</span>
             </button>
           </div>
 
-          {/* 2. Books & Copies CSV */}
-          <div className="ulm-preserve-glass rounded-[22px] p-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5 transition-all duration-200 hover:-translate-y-[1px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-sky-500/15 border border-sky-400/30 text-sky-600 dark:text-sky-300 shrink-0">
+          {/* Clean 2x2 Grid for the 4 Individual CSV Ledgers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* 1. Books & Copies */}
+            <div className="rounded-2xl px-4 py-3.5 bg-white/60 dark:bg-white/[0.03] hover:bg-white/85 dark:hover:bg-white/[0.055] border border-slate-200/80 dark:border-white/[0.09] flex items-center justify-between gap-3 transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-sky-500/15 border border-sky-400/30 text-sky-600 dark:text-sky-300 shrink-0">
                   <BookOpen className="w-4 h-4" />
                 </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-sky-500/10 border-sky-500/30 text-sky-700 dark:text-sky-300">
-                  CSV
-                </span>
+                <div className="min-w-0">
+                  <h4 className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white truncate">
+                    Books &amp; Copies
+                  </h4>
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+                    Barcodes, accession numbers, Dewey call numbers &amp; stock.
+                  </p>
+                </div>
               </div>
-              <h4 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight font-['Plus_Jakarta_Sans']">
-                Books &amp; Copies
-              </h4>
-              <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 line-clamp-2 leading-snug">
-                Barcodes, accession numbers, Dewey call numbers, shelf locations, and availability stock.
-              </p>
+
+              <button
+                type="button"
+                onClick={handleExportBooks}
+                className="h-8 px-3.5 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-purple-500/20 border border-slate-300/75 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Export CSV</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportBooks}
-              className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87]/90 to-[#6B21A8]/90 hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-purple-200" />
-              <span>Download Books CSV</span>
-            </button>
-          </div>
-
-          {/* 3. Campus Members CSV */}
-          <div className="ulm-preserve-glass rounded-[22px] p-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5 transition-all duration-200 hover:-translate-y-[1px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-500/15 border border-purple-400/30 text-purple-600 dark:text-purple-300 shrink-0">
+            {/* 2. Campus Members */}
+            <div className="rounded-2xl px-4 py-3.5 bg-white/60 dark:bg-white/[0.03] hover:bg-white/85 dark:hover:bg-white/[0.055] border border-slate-200/80 dark:border-white/[0.09] flex items-center justify-between gap-3 transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-purple-500/15 border border-purple-400/30 text-purple-600 dark:text-purple-300 shrink-0">
                   <Users className="w-4 h-4" />
                 </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-300">
-                  CSV
-                </span>
+                <div className="min-w-0">
+                  <h4 className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white truncate">
+                    Campus Members
+                  </h4>
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+                    Student IDs, departments, academic programs &amp; contacts.
+                  </p>
+                </div>
               </div>
-              <h4 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight font-['Plus_Jakarta_Sans']">
-                Campus Members
-              </h4>
-              <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 line-clamp-2 leading-snug">
-                Student IDs, department affiliations, academic degree programs, and contact profiles.
-              </p>
+
+              <button
+                type="button"
+                onClick={handleExportBorrowers}
+                className="h-8 px-3.5 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-purple-500/20 border border-slate-300/75 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Export CSV</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportBorrowers}
-              className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87]/90 to-[#6B21A8]/90 hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-purple-200" />
-              <span>Download Members CSV</span>
-            </button>
-          </div>
-
-          {/* 4. Circulation Ledger CSV */}
-          <div className="ulm-preserve-glass rounded-[22px] p-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5 transition-all duration-200 hover:-translate-y-[1px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/15 border border-emerald-400/30 text-emerald-600 dark:text-emerald-300 shrink-0">
+            {/* 3. Circulation Ledger */}
+            <div className="rounded-2xl px-4 py-3.5 bg-white/60 dark:bg-white/[0.03] hover:bg-white/85 dark:hover:bg-white/[0.055] border border-slate-200/80 dark:border-white/[0.09] flex items-center justify-between gap-3 transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-500/15 border border-emerald-400/30 text-emerald-600 dark:text-emerald-300 shrink-0">
                   <Clock className="w-4 h-4" />
                 </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
-                  CSV
-                </span>
+                <div className="min-w-0">
+                  <h4 className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white truncate">
+                    Circulation Ledger
+                  </h4>
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+                    Checkout history, due dates, return logs &amp; overdue records.
+                  </p>
+                </div>
               </div>
-              <h4 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight font-['Plus_Jakarta_Sans']">
-                Circulation Ledger
-              </h4>
-              <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 line-clamp-2 leading-snug">
-                Complete loan transaction history, checkout dates, return dates, and overdue records.
-              </p>
+
+              <button
+                type="button"
+                onClick={handleExportTransactions}
+                className="h-8 px-3.5 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-purple-500/20 border border-slate-300/75 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Export CSV</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportTransactions}
-              className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87]/90 to-[#6B21A8]/90 hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-purple-200" />
-              <span>Download Circulation CSV</span>
-            </button>
-          </div>
-
-          {/* 5. System Audit Trail CSV */}
-          <div className="ulm-preserve-glass rounded-[22px] p-4 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] flex flex-col justify-between space-y-3.5 transition-all duration-200 hover:-translate-y-[1px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 shrink-0">
+            {/* 4. System Audit Trail */}
+            <div className="rounded-2xl px-4 py-3.5 bg-white/60 dark:bg-white/[0.03] hover:bg-white/85 dark:hover:bg-white/[0.055] border border-slate-200/80 dark:border-white/[0.09] flex items-center justify-between gap-3 transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 shrink-0">
                   <FileText className="w-4 h-4" />
                 </div>
-                <span className="font-['JetBrains_Mono'] text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300">
-                  CSV
-                </span>
+                <div className="min-w-0">
+                  <h4 className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white truncate">
+                    System Audit Trail
+                  </h4>
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+                    Chronological staff actions, updates &amp; administrative logs.
+                  </p>
+                </div>
               </div>
-              <h4 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight font-['Plus_Jakarta_Sans']">
-                System Audit Trail
-              </h4>
-              <p className="text-[11.5px] text-slate-600 dark:text-slate-300/85 line-clamp-2 leading-snug">
-                Chronological activity ledger, staff logins, record updates, and administrative modifications.
-              </p>
-            </div>
 
-            <button
-              type="button"
-              onClick={handleExportHistory}
-              className="w-full h-9 rounded-xl bg-gradient-to-r from-[#581C87]/90 to-[#6B21A8]/90 hover:from-[#6B21A8] hover:to-[#7E22CE] text-white border border-purple-400/30 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-purple-200" />
-              <span>Download Audit Log CSV</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleExportHistory}
+                className="h-8 px-3.5 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-purple-500/20 border border-slate-300/75 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold whitespace-nowrap inline-flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* =========================================================================
-            4. ROW 3 (MERGED JSX): FROSTED CRYSTAL ACCORDION FOR Advanced: Master Migration files (CSV / JSON)
+            4. ZONE 3 — COLLAPSED-BY-DEFAULT Advanced: Master Migration Files (CSV / JSON)
             ========================================================================= */}
-        <div className="ulm-preserve-glass rounded-[22px] p-5 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] overflow-hidden">
+        <div
+          style={{ animationDelay: '160ms' }}
+          className="ulm-stagger-card ulm-preserve-glass rounded-[20px] bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/80 dark:border-white/[0.10] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.80),0_8px_20px_rgba(15,23,42,0.04)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.16),0_8px_20px_rgba(0,0,0,0.20)] overflow-hidden"
+        >
           <button
             type="button"
             onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-            className="w-full flex items-center justify-between text-left transition-colors cursor-pointer"
+            className="w-full px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 text-left hover:bg-slate-900/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
           >
-            <div className="flex items-center gap-2.5">
-              {isAdvancedOpen ? (
-                <ChevronDown className="w-4 h-4 text-amber-600 dark:text-[#E0B450]" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-500 dark:text-[#B3AABD]" />
-              )}
-              <span className="text-[14px] font-bold text-slate-900 dark:text-white tracking-wide font-['Plus_Jakarta_Sans']">
-                Advanced: Master Migration files (CSV / JSON)
-              </span>
+            <div className="flex items-center gap-3 min-w-0">
+              <ChevronDown
+                className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                  isAdvancedOpen
+                    ? 'rotate-180 text-amber-600 dark:text-[#E0B450]'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              />
+              <div className="min-w-0">
+                <span className="block font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white truncate">
+                  Advanced: Master Migration Files (CSV / JSON) &amp; Safe Merge Restore
+                </span>
+                <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  (For manual USB CSV/JSON package merging &amp; developer diagnostics)
+                </span>
+              </div>
             </div>
-            <span className="text-[11.5px] font-['JetBrains_Mono'] text-slate-500 dark:text-slate-300/80">
-              {isAdvancedOpen ? 'Collapse' : 'Expand Options'}
+
+            <span className="px-3 py-1 rounded-lg bg-slate-900/[0.05] dark:bg-white/[0.06] border border-slate-300/75 dark:border-white/[0.12] font-['JetBrains_Mono'] text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0">
+              {isAdvancedOpen ? 'Collapse' : 'Expand'}
             </span>
           </button>
 
           {isAdvancedOpen && (
-            <div className="pt-4 mt-4 border-t border-slate-200/80 dark:border-white/[0.12] space-y-4 animate-in fade-in">
+            <div
+              style={{ animationDuration: '220ms' }}
+              className="ulm-stagger-card px-5 pb-5 pt-4 border-t border-slate-200/80 dark:border-white/[0.10] space-y-4"
+            >
               {/* Master Export Buttons */}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={handleExportMasterCsv}
+                  style={{ color: '#FFFFFF' }}
                   className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#581C87] to-[#6B21A8] hover:from-[#6B21A8] hover:to-[#7E22CE] text-white font-semibold text-[12px] border border-purple-400/30 transition-all inline-flex items-center gap-2 cursor-pointer shadow-sm"
                 >
                   <Download className="w-4 h-4 text-purple-200" />
@@ -879,7 +1051,7 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                   </div>
                 </div>
 
-                {/* Visible line under toggle for Overwrite per Part 5 */}
+                {/* Visible line under toggle for Overwrite */}
                 {importMode === 'overwrite' && (
                   <p className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold animate-in fade-in flex items-center gap-1.5 pt-1">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -994,7 +1166,10 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                 </button>
 
                 {isDevToolsOpen && (
-                  <div className="p-4 border-t border-slate-200/80 dark:border-white/[0.10] space-y-3 animate-in fade-in">
+                  <div
+                    style={{ animationDuration: '220ms' }}
+                    className="ulm-stagger-card p-4 border-t border-slate-200/80 dark:border-white/[0.10] space-y-3"
+                  >
                     <div className="flex items-center justify-between text-[11px] font-mono text-slate-600 dark:text-[#B3AABD]">
                       <span>Direct Migration Data Buffer</span>
                       <div className="flex items-center gap-3">
@@ -1077,12 +1252,12 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
       {/* Portaled Frosted Crystal Confirmation Dialog for Reset All Books to 0 */}
       {showResetZeroModal && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl animate-in fade-in duration-150"
+          className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl"
           onClick={() => !isProcessing && setShowResetZeroModal(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="ulm-preserve-glass ulm-dark-plaque w-full max-w-md rounded-[26px] bg-gradient-to-br from-[#23173D]/95 via-[#18102B]/95 to-[#120B22]/98 backdrop-blur-2xl border border-rose-400/35 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.20),0_32px_90px_rgba(0,0,0,0.65)] overflow-hidden"
+            className="ulm-modal-dialog ulm-preserve-glass ulm-dark-plaque w-full max-w-md rounded-[26px] bg-gradient-to-br from-[#23173D]/95 via-[#18102B]/95 to-[#120B22]/98 backdrop-blur-2xl border border-rose-400/35 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.20),0_32px_90px_rgba(0,0,0,0.65)] overflow-hidden"
           >
             <div className="px-6 py-4 border-b border-white/[0.12] flex items-center justify-between bg-rose-500/12">
               <div className="flex items-center gap-2.5">
@@ -1110,14 +1285,14 @@ TransactionID,Barcode,BookTitle,BorrowerName,StudentID,Action,IssueDate,DueDate,
                 <button
                   type="button"
                   onClick={() => setShowResetZeroModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.14] text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                  className="ulm-btn-tactile px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.14] text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={executeResetAllBooksToZero}
-                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+                  className="ulm-btn-tactile px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Wipe Catalog to 0</span>

@@ -43,7 +43,9 @@ import { sortBooksCatalog } from '../utils/almariSortUtils';
 import { isArabicOrUrduScript, matchesUrduSearch } from '../utils/urduUtils';
 import { LiquidGlassCard } from './ui/liquid-weather-glass';
 import { LiquidPillOverlay, LiquidIconFx } from './ui/liquid-pill-physics';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
 import { runHeavyLibraryTask } from '../utils/heavyTaskRunner';
+import { AnimatedCounter } from './ui/MotionPrimitives';
 
 interface CatalogGlassOption {
   value: string;
@@ -191,11 +193,12 @@ export interface BooksCatalogViewProps {
   onSelectBook?: (book: Book) => void;
   onEditBook?: (book: Book) => void;
   onDeleteBook?: (book: Book) => void;
+  onDeleteSelectedBooks?: (books: Book[]) => void;
   onPrintBarcode?: (book: Book) => void;
   onImportExcel?: () => void;
   onOpenImportBookEntrySheet?: () => void;
   onExportCatalog?: () => void;
-  onOpenBatchLabelPrint?: () => void;
+  onOpenBatchLabelPrint?: (selectedIds?: string[]) => void;
   onUpdateBooks?: (updatedBooks: Book[]) => void;
   onBooksUpdated?: (updatedBooks: Book[], message: string, batchId?: string) => void;
   onNavigateToAlmaris?: () => void;
@@ -214,6 +217,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   onSelectBook,
   onEditBook,
   onDeleteBook,
+  onDeleteSelectedBooks,
   onPrintBarcode,
   onImportExcel,
   onOpenImportBookEntrySheet,
@@ -285,11 +289,11 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(24);
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
+  const lastSelectedIndexRef = useRef<number | null>(null);
   const [bulkModalMode, setBulkModalMode] = useState<'assign_group' | 'assign_almari' | null>(null);
   const [copiedBarcodeId, setCopiedBarcodeId] = useState<string | null>(null);
   const [extendPopoverBookId, setExtendPopoverBookId] = useState<string | null>(null);
   const [extendPopoverCount, setExtendPopoverCount] = useState<number>(1);
-  const [seriesExtendToast, setSeriesExtendToast] = useState<string | null>(null);
 
   // Quick keyboard shortcut: Pressing "/" or Ctrl+F focuses the spotlight search input
   useEffect(() => {
@@ -569,11 +573,46 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     return map;
   }, [paginatedBooks, activeAlmarisList, activeGroupsList]);
 
+  // Auto-prune deleted book IDs from selection when catalog mutates
+  useEffect(() => {
+    setSelectedBookIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validKeys = new Set(activeBooks.map((b) => b.id || b.barcode));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validKeys.has(id)) next.add(id);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [activeBooks]);
+
+  // Immediately clear multi-select state after any cascade deletion event
+  useEffect(() => {
+    const handleDeleteSync = (e: Event) => {
+      const custom = e as CustomEvent<{ reason?: string; deletedCount?: number }>;
+      if (custom.detail?.reason === 'delete' || (custom.detail?.deletedCount ?? 0) > 0) {
+        setSelectedBookIds(new Set());
+        lastSelectedIndexRef.current = null;
+      }
+    };
+    window.addEventListener('ulm-library-sync', handleDeleteSync);
+    return () => window.removeEventListener('ulm-library-sync', handleDeleteSync);
+  }, []);
+
   const handleToggleSelectAll = () => {
-    if (selectedBookIds.size === paginatedBooks.length && paginatedBooks.length > 0) {
-      setSelectedBookIds(new Set());
+    const pageKeys = paginatedBooks.map((b) => b.id || b.barcode);
+    const allPageSelected =
+      pageKeys.length > 0 && pageKeys.every((key) => selectedBookIds.has(key));
+    if (allPageSelected) {
+      const next = new Set(selectedBookIds);
+      pageKeys.forEach((k) => next.delete(k));
+      setSelectedBookIds(next);
     } else {
-      setSelectedBookIds(new Set(paginatedBooks.map((b) => b.id || b.barcode)));
+      const next = new Set(selectedBookIds);
+      pageKeys.forEach((k) => next.add(k));
+      setSelectedBookIds(next);
     }
   };
 
@@ -581,10 +620,35 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     setSelectedBookIds(new Set(filteredBooks.map((b) => b.id || b.barcode)));
   };
 
-  const handleToggleSelectOne = (id: string) => {
+  const handleToggleSelectOne = (
+    id: string,
+    pageIndex?: number,
+    shiftKey: boolean = false
+  ) => {
     const next = new Set(selectedBookIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (
+      shiftKey &&
+      typeof pageIndex === 'number' &&
+      lastSelectedIndexRef.current !== null &&
+      paginatedBooks.length > 0
+    ) {
+      const start = Math.min(lastSelectedIndexRef.current, pageIndex);
+      const end = Math.max(lastSelectedIndexRef.current, pageIndex);
+      const shouldSelect = !next.has(id);
+      for (let i = start; i <= end; i++) {
+        const b = paginatedBooks[i];
+        if (!b) continue;
+        const k = b.id || b.barcode;
+        if (shouldSelect) next.add(k);
+        else next.delete(k);
+      }
+    } else {
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+    }
+    if (typeof pageIndex === 'number') {
+      lastSelectedIndexRef.current = pageIndex;
+    }
     setSelectedBookIds(next);
   };
 
@@ -638,12 +702,24 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Export Saved',
+      message: 'Catalog CSV import template downloaded.',
+      meta: 'ULM_Books_Catalog_Import_Template.csv',
+    });
   };
 
   const handleCopyBarcode = (barcode: string, bookKey: string) => {
     if (!barcode) return;
     navigator.clipboard?.writeText(barcode).catch(() => {});
     setCopiedBarcodeId(bookKey);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Barcode Copied',
+      message: '13-digit barcode copied to clipboard.',
+      meta: barcode,
+    });
     setTimeout(() => {
       setCopiedBarcodeId((prev) => (prev === bookKey ? null : prev));
     }, 1500);
@@ -663,10 +739,12 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
       void syncMasterExcelRegister();
       setExtendPopoverBookId(null);
       setExtendPopoverCount(1);
-      setSeriesExtendToast(toastMsg);
-      setTimeout(() => {
-        setSeriesExtendToast((prev) => (prev === toastMsg ? null : prev));
-      }, 6000);
+      notifyGlassToast({
+        type: 'success',
+        title: 'Series Copies Added',
+        message: `Added ${countToAdd} new ${countToAdd === 1 ? 'copy' : 'copies'} of "${book.book_name}" in series.`,
+        meta: `Acc #${res.firstAccession} → #${res.lastAccession} · ${res.firstBarcode}`,
+      });
     };
 
     if (countToAdd >= 10) {
@@ -690,25 +768,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   return (
     <div className="w-full px-4 lg:px-6 pt-3 pb-16 select-none">
       <div className="max-w-[1920px] w-full mx-auto space-y-3.5">
-        {seriesExtendToast && (
-          <div className="p-3 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/40 text-emerald-900 dark:text-emerald-200 text-xs font-mono font-bold flex items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>{seriesExtendToast}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSeriesExtendToast(null)}
-              className="p-1 rounded hover:bg-emerald-500/20 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
         {/* Top 4 Frosted Metric Stat Cards — Clean 3-Tier Layout (No Dashed/Dotted Lines) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           {/* Card 1: Cataloged Titles */}
-          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" className="ulm-preserve-glass p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
+          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" style={{ animationDelay: '0ms' }} className="ulm-preserve-glass ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
             <div className="flex items-center justify-between">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">Cataloged Titles</span>
               <div className="w-7 h-7 rounded-xl bg-purple-500/15 border border-purple-400/30 flex items-center justify-center text-purple-600 dark:text-purple-300">
@@ -717,7 +780,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {totalCataloged.toLocaleString()}
+                <AnimatedCounter value={totalCataloged} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80">Distinct records</span>
             </div>
@@ -727,7 +790,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </LiquidGlassCard>
 
           {/* Card 2: Physical Volumes */}
-          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" className="ulm-preserve-glass p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
+          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" style={{ animationDelay: '45ms' }} className="ulm-preserve-glass ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
             <div className="flex items-center justify-between">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">Physical Volumes</span>
               <div className="w-7 h-7 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-[#FFD147]">
@@ -736,7 +799,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {totalPhysicalVolumes.toLocaleString()}
+                <AnimatedCounter value={totalPhysicalVolumes} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80">Physical items</span>
             </div>
@@ -746,7 +809,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </LiquidGlassCard>
 
           {/* Card 3: Shelf Availability */}
-          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" className="ulm-preserve-glass p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
+          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" style={{ animationDelay: '90ms' }} className="ulm-preserve-glass ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
             <div className="flex items-center justify-between">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">Shelf Availability</span>
               <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-600 dark:text-emerald-300">
@@ -755,7 +818,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {totalAvailable.toLocaleString()}
+                <AnimatedCounter value={totalAvailable} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80">Available now</span>
             </div>
@@ -765,7 +828,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </LiquidGlassCard>
 
           {/* Card 4: Active Loans */}
-          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" className="ulm-preserve-glass p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
+          <LiquidGlassCard borderRadius="22px" blurIntensity="xl" style={{ animationDelay: '135ms' }} className="ulm-preserve-glass ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 hover:border-[#FFD147]/60">
             <div className="flex items-center justify-between">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">Active Loans</span>
               <div className="w-7 h-7 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-600 dark:text-sky-300">
@@ -774,7 +837,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {activeLoans.toLocaleString()}
+                <AnimatedCounter value={activeLoans} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80">On loan</span>
             </div>
@@ -1120,7 +1183,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 onClick={handleImportExcelAction}
-                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                className="ulm-btn-tactile h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
                 <Upload className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                 <span>Import</span>
@@ -1135,7 +1198,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                     onPrintBarcode(paginatedBooks[0]);
                   }
                 }}
-                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                className="ulm-btn-tactile h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
                 <Printer className="w-3 h-3 text-slate-500" />
                 <span>Print Barcodes</span>
@@ -1144,7 +1207,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 onClick={handleDownloadCsvTemplate}
-                className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                className="ulm-btn-tactile h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
                 <FileSpreadsheet className="w-3 h-3 text-[#C8963E]" />
                 <span>CSV Template</span>
@@ -1153,7 +1216,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 onClick={onOpenAddBook}
-                className="h-8 px-3.5 rounded-lg text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="ulm-btn-tactile h-8 px-3.5 rounded-lg text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 !text-white" />
                 <span className="!text-white">Add Book</span>
@@ -1162,48 +1225,96 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
           </div>
         </LiquidGlassCard>
 
-        {/* Bulk Selection Action Strip */}
+        {/* Professional Frosted Crystal Floating Bulk Action Bar */}
         {selectedBookIds.size > 0 && (
-          <div className="h-11 rounded-xl bg-white/85 dark:bg-[#1A102D]/90 backdrop-blur-xl border border-[#C8963E] px-3.5 shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 text-xs">
-              <span className="px-2 py-0.5 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono">
-                {selectedBookIds.size}
+          <div
+            style={{ animationDuration: '200ms' }}
+            className="ulm-preserve-glass ulm-stagger-card rounded-[20px] px-4 py-2.5 bg-gradient-to-r from-white/92 via-white/85 to-white/90 dark:from-[#1D1234]/95 dark:via-[#170E2B]/92 dark:to-[#1E1336]/95 backdrop-blur-2xl backdrop-saturate-[185%] border border-amber-500/45 dark:border-[#FFD147]/40 shadow-[0_12px_32px_rgba(15,23,42,0.12)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)] flex flex-wrap items-center justify-between gap-2.5"
+          >
+            {/* Left: Live Selection Counter + Quick Select Page / Select All */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/18 border border-amber-500/40 text-amber-800 dark:text-[#FFD147] font-['JetBrains_Mono'] font-extrabold text-[11.5px] tabular-nums">
+                <Check className="w-3.5 h-3.5 stroke-[2.75]" />
+                <span>{selectedBookIds.size} selected</span>
               </span>
-              <span className="text-slate-900 dark:text-white font-bold">
-                selected ({filteredBooks.length} match)
-              </span>
-            </div>
 
-            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="ulm-btn-tactile h-8 px-2.5 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.10] dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-700 dark:text-slate-200 text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                Select Page
+              </button>
+
               {selectedBookIds.size < filteredBooks.length && (
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
-                  className="h-7 px-2.5 bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-semibold cursor-pointer"
+                  className="ulm-btn-tactile h-8 px-2.5 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.10] dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-700 dark:text-slate-200 text-[11px] font-semibold transition-colors cursor-pointer tabular-nums"
                 >
-                  Select all {filteredBooks.length}
+                  Select All ({filteredBooks.length.toLocaleString()})
                 </button>
               )}
+            </div>
+
+            {/* Right: Bulk Actions */}
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setBulkModalMode('assign_almari')}
-                className="h-7 px-2.5 bg-[#C8963E] text-slate-950 font-bold text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
+                className="ulm-btn-tactile h-8 px-3 rounded-xl bg-amber-500/18 hover:bg-amber-500/28 border border-amber-500/45 text-amber-900 dark:text-[#FFD147] font-bold text-[11px] inline-flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Building2 className="w-3 h-3" />
+                <Building2 className="w-3.5 h-3.5 shrink-0" />
                 <span>Place in Almari</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setBulkModalMode('assign_group')}
-                className="h-7 px-2.5 bg-[#541A72] text-white font-bold text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
+                className="ulm-btn-tactile h-8 px-3 rounded-xl bg-purple-600/18 hover:bg-purple-600/28 border border-purple-500/40 text-purple-900 dark:text-purple-200 font-bold text-[11px] inline-flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Layers className="w-3 h-3" />
+                <Layers className="w-3.5 h-3.5 shrink-0" />
                 <span>Assign Group</span>
               </button>
+
               <button
                 type="button"
-                onClick={() => setSelectedBookIds(new Set())}
-                className="h-7 px-2 text-slate-500 hover:text-slate-900 dark:hover:text-white text-[11px] font-medium cursor-pointer"
+                onClick={() => {
+                  const ids = selectedBooksList.map((b) => b.id);
+                  if (onOpenBatchLabelPrint) {
+                    onOpenBatchLabelPrint(ids);
+                  }
+                }}
+                className="ulm-btn-tactile h-8 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/40 text-sky-800 dark:text-sky-300 font-bold text-[11px] inline-flex items-center gap-1.5 transition-all cursor-pointer tabular-nums"
+              >
+                <Printer className="w-3.5 h-3.5 shrink-0" />
+                <span>Print Barcodes ({selectedBookIds.size})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (selectedBooksList.length === 0) return;
+                  if (onDeleteSelectedBooks) {
+                    onDeleteSelectedBooks(selectedBooksList);
+                  } else if (selectedBooksList.length === 1 && onDeleteBook) {
+                    onDeleteBook(selectedBooksList[0]);
+                  }
+                }}
+                className="ulm-btn-tactile h-8 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-rose-700 dark:text-rose-400 font-bold text-[11px] inline-flex items-center gap-1.5 transition-all cursor-pointer tabular-nums"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Delete Selected ({selectedBookIds.size})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBookIds(new Set());
+                  lastSelectedIndexRef.current = null;
+                }}
+                className="ulm-btn-tactile h-8 px-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.08] text-[11px] font-semibold transition-colors cursor-pointer"
               >
                 Clear
               </button>
@@ -1214,11 +1325,11 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         {/* =========================================================================
             3. CONDITIONAL VIEWS (GRID VIEW FIRST)
             ========================================================================= */}
-
+        <div key={catalogView} className="ulm-page-enter">
         {/* VIEW A: IPHONE LIQUID-GLASS GRID VIEW (DEFAULT) */}
         {catalogView === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-            {paginatedBooks.map((book) => {
+            {paginatedBooks.map((book, cardIdx) => {
               const bookKey = book.id || book.barcode;
               const isSelected = selectedBookIds.has(bookKey);
               const isUrdu = /[\u0600-\u06FF]/.test(book.book_name || '');
@@ -1241,8 +1352,12 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               return (
                 <div
                   key={bookKey}
-                  style={{ contentVisibility: 'auto', containIntrinsicSize: '220px' }}
-                  className={`ulm-preserve-glass group relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border transition-all duration-150 p-3.5 flex flex-col justify-between shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/60 hover:-translate-y-0.5 ${
+                  style={{
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: '220px',
+                    animationDelay: `${Math.min(cardIdx, 11) * 28}ms`,
+                  }}
+                  className={`ulm-preserve-glass ulm-stagger-card ulm-card-hover group relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border p-3.5 flex flex-col justify-between shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/60 ${
                     isSelected
                       ? 'border-[#FFD147] ring-1.5 ring-[#FFD147]/40'
                       : 'border-white/60 dark:border-white/[0.14]'
@@ -1282,12 +1397,26 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             )}
                           </div>
 
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSelectOne(bookKey)}
-                            className="w-3.5 h-3.5 rounded text-[#541A72] border-slate-300 dark:border-white/20 cursor-pointer shrink-0"
-                          />
+                          {/* Custom Frosted Crystal Checkbox with Shift+Click Range Support */}
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            aria-label={`Select ${book.book_name}`}
+                            title="Click to select (Shift+Click for range)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelectOne(bookKey, cardIdx, e.shiftKey);
+                            }}
+                            style={{ padding: 0, width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }}
+                            className={`w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer shrink-0 border ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-[#D49B27] to-[#B8731B] border-[#FFD147] text-slate-950 shadow-xs'
+                                : 'bg-white/75 dark:bg-white/[0.06] border-slate-300/90 dark:border-white/25 hover:border-amber-500/70 text-transparent'
+                            }`}
+                          >
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </button>
                         </div>
 
                         <h3
@@ -1352,7 +1481,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
 
                   {/* Inline + Copy Series Extension Popover */}
                   {extendPopoverBookId === bookKey && (
-                    <div className="mt-2.5 !rounded-2xl p-3 bg-amber-500/[0.08] dark:bg-amber-500/[0.07] border border-amber-400/35 backdrop-blur-md space-y-2.5">
+                    <div
+                      style={{ animationDuration: '200ms' }}
+                      className="ulm-stagger-card mt-2.5 !rounded-2xl p-3 bg-amber-500/[0.08] dark:bg-amber-500/[0.07] border border-amber-400/35 backdrop-blur-md space-y-2.5"
+                    >
                       {/* Header Row with Cleanly Contained Close Button */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="inline-flex items-center gap-1.5 min-w-0">
@@ -1403,7 +1535,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setExtendPopoverCount(Math.max(1, extendPopoverCount - 1))}
-                            className="!w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                            className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
                           >
                             −
                           </button>
@@ -1422,7 +1554,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setExtendPopoverCount(Math.min(50, extendPopoverCount + 1))}
-                            className="!w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                            className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
                           >
                             +
                           </button>
@@ -1431,7 +1563,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleConfirmExtendBookCopies(book)}
-                          className="ulm-kpi-label flex-1 h-8 px-3 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[11.5px] font-['Plus_Jakarta_Sans'] whitespace-nowrap shadow-sm transition-all cursor-pointer inline-flex items-center justify-center"
+                          className="ulm-btn-tactile ulm-kpi-label flex-1 h-8 px-3 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[11.5px] font-['Plus_Jakarta_Sans'] whitespace-nowrap shadow-sm transition-all cursor-pointer inline-flex items-center justify-center"
                         >
                           + Add {extendPopoverCount} in Series
                         </button>
@@ -1445,7 +1577,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onSelectBook && onSelectBook(book)}
-                        className="ulm-kpi-label h-8 px-3 !rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] hover:bg-slate-900/[0.11] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center transition-all cursor-pointer"
+                        className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] hover:bg-slate-900/[0.11] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center transition-all cursor-pointer"
                       >
                         Details
                       </button>
@@ -1453,7 +1585,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleReturnCopyAction(book)}
-                          className="ulm-kpi-label h-8 px-3.5 !rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer"
+                          className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer"
                           title={book.borrower_name ? `Checked out to ${book.borrower_name} — Click to Return` : 'Return this copy to shelf'}
                         >
                           <RotateCcw className="w-3 h-3" />
@@ -1463,7 +1595,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleIssueBookAction(book)}
-                          className="ulm-kpi-label h-8 px-3.5 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center shadow-sm transition-all cursor-pointer"
+                          className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center shadow-sm transition-all cursor-pointer"
                         >
                           Issue
                         </button>
@@ -1478,7 +1610,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             setExtendPopoverCount(1);
                           }
                         }}
-                        className="ulm-kpi-label h-8 px-3 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 transition-all cursor-pointer"
                         title="Extend existing book with +N new copies in strict series order"
                       >
                         <Plus className="w-3 h-3" />
@@ -1509,9 +1641,12 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onDeleteBook && onDeleteBook(book)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDeleteBook) onDeleteBook(book);
+                        }}
                         className="p-1 rounded hover:text-rose-600 cursor-pointer"
-                        title="Delete"
+                        title="Delete Book"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1535,15 +1670,27 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <thead>
                   <tr className="border-b border-slate-200/80 dark:border-white/10 bg-slate-900/[0.03] dark:bg-white/[0.03] text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300 divide-x divide-slate-200/40 dark:divide-white/[0.05]">
                     <th className="w-10 px-3 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={
                           paginatedBooks.length > 0 &&
-                          selectedBookIds.size === paginatedBooks.length
+                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode))
                         }
-                        onChange={handleToggleSelectAll}
-                        className="w-3.5 h-3.5 rounded accent-[#541A72] dark:accent-[#C8963E] cursor-pointer"
-                      />
+                        aria-label="Select all volumes on current page"
+                        onClick={handleToggleSelectAll}
+                        className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                          paginatedBooks.length > 0 &&
+                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode))
+                            ? 'bg-gradient-to-br from-[#FFD147] to-[#D4A02A] border-[#FFD147] text-slate-950 shadow-xs'
+                            : 'bg-white/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/25 hover:border-amber-400'
+                        }`}
+                      >
+                        {paginatedBooks.length > 0 &&
+                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode)) && (
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          )}
+                      </button>
                     </th>
                     <th className="px-3.5 py-3 min-w-[180px] max-w-[260px]">Book Title & Author</th>
                     <th className="px-3.5 py-3 whitespace-nowrap">Category</th>
@@ -1587,12 +1734,26 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       >
                         {/* 1. Checkbox */}
                         <td className="w-10 px-3 py-2.5 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedBookIds.has(bookKey)}
-                            onChange={() => handleToggleSelectOne(bookKey)}
-                            className="w-3.5 h-3.5 rounded accent-[#541A72] dark:accent-[#C8963E] cursor-pointer"
-                          />
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={selectedBookIds.has(bookKey)}
+                            aria-label={`Select ${book.book_name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelectOne(bookKey, idx, e.shiftKey);
+                            }}
+                            className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                              selectedBookIds.has(bookKey)
+                                ? 'bg-gradient-to-br from-[#FFD147] to-[#D4A02A] border-[#FFD147] text-slate-950 shadow-xs'
+                                : 'bg-white/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/25 hover:border-amber-400'
+                            }`}
+                            title="Select volume (hold Shift to select a range)"
+                          >
+                            {selectedBookIds.has(bookKey) && (
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            )}
+                          </button>
                         </td>
 
                         {/* 2. Book Title & Author with Compact Spine */}
@@ -1729,7 +1890,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             {onDeleteBook && (
                               <button
                                 type="button"
-                                onClick={() => onDeleteBook(book)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteBook(book);
+                                }}
                                 className="p-1 rounded text-rose-500 hover:bg-rose-500/10 cursor-pointer"
                                 title="Delete Book"
                               >
@@ -1738,7 +1902,10 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                             )}
                           </div>
                           {extendPopoverBookId === `row-${bookKey}` && (
-                            <div className="mt-2 p-2 rounded-xl bg-amber-500/15 dark:bg-[#1E1136]/95 border border-amber-500/45 flex items-center justify-end gap-2 text-[11px]">
+                            <div
+                              style={{ animationDuration: '200ms' }}
+                              className="ulm-stagger-card mt-2 p-2 rounded-xl bg-amber-500/15 dark:bg-[#1E1136]/95 border border-amber-500/45 flex items-center justify-end gap-2 text-[11px]"
+                            >
                               <span className="font-mono text-slate-700 dark:text-slate-300">
                                 #{nextSeriesAccession}→#{nextSeriesAccession + extendPopoverCount - 1}:
                               </span>
@@ -1746,7 +1913,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setExtendPopoverCount(Math.max(1, extendPopoverCount - 1))}
-                                  className="w-5 h-full font-bold cursor-pointer"
+                                  className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -1765,7 +1932,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setExtendPopoverCount(Math.min(50, extendPopoverCount + 1))}
-                                  className="w-5 h-full font-bold cursor-pointer"
+                                  className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
                                 >
                                   +
                                 </button>
@@ -1773,7 +1940,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleConfirmExtendBookCopies(book)}
-                                className="h-6 px-2 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono text-[10.5px] cursor-pointer"
+                                className="ulm-btn-tactile h-6 px-2 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono text-[10.5px] cursor-pointer"
                               >
                                 + Add {extendPopoverCount}
                               </button>
@@ -1814,6 +1981,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             onSwitchView={(mode) => setCatalogView(mode)}
           />
         )}
+        </div>
 
         {/* =========================================================================
             4. COMPACT PAGINATION FOOTER (44px HEIGHT)
@@ -1903,7 +2071,9 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             onComplete={(updatedBooks, msg, batchId) => {
               setBulkModalMode(null);
               setSelectedBookIds(new Set());
-              if (onBooksUpdated) onBooksUpdated(updatedBooks, msg, batchId);
+              const updatedById = new Map(updatedBooks.map((b) => [b.id, b]));
+              const mergedCatalog = books.map((b) => updatedById.get(b.id) || b);
+              if (onBooksUpdated) onBooksUpdated(mergedCatalog, msg, batchId);
             }}
           />
         )}

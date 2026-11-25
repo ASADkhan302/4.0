@@ -345,7 +345,12 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
       const formattedBarcode = initialBarcode || AccessionSeriesEngine.formatBarcode(nextAcc);
 
       // Check last entry memory from localStorage for rapid fast ledger entry
-      const lastEntryStr = localStorage.getItem('ulm_lms_last_entry_cache');
+      let lastEntryStr: string | null = null;
+      try {
+        lastEntryStr = localStorage.getItem('ulm_lms_last_entry_cache');
+      } catch {
+        lastEntryStr = null;
+      }
       let cachedValues: Partial<{
         place: string;
         publisher: string;
@@ -940,7 +945,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%] transition-all overflow-y-auto animate-in fade-in duration-200"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%] transition-all overflow-y-auto"
       onClick={() => {
         setIsCommitted(false);
         setSaveState('idle');
@@ -949,7 +954,7 @@ export const AddEditBookModal: React.FC<AddEditBookModalProps> = ({
     >
       {/* Modal Dialog Container */}
       <div
-        className="w-full max-w-[960px] max-h-[90vh] flex flex-col rounded-[26px] overflow-hidden bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-white/[0.16] shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.75)] text-slate-900 dark:text-white select-none my-auto"
+        className="ulm-modal-dialog w-full max-w-[960px] max-h-[90vh] flex flex-col rounded-[26px] overflow-hidden bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-white/[0.16] shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.75)] text-slate-900 dark:text-white select-none my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Gold Accent Rim */}

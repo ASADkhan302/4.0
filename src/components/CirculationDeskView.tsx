@@ -27,6 +27,8 @@ import { DataTable, ColumnDef } from './shared/DataTable';
 import { SharedCountService } from '../services/sharedCountService';
 import { LiquidGlassCard } from './ui/liquid-weather-glass';
 import { LiquidPillOverlay, LiquidIconFx } from './ui/liquid-pill-physics';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
+import { AnimatedCounter } from './ui/MotionPrimitives';
 
 interface CirculationDeskProps {
   transactions: Transaction[];
@@ -114,11 +116,23 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
   const handleCreateIssue = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBookId) {
-      setIssueError('Please select a book title with available shelf copies.');
+      const msg = 'Please select a book title with available shelf copies.';
+      setIssueError(msg);
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: msg,
+      });
       return;
     }
     if (!selectedBorrowerId) {
-      setIssueError('Please select a registered library member.');
+      const msg = 'Please select a registered library member.';
+      setIssueError(msg);
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: msg,
+      });
       return;
     }
 
@@ -559,7 +573,8 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             borderRadius="22px"
             blurIntensity="xl"
             onClick={() => setStatusFilter('ALL')}
-            className={`p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+            style={{ animationDelay: '0ms' }}
+            className={`ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
               statusFilter === 'ALL'
                 ? 'border-[#FFD147]/70 ring-1 ring-[#FFD147]/45'
                 : 'hover:border-[#FFD147]/55'
@@ -578,7 +593,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                 className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {allLoansCount.toLocaleString()}
+                <AnimatedCounter value={allLoansCount} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80 pr-1">
                 total loans
@@ -594,7 +609,8 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             borderRadius="22px"
             blurIntensity="xl"
             onClick={() => setStatusFilter('ACTIVE')}
-            className={`p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+            style={{ animationDelay: '45ms' }}
+            className={`ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
               statusFilter === 'ACTIVE'
                 ? 'border-[#FFD147]/70 ring-1 ring-[#FFD147]/45'
                 : 'hover:border-[#FFD147]/55'
@@ -613,7 +629,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                 className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {activeLoansCount.toLocaleString()}
+                <AnimatedCounter value={activeLoansCount} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80 pr-1">
                 not yet due
@@ -629,7 +645,8 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             borderRadius="22px"
             blurIntensity="xl"
             onClick={() => setStatusFilter('OVERDUE')}
-            className={`p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+            style={{ animationDelay: '90ms' }}
+            className={`ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
               statusFilter === 'OVERDUE'
                 ? 'border-[#FFD147]/70 ring-1 ring-[#FFD147]/45'
                 : 'hover:border-[#FFD147]/55'
@@ -648,7 +665,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                 className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {overdueLoansCount.toLocaleString()}
+                <AnimatedCounter value={overdueLoansCount} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80 pr-1">
                 {overdueLoansCount === 0 ? 'none overdue' : 'past due date'}
@@ -664,7 +681,8 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             borderRadius="22px"
             blurIntensity="xl"
             onClick={() => setStatusFilter('RETURNED')}
-            className={`p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+            style={{ animationDelay: '135ms' }}
+            className={`ulm-stagger-card ulm-card-hover p-4 flex flex-col justify-between gap-2 cursor-pointer transition-all ${
               statusFilter === 'RETURNED'
                 ? 'border-[#FFD147]/70 ring-1 ring-[#FFD147]/45'
                 : 'hover:border-[#FFD147]/55'
@@ -683,7 +701,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                 className="text-[26px] font-bold tabular-nums tracking-tight text-slate-900 dark:text-white leading-none"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {returnedLoansCount.toLocaleString()}
+                <AnimatedCounter value={returnedLoansCount} />
               </span>
               <span className="text-[11px] italic font-medium text-slate-500 dark:text-slate-300/80 pr-1">
                 completed
@@ -775,6 +793,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
         </LiquidGlassCard>
 
         {/* 4. Transactions Display (Grid or List View) */}
+        <div key={viewMode} className="ulm-page-enter">
         {filteredTxs.length === 0 ? (
           <div className="ulm-preserve-glass rounded-[22px] bg-gradient-to-br from-white/55 via-white/35 to-white/20 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl border border-white/65 dark:border-white/[0.14] p-12 text-center text-slate-600 dark:text-[#B3AABD] space-y-3 shadow-sm">
             <ArrowRightLeft className="w-12 h-12 mx-auto text-slate-400 dark:text-[#6F6879]" />
@@ -785,7 +804,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             <button
               type="button"
               onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }}
-              className="px-4 py-2 bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-slate-900/[0.10] dark:hover:bg-white/[0.12] text-slate-800 dark:text-white text-xs font-semibold rounded-xl border border-slate-300/70 dark:border-white/15 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              className="ulm-btn-tactile px-4 py-2 bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-slate-900/[0.10] dark:hover:bg-white/[0.12] text-slate-800 dark:text-white text-xs font-semibold rounded-xl border border-slate-300/70 dark:border-white/15 transition-colors cursor-pointer inline-flex items-center gap-1.5"
             >
               Reset Circulation Filters
             </button>
@@ -806,14 +825,8 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
               return (
                 <div
                   key={tx.id}
-                  className="ulm-preserve-glass relative overflow-hidden rounded-[22px] pl-5 pr-4 py-4 bg-gradient-to-br from-white/55 via-white/35 to-white/20 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/65 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/55 transition-all flex flex-col justify-between gap-3 min-h-[260px]"
-                  style={
-                    idx < 12
-                      ? {
-                          animation: `fadeUp 200ms cubic-bezier(0.16, 1, 0.3, 1) ${idx * 30}ms forwards`,
-                        }
-                      : undefined
-                  }
+                  className="ulm-stagger-card ulm-card-hover ulm-preserve-glass relative overflow-hidden rounded-[22px] pl-5 pr-4 py-4 bg-gradient-to-br from-white/55 via-white/35 to-white/20 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border border-white/65 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/55 transition-all flex flex-col justify-between gap-3 min-h-[260px]"
+                  style={{ animationDelay: `${Math.min(idx, 11) * 28}ms` }}
                 >
                   {/* 4px status bar on the left edge */}
                   <div 
@@ -939,7 +952,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
                         type="button"
                         onClick={() => handleReturnAction(tx.id)}
                         disabled={returnState !== 'idle'}
-                        className="w-full h-10 rounded-xl border border-[#34D399] dark:border-[#34D399]/40 text-emerald-700 dark:text-[#34D399] bg-emerald-500/10 dark:bg-transparent hover:bg-emerald-500/20 dark:hover:bg-[rgba(52,211,153,0.12)] active:scale-[0.98] font-bold text-[13px] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                        className="ulm-btn-tactile w-full h-10 rounded-xl border border-[#34D399] dark:border-[#34D399]/40 text-emerald-700 dark:text-[#34D399] bg-emerald-500/10 dark:bg-transparent hover:bg-emerald-500/20 dark:hover:bg-[rgba(52,211,153,0.12)] font-bold text-[13px] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                       >
                         {returnState === 'loading' ? (
                           <>
@@ -973,6 +986,7 @@ export const CirculationDeskView: React.FC<CirculationDeskProps> = ({
             rowHeightClass="min-h-[48px]"
           />
         )}
+        </div>
 
       </div>
     </div>

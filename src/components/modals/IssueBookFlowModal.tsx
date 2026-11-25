@@ -28,6 +28,7 @@ import {
 import { Book, Borrower, Transaction, BorrowerRole } from '../../types/library';
 import { LibraryStorage } from '../../services/storage';
 import { playClickSound, playSuccessBarcodeBeep, playErrorBeep } from '../../services/audio';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 export interface IssueBookFlowModalProps {
   isOpen: boolean;
@@ -346,7 +347,14 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
           }
         } else {
           playErrorBeep();
-          setActionError(`Member ${exact.name} cannot borrow: ${check.reason}`);
+          const msg = `Member ${exact.name} cannot borrow: ${check.reason}`;
+          setActionError(msg);
+          notifyGlassToast({
+            type: 'warning',
+            title: 'Borrowing Policy Warning',
+            message: msg,
+            meta: exact.university_id || exact.student_id || undefined,
+          });
         }
       }
     }
@@ -376,7 +384,14 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
         } else {
           playErrorBeep();
           const dueBack = getBookNextDueBack(exact.id);
-          setActionError(`All copies of "${exact.book_name}" are issued${dueBack ? ` (due back ${formatReadableDate(dueBack)})` : ''}.`);
+          const msg = `All copies of "${exact.book_name}" are issued${dueBack ? ` (due back ${formatReadableDate(dueBack)})` : ''}.`;
+          setActionError(msg);
+          notifyGlassToast({
+            type: 'warning',
+            title: 'Copy Unavailable',
+            message: msg,
+            meta: exact.barcode || undefined,
+          });
         }
       }
     }
@@ -391,17 +406,23 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
   const handleConfirmIssue = async () => {
     if (isSubmitting) return;
     if (!selectedBook) {
-      setActionError('Please select a book to issue.');
+      const msg = 'Please select a book to issue.';
+      setActionError(msg);
+      notifyGlassToast({ type: 'warning', title: 'Borrowing Policy Warning', message: msg });
       setCurrentStep('book');
       return;
     }
     if (!selectedBorrower) {
-      setActionError('Please select a member to issue the book to.');
+      const msg = 'Please select a member to issue the book to.';
+      setActionError(msg);
+      notifyGlassToast({ type: 'warning', title: 'Borrowing Policy Warning', message: msg });
       setCurrentStep('person');
       return;
     }
     if (needsQuotaOverride && !quotaOverrideConfirmed) {
-      setActionError('Member has reached borrowing quota. Confirm the Librarian Quota Override checkbox to proceed.');
+      const msg = 'Member has reached borrowing quota. Confirm the Librarian Quota Override checkbox to proceed.';
+      setActionError(msg);
+      notifyGlassToast({ type: 'warning', title: 'Borrowing Policy Warning', message: msg });
       return;
     }
 
@@ -439,11 +460,11 @@ export const IssueBookFlowModal: React.FC<IssueBookFlowModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md ulm-modal-backdrop"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl bg-[#141214] border border-[#BC881B]/40 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[92vh] select-none text-[#E7E2EC]"
+        className="w-full max-w-3xl bg-[#141214] border border-[#BC881B]/40 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[92vh] select-none text-[#E7E2EC] ulm-modal-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Gold Hairline */}

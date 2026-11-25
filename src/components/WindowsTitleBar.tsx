@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Minus, Square, X, Copy } from 'lucide-react';
 import { ULM_CREST_URL, handleCrestFallback } from '../constants/ulmCrest';
-import { sendWindowControl } from '../services/desktopHostBridge';
+import { controlWindow, isDesktopRuntime } from '../services/desktopBridge';
 
 interface WindowsTitleBarProps {
   onMinimize?: () => void;
@@ -21,8 +21,10 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
 }) => {
   const [isMaximized, setIsMaximized] = useState(true);
   const [showNotification, setShowNotification] = useState<string | null>(null);
+  const runningInDesktop = isDesktopRuntime();
 
   useEffect(() => {
+    if (runningInDesktop) return;
     // Check initial native window state if electronAPI is present
     const electronAPI = (window as unknown as { electronAPI?: { isWindowMaximized?: () => Promise<boolean>; onWindowMaximizeChange?: (cb: (isMax: boolean) => void) => () => void } }).electronAPI;
     if (electronAPI?.isWindowMaximized) {
@@ -36,10 +38,15 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
       });
       return cleanup;
     }
-  }, []);
+  }, [runningInDesktop]);
+
+  // Automatically hide mock AI Studio top window chrome inside native desktop .exe runtime
+  if (runningInDesktop) {
+    return null;
+  }
 
   const handleMinimize = () => {
-    if (sendWindowControl('minimize')) return;
+    if (controlWindow('minimize')) return;
     setShowNotification('Application minimized to Windows taskbar notification area.');
     setTimeout(() => setShowNotification(null), 2500);
   };
@@ -47,13 +54,13 @@ export const WindowsTitleBar: React.FC<WindowsTitleBarProps> = ({
   const handleMaximize = () => {
     const nextState = !isMaximized;
     setIsMaximized(nextState);
-    if (sendWindowControl('maximize')) return;
+    if (controlWindow('maximize')) return;
     setShowNotification(nextState ? 'Maximized window state.' : 'Restored window state.');
     setTimeout(() => setShowNotification(null), 2000);
   };
 
   const handleClose = () => {
-    if (sendWindowControl('close')) return;
+    if (controlWindow('close')) return;
     setShowNotification('Desktop application close requested. State safely committed to SQLite WAL.');
     setTimeout(() => setShowNotification(null), 3000);
   };

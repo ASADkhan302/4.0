@@ -19,12 +19,15 @@ import {
   Undo2,
   Eye,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Layers,
 } from 'lucide-react';
 import { Book, Almari } from '../types/library';
 import { AlmariService } from '../services/almariService';
 import { LibraryStorage } from '../services/storage';
 import { persistManualBookShelfAssignments } from '../services/libraryStorageAndMigration';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
 
 export interface AlmariViewProps {
   books: Book[];
@@ -118,9 +121,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     };
     window.addEventListener('ulm-library-sync', handleSync);
     window.addEventListener('ulm-library-data-changed', handleSync);
+    window.addEventListener('ulm-almari-capacity-sync', handleSync);
     return () => {
       window.removeEventListener('ulm-library-sync', handleSync);
       window.removeEventListener('ulm-library-data-changed', handleSync);
+      window.removeEventListener('ulm-almari-capacity-sync', handleSync);
     };
   }, []);
 
@@ -157,6 +162,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
   // Persist initial reconciliation cleanups if orphaned or out-of-bounds books were healed on load
   const lastHealedSignatureRef = useRef<string>('');
+  const shelfScrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     const healedTotal = reconciledState.orphanedCount + reconciledState.outOfBoundsCount;
     if (healedTotal <= 0 || localBooks.length === 0) return;
@@ -259,6 +265,38 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   const [hoveredBook, setHoveredBook] = useState<Book | null>(null);
   const [capacityWarningBanner, setCapacityWarningBanner] = useState<string | null>(null);
 
+  const hoverExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverExitTimerRef.current) clearTimeout(hoverExitTimerRef.current);
+    };
+  }, []);
+
+  const handleSpineEnter = useCallback((book: Book) => {
+    if (hoverExitTimerRef.current) {
+      clearTimeout(hoverExitTimerRef.current);
+      hoverExitTimerRef.current = null;
+    }
+    setHoveredBook(book);
+  }, []);
+
+  const handleSpineLeave = useCallback(() => {
+    if (hoverExitTimerRef.current) clearTimeout(hoverExitTimerRef.current);
+    hoverExitTimerRef.current = setTimeout(() => {
+      setHoveredBook(null);
+      hoverExitTimerRef.current = null;
+    }, 150);
+  }, []);
+
+  const clearHoverImmediately = useCallback(() => {
+    if (hoverExitTimerRef.current) {
+      clearTimeout(hoverExitTimerRef.current);
+      hoverExitTimerRef.current = null;
+    }
+    setHoveredBook(null);
+  }, []);
+
   const draggedBookIdRef = useRef<string | null>(null);
   const sourceAlmariIdRef = useRef<string | null>(null);
   const sourceShelfRef = useRef<number | null>(null);
@@ -295,8 +333,6 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   const [quickMoveBook, setQuickMoveBook] = useState<Book | null>(null);
   const [quickMoveAlmariId, setQuickMoveAlmariId] = useState<string>('');
   const [quickMoveShelfNo, setQuickMoveShelfNo] = useState<number>(1);
-
-  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'warning'; text: string } | null>(null);
 
   // Escape key dismissal for all 4 portaled Almari modals
   useEffect(() => {
@@ -370,7 +406,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       if (isOverCapacity) {
         const warnText = `Capacity Alert: ${targetAlmari.code} • Shelf ${clampedShelf} is at full capacity (${currentShelfBooks.length}/${capacity} vols). "${targetBook.book_name}" was placed — consider increasing Shelf Max or moving to an open shelf.`;
         setCapacityWarningBanner(warnText);
-        setToastMessage({ type: 'warning', text: warnText });
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Shelf At Full Capacity',
+          message: `"${targetBook.book_name}" placed on ${targetAlmari.code} Shelf ${clampedShelf} (${currentShelfBooks.length + 1}/${capacity} vols).`,
+          meta: `${targetAlmari.code} · Shelf ${clampedShelf}`,
+        });
       } else {
         setCapacityWarningBanner(null);
       }
@@ -388,9 +429,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       } catch {}
 
       if (!isOverCapacity) {
-        setToastMessage({
-          type: 'success',
-          text: `Moved "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode || targetBook.id}) to ${targetAlmari.code} • Shelf ${clampedShelf}.`,
+        notifyGlassToast({
+          type: 'info',
+          title: 'Shelf Location Updated',
+          message: `Moved "${targetBook.book_name}" to ${targetAlmari.code} · Shelf ${clampedShelf}.`,
+          meta: `Acc #${targetBook.accession_no || targetBook.barcode || targetBook.id}`,
         });
       }
 
@@ -415,9 +458,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       if (!res.success) return;
 
       setCapacityWarningBanner(null);
-      setToastMessage({
-        type: 'success',
-        text: `Unassigned "${targetBook.book_name}" back to Unassigned Queue.`,
+      notifyGlassToast({
+        type: 'info',
+        title: 'Shelf Location Updated',
+        message: `Unassigned "${targetBook.book_name}" back to Unassigned Queue.`,
+        meta: `Acc #${targetBook.accession_no || targetBook.barcode || targetBook.id}`,
       });
 
       if (onUpdateBooks) onUpdateBooks(res.updatedBooks);
@@ -455,6 +500,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     draggedBookIdRef.current = strictKey;
     sourceAlmariIdRef.current = currentAlmariId ?? null;
     sourceShelfRef.current = currentShelf ?? null;
+    clearHoverImmediately();
     setIsDraggingBook(true);
   };
 
@@ -535,6 +581,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
   // Quick-Move Popover Handlers
   const openQuickMovePopover = (book: Book) => {
+    clearHoverImmediately();
     setQuickMoveBook(book);
     const defaultAlmId =
       (book.almari_id && almaris.some((a) => a.id === book.almari_id) && book.almari_id) ||
@@ -619,9 +666,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setIsAddAlmariOpen(false);
     setNewAlmariCode('');
     setNewAlmariName('');
-    setToastMessage({
+    notifyGlassToast({
       type: 'success',
-      text: `Created Physical Almari ${created.code} (${shelfCount} shelves · ${perShelfCap} vols/shelf).`,
+      title: 'Almari Created',
+      message: `Created Physical Almari ${created.code} (${created.name_en}).`,
+      meta: `${created.code} · ${shelfCount} shelves · ${perShelfCap}/shelf`,
     });
   };
 
@@ -696,9 +745,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       updatedShelves < prevShelves && recon.outOfBoundsCount > 0
         ? ` ${recon.outOfBoundsCount} volume(s) from removed shelves returned to Unassigned Queue.`
         : '';
-    setToastMessage({
+    notifyGlassToast({
       type: 'success',
-      text: `Updated Cupboard ${updatedAlmari.code} (${updatedName}).${extraNote}`,
+      title: 'Almari Updated',
+      message: `Updated Cupboard ${updatedAlmari.code} (${updatedName}).${extraNote}`,
+      meta: `${updatedAlmari.code} · ${updatedShelves} shelves`,
     });
   };
 
@@ -736,9 +787,11 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setIsEditAlmariOpen(false);
     setEditingAlmari(null);
     setSyncRevision((r) => r + 1);
-    setToastMessage({
-      type: 'success',
-      text: `Cupboard ${deletedCode} deleted. ${recon.orphanedCount} volume(s) safely returned to Unassigned Queue.`,
+    notifyGlassToast({
+      type: 'danger',
+      title: 'Almari Deleted',
+      message: `Cupboard ${deletedCode} deleted. ${recon.orphanedCount} volume(s) safely returned to Unassigned Queue.`,
+      meta: deletedCode,
     });
   };
 
@@ -792,40 +845,13 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
           <button
             type="button"
             onClick={() => setIsAddAlmariOpen(true)}
-            className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1.5"
+            className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5 !text-white" />
             <span className="!text-white">Add Almari</span>
           </button>
         </div>
       </div>
-
-      {/* Inline Toast / Status Banner */}
-      {toastMessage && (
-        <div
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 border ${
-            toastMessage.type === 'warning'
-              ? 'bg-amber-500/15 border-amber-500/40 text-amber-900 dark:text-amber-200'
-              : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
-          }`}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            {toastMessage.type === 'warning' ? (
-              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            )}
-            <span className="truncate">{toastMessage.text}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setToastMessage(null)}
-            className="text-[11px] underline opacity-80 hover:opacity-100 cursor-pointer shrink-0"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -866,7 +892,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
             </div>
 
             <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-              {filteredAlmaris.map((almari) => {
+              {filteredAlmaris.map((almari, idx) => {
                 const isSelected = selectedAlmari?.id === almari.id;
                 const isDropTarget = dragOverAlmariId === almari.id;
                 const shelfCount = Math.max(1, almari.shelf_count || 5);
@@ -887,7 +913,8 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                     onDragOver={(e) => handleCupboardCardDragOver(e, almari.id)}
                     onDragLeave={(e) => handleCupboardCardDragLeave(e, almari.id)}
                     onDrop={(e) => handleCupboardCardDrop(e, almari)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer relative group ${
+                    style={{ animationDelay: `${Math.min(idx, 6) * 40}ms` }}
+                    className={`ulm-stagger-card p-3 rounded-2xl border transition-all cursor-pointer relative group ${
                       isDropTarget
                         ? 'bg-[#FFD147]/20 dark:bg-[#FFD147]/15 border-[#C8963E] dark:border-[#FFD147] ring-2 ring-[#FFD147]/70 scale-[1.01] shadow-lg'
                         : isSelected
@@ -1250,11 +1277,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
                   return (
                     <div
-                      key={shelfNo}
+                      key={`${selectedAlmari.id}-${shelfNo}`}
                       onDragOver={(e) => handleShelfDragOver(e, shelfNo)}
                       onDragLeave={(e) => handleShelfDragLeave(e, shelfNo)}
                       onDrop={(e) => handleShelfDrop(e, shelfNo)}
-                      className={`ulm-preserve-glass relative rounded-2xl p-3.5 transition-all duration-200 border backdrop-blur-xl ${
+                      style={{ animationDelay: `${Math.min(idx, 6) * 40}ms` }}
+                      className={`ulm-stagger-card ulm-preserve-glass relative rounded-2xl p-3.5 transition-all duration-200 border backdrop-blur-xl ${
                         isDragTarget
                           ? isFull
                             ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-400/60 shadow-lg'
@@ -1307,7 +1335,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                       </div>
 
                       {/* 3D Spines Container */}
-                      <div className="relative min-h-[145px] flex items-end px-3 pt-4 pb-0 overflow-x-auto gap-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-[#C8963E]/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+                      <div
+                        ref={(el) => {
+                          shelfScrollRefs.current[`${selectedAlmari.id}-shelf-${shelfNo}`] = el;
+                        }}
+                        className="relative min-h-[152px] flex items-end px-3 pt-4 pb-0 overflow-x-auto scroll-smooth gap-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-[#C8963E]/40 [&::-webkit-scrollbar-thumb]:rounded-full"
+                      >
                         {shelfBooks.length === 0 ? (
                           /* IMPLICIT STATE 8: Empty Shelf State */
                           <div className="w-full h-24 rounded-xl border border-dashed border-slate-300/80 dark:border-white/15 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-mono italic text-center px-4">
@@ -1321,49 +1354,58 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                             const checkedOut = isBookCheckedOut(book);
 
                             return (
+                              /* Stationary Outer Hit-Target Wrapper (Zero translate-y / width change -> Eliminates Hover Popping) */
                               <div
                                 key={strictKey}
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, book, selectedAlmari.id, shelfNo)}
                                 onDragEnd={handleDragEnd}
-                                onClick={() => openQuickMovePopover(book)}
-                                onMouseEnter={() => setHoveredBook(book)}
-                                onMouseLeave={() => setHoveredBook(null)}
-                                className={`ulm-dark-plaque group relative h-32 w-8 hover:w-10 rounded-t-[4px] bg-gradient-to-r ${palette.bg} shadow-lg cursor-grab active:cursor-grabbing hover:-translate-y-3 hover:scale-105 hover:z-30 transition-all duration-150 flex flex-col justify-between p-1 shrink-0 overflow-hidden select-none ${
-                                  checkedOut
-                                    ? 'border-2 border-dashed border-amber-400/90 opacity-75 ring-1 ring-amber-400/35'
-                                    : `border-t-2 border-r border-l ${palette.border}`
-                                }`}
+                                onClick={() => {
+                                  clearHoverImmediately();
+                                  openQuickMovePopover(book);
+                                }}
+                                onMouseEnter={() => handleSpineEnter(book)}
+                                onMouseLeave={handleSpineLeave}
+                                className="group relative shrink-0 pt-3 pb-0.5 w-8 cursor-grab active:cursor-grabbing select-none hover:z-30"
                                 title={
                                   checkedOut
                                     ? `[CHECKED OUT — Home Slot Reserved] ${book.book_name} (#${book.barcode || book.accession_no || book.id})`
                                     : `${book.book_name} (#${book.barcode || book.accession_no || book.id}) — Click to Quick-Move or Inspect`
                                 }
                               >
-                                <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-white/20" />
-                                {/* IMPLICIT STATE 4: Checked-Out Book Spine OUT Micro-Badge */}
-                                {checkedOut ? (
-                                  <span className="w-full py-[1px] rounded-[2px] bg-amber-400 !text-slate-950 text-[6.5px] font-mono font-black tracking-tighter text-center uppercase shadow-2xs">
-                                    OUT
-                                  </span>
-                                ) : (
-                                  <span
-                                    className={`text-[6px] font-mono font-bold tracking-widest text-center ${palette.text} uppercase`}
-                                  >
-                                    ULM
-                                  </span>
-                                )}
-                                <div className="flex-1 flex items-center justify-center overflow-hidden py-1">
-                                  <span
-                                    className={`text-[9px] font-bold !text-white tracking-wider truncate [writing-mode:vertical-rl] rotate-180 max-h-20 ${
-                                      isUrdu ? 'font-serif text-[10px]' : ''
-                                    }`}
-                                  >
-                                    {book.book_name}
-                                  </span>
-                                </div>
-                                <div className="w-full py-0.5 rounded-[2px] bg-white !text-slate-950 font-mono text-[6.5px] font-extrabold text-center shadow-xs">
-                                  {String(book.barcode || book.accession_no || book.id).slice(-4)}
+                                {/* Inner Visual Spine (Pointer-Events-None -> Smooth Lift Without Flicker) */}
+                                <div
+                                  className={`ulm-dark-plaque pointer-events-none relative h-32 w-8 rounded-t-[4px] bg-gradient-to-r ${palette.bg} shadow-lg transition-transform duration-150 ease-out group-hover:-translate-y-2 flex flex-col justify-between p-1 overflow-hidden ${
+                                    checkedOut
+                                      ? 'border-2 border-dashed border-amber-400/90 opacity-75 ring-1 ring-amber-400/35'
+                                      : `border-t-2 border-r border-l ${palette.border}`
+                                  }`}
+                                >
+                                  <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-white/20" />
+                                  {/* IMPLICIT STATE 4: Checked-Out Book Spine OUT Micro-Badge */}
+                                  {checkedOut ? (
+                                    <span className="w-full py-[1px] rounded-[2px] bg-amber-400 !text-slate-950 text-[6.5px] font-mono font-black tracking-tighter text-center uppercase shadow-2xs">
+                                      OUT
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`text-[6px] font-mono font-bold tracking-widest text-center ${palette.text} uppercase`}
+                                    >
+                                      ULM
+                                    </span>
+                                  )}
+                                  <div className="flex-1 flex items-center justify-center overflow-hidden py-1">
+                                    <span
+                                      className={`text-[9px] font-bold !text-white tracking-wider truncate [writing-mode:vertical-rl] rotate-180 max-h-20 ${
+                                        isUrdu ? 'font-serif text-[10px]' : ''
+                                      }`}
+                                    >
+                                      {book.book_name}
+                                    </span>
+                                  </div>
+                                  <div className="w-full py-0.5 rounded-[2px] bg-white !text-slate-950 font-mono text-[6.5px] font-extrabold text-center shadow-xs">
+                                    {String(book.barcode || book.accession_no || book.id).slice(-4)}
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -1373,38 +1415,45 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
                       {/* Wooden Shelf Beam */}
                       <div className="h-3 w-full rounded bg-gradient-to-r from-[#9A6B24] via-[#FFD147] to-[#8C5D19] border-t border-white/40 shadow-[0_4px_12px_rgba(0,0,0,0.35)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.6)] relative z-10" />
+
+                      {/* Frosted Crystal Left / Right Shelf Scroll Arrow Rail */}
+                      {shelfBooks.length > 0 && (
+                        <div className="mt-2 flex items-center justify-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = shelfScrollRefs.current[`${selectedAlmari.id}-shelf-${shelfNo}`];
+                              el?.scrollBy({ left: -320, behavior: 'smooth' });
+                            }}
+                            className="h-7 px-3 rounded-lg bg-white/75 dark:bg-white/[0.07] hover:bg-amber-500/20 border border-slate-300/75 dark:border-white/[0.14] text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 text-[11px] font-semibold transition-all cursor-pointer"
+                            aria-label={`Scroll shelf ${shelfNo} left`}
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span>Prev</span>
+                          </button>
+
+                          <span className="font-['JetBrains_Mono'] text-[10.5px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums px-1">
+                            {shelfBooks.length} / {capacity} vols
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = shelfScrollRefs.current[`${selectedAlmari.id}-shelf-${shelfNo}`];
+                              el?.scrollBy({ left: 320, behavior: 'smooth' });
+                            }}
+                            className="h-7 px-3 rounded-lg bg-white/75 dark:bg-white/[0.07] hover:bg-amber-500/20 border border-slate-300/75 dark:border-white/[0.14] text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 text-[11px] font-semibold transition-all cursor-pointer"
+                            aria-label={`Scroll shelf ${shelfNo} right`}
+                          >
+                            <span>Next</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-
-              {/* Hover Inspection Bar */}
-              {hoveredBook && (
-                <div className="mt-4 p-3 rounded-xl bg-white/75 dark:bg-[#0F0819]/90 backdrop-blur-md border border-[#C8963E]/40 dark:border-[#FFD147]/40 flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <BookMarked className="w-4 h-4 text-[#8A4B00] dark:text-[#FFD147] shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-slate-900 dark:text-white truncate">
-                          {hoveredBook.book_name}
-                        </p>
-                        {isBookCheckedOut(hoveredBook) && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40">
-                            CHECKED OUT · HOME SLOT RESERVED
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-[#8A4B00] dark:text-[#FFD147]/80 font-mono truncate">
-                        Barcode: #{hoveredBook.barcode || hoveredBook.accession_no || hoveredBook.id} • Author:{' '}
-                        {hoveredBook.author || 'Unknown'} • Category: {hoveredBook.category || 'General'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
-                    Click for Quick-Move &amp; Details
-                  </span>
-                </div>
-              )}
             </div>
           ) : (
             /* IMPLICIT STATE 8: 0 Cupboards Empty State & Recovery */
@@ -1434,6 +1483,45 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       </div>
 
       {/* ========================================================================
+          ZERO-LAYOUT-SHIFT FLOATING FROSTED CRYSTAL HOVER HUD (createPortal)
+         ======================================================================== */}
+      {hoveredBook &&
+        !isDraggingBook &&
+        !quickMoveBook &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="pointer-events-none fixed bottom-5 left-1/2 -translate-x-1/2 z-[90] w-[620px] max-w-[92vw] transition-all duration-150">
+            <div className="ulm-preserve-glass px-4 py-2.5 rounded-2xl bg-white/88 dark:bg-[#140C24]/92 backdrop-blur-2xl backdrop-saturate-[180%] border border-[#C8963E]/50 dark:border-[#FFD147]/45 shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_18px_46px_rgba(15,23,42,0.22)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.18),0_20px_56px_rgba(0,0,0,0.68)] flex items-center justify-between gap-3 text-xs transition-all duration-150">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-[#C8963E]/40 flex items-center justify-center shrink-0">
+                  <BookMarked className="w-4 h-4 text-[#8A4B00] dark:text-[#FFD147]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-extrabold text-slate-900 dark:text-white truncate">
+                      {hoveredBook.book_name}
+                    </p>
+                    {isBookCheckedOut(hoveredBook) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 shrink-0">
+                        CHECKED OUT · HOME SLOT RESERVED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#8A4B00] dark:text-[#FFD147]/85 font-mono truncate">
+                    Barcode: #{hoveredBook.barcode || hoveredBook.accession_no || hoveredBook.id} • Author:{' '}
+                    {hoveredBook.author || 'Unknown'} • Category: {hoveredBook.category || 'General'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-extrabold shrink-0 hidden sm:inline">
+                Click for Quick-Move &amp; Details
+              </span>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ========================================================================
           PORTALED MODALS (IMPLICIT STATE 9: createPortal at fixed inset-0 z-[9999])
          ======================================================================== */}
 
@@ -1444,7 +1532,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
             <form
               onSubmit={handleCreateManualAlmari}
-              className="ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#C8963E]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
+              className="ulm-modal-dialog ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#C8963E]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
             >
               <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-white/10 pb-3">
                 <h3 className="text-base font-extrabold text-[#541A72] dark:text-[#FFD147]">
@@ -1534,13 +1622,13 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddAlmariOpen(false)}
-                  className="h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white cursor-pointer"
+                  className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white cursor-pointer"
                 >
                   Create Cupboard
                 </button>
@@ -1558,7 +1646,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
             <form
               onSubmit={handleSaveEditedAlmari}
-              className="ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
+              className="ulm-modal-dialog ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
             >
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
                 <div className="flex items-center gap-2">
@@ -1657,7 +1745,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                     setAlmariToDelete(editingAlmari);
                     setIsEditAlmariOpen(false);
                   }}
-                  className="h-9 px-3.5 rounded-xl text-xs bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-500/40 font-extrabold flex items-center gap-1.5 cursor-pointer"
+                  className="ulm-btn-tactile h-9 px-3.5 rounded-xl text-xs bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-500/40 font-extrabold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                   <span>Delete Cupboard</span>
@@ -1667,13 +1755,13 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsEditAlmariOpen(false)}
-                    className="h-9 px-3.5 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
+                    className="ulm-btn-tactile h-9 px-3.5 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white cursor-pointer shadow-xs"
+                    className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white cursor-pointer shadow-xs"
                   >
                     Save Changes
                   </button>
@@ -1689,7 +1777,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
-            <div className="ulm-preserve-glass w-full max-w-sm rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border-2 border-rose-500/50 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white">
+            <div className="ulm-modal-dialog ulm-preserve-glass w-full max-w-sm rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border-2 border-rose-500/50 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0">
                   <AlertTriangle className="w-5 h-5" />
@@ -1715,14 +1803,14 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setAlmariToDelete(null)}
-                  className="h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmDeleteAlmari}
-                  className="h-9 px-4 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 !text-white cursor-pointer shadow-xs"
+                  className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 !text-white cursor-pointer shadow-xs"
                 >
                   Confirm Delete
                 </button>
@@ -1742,7 +1830,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/88 via-white/75 to-white/60 dark:from-[#1A102E]/94 dark:via-[#140C24]/90 dark:to-[#0F081C]/88 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/50 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
+              className="ulm-modal-dialog ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/88 via-white/75 to-white/60 dark:from-[#1A102E]/94 dark:via-[#140C24]/90 dark:to-[#0F081C]/88 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/50 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 dark:border-white/10 pb-3">

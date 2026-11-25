@@ -88,6 +88,8 @@ interface LiquidPillOverlayProps {
   variant?: 'purple-pill' | 'sidebar-pill';
   /** Optional tick counter to trigger a liquid pulse/ripple even when clicking the already-active item */
   triggerTick?: number;
+  /** Optional Tailwind border-radius class override for the pill & ripple */
+  roundedClass?: string;
 }
 
 export const LiquidPillOverlay: React.FC<LiquidPillOverlayProps> = ({
@@ -97,6 +99,7 @@ export const LiquidPillOverlay: React.FC<LiquidPillOverlayProps> = ({
   axis,
   variant = 'purple-pill',
   triggerTick = 0,
+  roundedClass,
 }) => {
   const mainPillRef = useRef<HTMLDivElement | null>(null);
   const satRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -416,10 +419,12 @@ export const LiquidPillOverlay: React.FC<LiquidPillOverlayProps> = ({
     };
   }, []);
 
+  const resolvedRadius = roundedClass || (variant === 'sidebar-pill' ? 'rounded-[10px]' : 'rounded-lg');
+
   const basePillClasses =
     variant === 'sidebar-pill'
-      ? 'pointer-events-none absolute top-0 left-0 z-0 rounded-[10px] bg-gradient-to-r from-[#581C87]/92 via-[#6B21A8]/85 to-[#3B1054]/90 border border-[#FFD147]/55 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.38),0_6px_18px_rgba(88,28,135,0.48)] will-change-transform'
-      : 'pointer-events-none absolute top-0 left-0 z-0 rounded-lg bg-gradient-to-r from-[#581C87]/95 to-[#7E22CE]/90 border border-[#FFD147]/55 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.42),0_4px_14px_rgba(126,34,206,0.45)] will-change-transform';
+      ? `pointer-events-none absolute top-0 left-0 z-0 ${resolvedRadius} bg-gradient-to-r from-[#581C87]/92 via-[#6B21A8]/85 to-[#3B1054]/90 border border-[#FFD147]/55 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.38),0_6px_18px_rgba(88,28,135,0.48)] will-change-transform`
+      : `pointer-events-none absolute top-0 left-0 z-0 ${resolvedRadius} bg-gradient-to-r from-[#581C87]/95 to-[#7E22CE]/90 border border-[#FFD147]/55 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.42),0_4px_14px_rgba(126,34,206,0.45)] will-change-transform`;
 
   return (
     <>
@@ -443,7 +448,7 @@ export const LiquidPillOverlay: React.FC<LiquidPillOverlayProps> = ({
       {/* Merge ripple ring */}
       <div
         ref={rippleRef}
-        className="pointer-events-none absolute top-0 left-0 z-[1] rounded-[10px] border-2 border-[#FFD147]/75 dark:border-[#FFD147]/70 shadow-[0_0_14px_rgba(255,209,71,0.35)] opacity-0 will-change-transform"
+        className={`pointer-events-none absolute top-0 left-0 z-[1] ${resolvedRadius} border-2 border-[#FFD147]/75 dark:border-[#FFD147]/70 shadow-[0_0_14px_rgba(255,209,71,0.35)] opacity-0 will-change-transform`}
         style={{ transformOrigin: 'center center' }}
       />
     </>

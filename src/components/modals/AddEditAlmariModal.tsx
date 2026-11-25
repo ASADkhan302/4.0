@@ -268,12 +268,12 @@ export const AddEditAlmariModal: React.FC<AddEditAlmariModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white/95 dark:bg-[#161024]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 dark:text-[#E7E2EC]"
+        className="ulm-modal-dialog bg-white/95 dark:bg-[#161024]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 dark:text-[#E7E2EC]"
       >
         
         {/* Header */}

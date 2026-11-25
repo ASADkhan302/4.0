@@ -21,6 +21,7 @@ import {
   markWorkstationSetupCompleted,
 } from '../../services/libraryStorageAndMigration';
 import { ULM_OFFICIAL_CREST_DATA_URI, handleCrestFallback } from '../../constants/ulmOfficialCrest';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 export interface ExcelImportModalProps {
   isOpen: boolean;
@@ -85,7 +86,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       setErrorMessage(null);
       setSummary(null);
     } else {
-      setErrorMessage('Please select a valid Excel (.xlsx, .xls) or CSV (.csv) spreadsheet file.');
+      const msg = 'Please select a valid Excel (.xlsx, .xls) or CSV (.csv) spreadsheet file.';
+      setErrorMessage(msg);
+      notifyGlassToast({ type: 'warning', title: 'Unsupported File Type', message: msg });
     }
   };
 
@@ -135,7 +138,14 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           : typeof err === 'string'
           ? err
           : 'Failed to complete Excel batch import.';
-      setErrorMessage(msg || 'An unexpected error occurred during import.');
+      const finalMsg = msg || 'An unexpected error occurred during import.';
+      setErrorMessage(finalMsg);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Import Failed',
+        message: finalMsg,
+        meta: selectedFile?.name || undefined,
+      });
     } finally {
       setIsImporting(false);
     }
@@ -147,8 +157,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#140D22] dark:via-[#140D22]/95 dark:to-[#0B1120] border border-[#C8963E]/45 rounded-[26px] max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto ulm-modal-backdrop">
+      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#140D22] dark:via-[#140D22]/95 dark:to-[#0B1120] border border-[#C8963E]/45 rounded-[26px] max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto ulm-modal-dialog">
         {/* Header */}
         <div className="px-6 py-4 bg-white/80 dark:bg-[#131B2E] border-b border-[#DCCB9E] dark:border-white/[0.08] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">

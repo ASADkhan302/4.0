@@ -2,10 +2,7 @@
 
 import * as React from "react";
 import {
-  AreaTrend,
-  BarCompare,
   ChartCard,
-  DonutBreakdown,
   KpiCard,
   DonutSlice,
 } from "@/components/ui/library-charts-kpi";
@@ -13,6 +10,12 @@ import { BookOpen, Layers, CheckCircle2, Clock, MapPin } from "lucide-react";
 import { Book, Almari, Transaction } from "../../types/library";
 import { AlmariService } from "../../services/almariService";
 import { LibraryStorage } from "../../services/storage";
+import { LiquidPillOverlay } from "../ui/liquid-pill-physics";
+import {
+  GlassBezierAreaChart,
+  GlassHatchedStackChart,
+  GlassSweepDonutChart,
+} from "../ui/GlassCharts";
 
 export interface CatalogVisualAnalyticsProps {
   books?: Book[];
@@ -40,6 +43,27 @@ export function CatalogVisualAnalytics({
   transactions: propTransactions,
 }: CatalogVisualAnalyticsProps) {
   const [timeframe, setTimeframe] = React.useState<keyof typeof TIMEFRAMES>("30d");
+  const [timeframeAnimTick, setTimeframeAnimTick] = React.useState(1);
+  const [capacitySyncTick, setCapacitySyncTick] = React.useState(0);
+  const [selectedClassLabel, setSelectedClassLabel] = React.useState<string | null>(null);
+  const timeframeSwitcherRef = React.useRef<HTMLDivElement | null>(null);
+  const timeframeItemRefs = React.useRef<Record<string, HTMLElement | null>>({});
+
+  React.useEffect(() => {
+    const onCapSync = () => setCapacitySyncTick((t) => t + 1);
+    window.addEventListener("ulm-almari-capacity-sync", onCapSync);
+    window.addEventListener("ulm-library-sync", onCapSync);
+    return () => {
+      window.removeEventListener("ulm-almari-capacity-sync", onCapSync);
+      window.removeEventListener("ulm-library-sync", onCapSync);
+    };
+  }, []);
+
+  const handleSelectTimeframe = (next: keyof typeof TIMEFRAMES) => {
+    setTimeframe(next);
+    setSelectedClassLabel(null);
+    setTimeframeAnimTick((t) => t + 1);
+  };
 
   // 1. Resolve Live Books (From Props or Central Storage Engine) + Master Placement Overrides
   const books: ExtendedBook[] = React.useMemo(() => {
@@ -304,6 +328,9 @@ export function CatalogVisualAnalytics({
       ];
     }
 
+    void capacitySyncTick;
+    const capMap = AlmariService.getShelfCapacities();
+
     return almaris.map((almari) => {
       const assignedCount = books
         .filter(
@@ -322,11 +349,10 @@ export function CatalogVisualAnalytics({
         code: almari.code,
         count: assignedCount,
         location: almari.location || almari.location_note || "Main Hall • Ground Floor",
-        capacity:
-          almari.approx_capacity || (almari.shelf_count || 5) * (almari.books_per_shelf || 25),
+        capacity: AlmariService.getAlmariTotalCapacity(almari, capMap),
       };
     });
-  }, [almaris, books, totalPhysicalVolumes]);
+  }, [almaris, books, totalPhysicalVolumes, capacitySyncTick]);
 
   const assignedTotal = React.useMemo(
     () => stacksDensity.reduce((s, a) => s + a.count, 0),
@@ -339,36 +365,42 @@ export function CatalogVisualAnalytics({
       {/* Institutional Header & Timeframe Switcher */}
       <div className="rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-4 border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#FFD147]/20 text-[#8A4B00] dark:text-[#FFD147] border border-[#C8963E]/40">
-              CAMPUS CATALOG ANALYTICS
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono font-semibold">
-              {totalPhysicalVolumes.toLocaleString()} Cataloged Volumes
-            </span>
-          </div>
-          <h2 className="font-['Playfair_Display',Georgia,serif] text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white mt-1 tracking-tight">
+          <h2 className="font-['Playfair_Display',Georgia,serif] text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Campus Holdings, Circulation Velocity &amp; Stack Distribution
           </h2>
         </div>
 
-        {/* Squircle Timeframe Switcher */}
+        {/* Squircle Timeframe Switcher with Liquid Pill Physics */}
         <div
+          ref={timeframeSwitcherRef}
           role="radiogroup"
           aria-label="Analytics Timeframe"
-          className="inline-flex rounded-xl bg-white/45 dark:bg-white/[0.05] p-1 border border-white/60 dark:border-white/10"
+          className="relative isolate inline-flex items-center rounded-xl bg-white/45 dark:bg-white/[0.05] p-1 border border-white/60 dark:border-white/10 gap-0.5"
         >
+          <LiquidPillOverlay
+            containerRef={timeframeSwitcherRef}
+            itemRefs={timeframeItemRefs}
+            activeKey={timeframe}
+            axis="x"
+            variant="purple-pill"
+            roundedClass="rounded-lg"
+            triggerTick={timeframeAnimTick}
+          />
           {(Object.keys(TIMEFRAMES) as Array<keyof typeof TIMEFRAMES>).map((key) => (
             <button
               key={key}
+              ref={(el) => {
+                timeframeItemRefs.current[key] = el;
+              }}
               type="button"
               role="radio"
               aria-checked={timeframe === key}
-              onClick={() => setTimeframe(key)}
-              className={`h-8 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer ${
+              data-liquid-active={timeframe === key ? "true" : undefined}
+              onClick={() => handleSelectTimeframe(key)}
+              className={`relative z-10 h-8 rounded-lg px-3 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 timeframe === key
-                  ? "bg-white dark:bg-[#2A174E] text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-[#C8963E]/40"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  ? "!text-white"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               {TIMEFRAMES[key]}
@@ -405,20 +437,22 @@ export function CatalogVisualAnalytics({
         />
       </div>
 
-      {/* Row 2: Charts Grid (Area Flow Trend + Bar Compare by Discipline) */}
+      {/* Row 2: Charts Grid (GlassBezierAreaChart + GlassHatchedStackChart) */}
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
           title="Circulation Velocity (Issue vs Return Flow)"
           subtitle={`Volumes checked out vs returned during ${TIMEFRAMES[timeframe].toLowerCase()}`}
         >
-          <AreaTrend
+          <GlassBezierAreaChart
+            key={`vel-${timeframe}-${timeframeAnimTick}`}
             data={circulationVelocityData}
             xKey="period"
-            format={(v) => `${v} vols`}
-            description="Circulation volume trends over time"
+            height={224}
+            valueUnit="vols"
+            ariaLabel="Circulation volume trends over time"
             series={[
-              { key: "issued", label: "Books Issued", slot: 1 },
-              { key: "returned", label: "Books Returned", slot: 2 },
+              { key: "issued", label: "Books Issued", color: "#A855F7", showArea: true },
+              { key: "returned", label: "Books Returned", color: "#F59E0B", showArea: false },
             ]}
           />
         </ChartCard>
@@ -427,113 +461,273 @@ export function CatalogVisualAnalytics({
           title="Holdings by Academic Discipline (Available vs Issued)"
           subtitle={`Real breakdown across ${disciplineBreakdown.length} active faculties`}
         >
-          <BarCompare
-            data={disciplineBreakdown}
-            xKey="discipline"
-            format={(v) => `${v} vols`}
-            description="Holdings comparison across departments"
-            series={[
-              { key: "available", label: "On Shelf Available", slot: 3 },
-              { key: "issued", label: "Currently Issued", slot: 4 },
-            ]}
+          <GlassHatchedStackChart
+            key={`disc-${timeframe}-${timeframeAnimTick}`}
+            data={disciplineBreakdown.map((d) => ({
+              label: d.discipline,
+              available: d.available,
+              issued: d.issued,
+              total: d.available + d.issued,
+            }))}
+            height={224}
+            availableLabel="On Shelf Available"
+            issuedLabel="Currently Issued"
+            ariaLabel="Holdings comparison across departments"
           />
         </ChartCard>
       </div>
 
       {/* Row 3: Collection Breakdown Donut + Stacks Density Info Card */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <ChartCard
-          title="Collection Classification Breakdown"
-          subtitle="Physical acquisition distribution across library assets"
-          className="lg:col-span-2"
-        >
-          <DonutBreakdown
-            data={classificationDonut}
-            format={(v) => `${v.toLocaleString()} vols`}
-            centerLabel="Total Volumes"
-            description="Breakdown of collection by resource format"
-            size={185}
-          />
-        </ChartCard>
-
-        {/* Physical Stacks & Cupboard Utilization Summary */}
-        <div className="rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] p-5 border border-white/60 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),0_8px_24px_rgba(0,0,0,0.16)] flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[14px] font-bold text-slate-900 dark:text-white">
-                Physical Stacks &amp; Density
+      <div className="grid gap-6 lg:grid-cols-3 items-stretch">
+        {/* Left Card — Collection Classification Breakdown (Balanced Donut + Rich Breakdown + Telemetry Footer) */}
+        <section className="lg:col-span-2 ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-2xl backdrop-saturate-[185%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.20),0_12px_36px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-5">
+          {/* Header Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">
+                Collection Classification Breakdown
+              </h3>
+              <p className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Physical acquisition distribution across library assets
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-2 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-purple-500/12 border border-purple-400/30 text-purple-700 dark:text-purple-200 shrink-0">
+              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-purple-500 dark:bg-purple-400" />
+              <span>
+                {classificationDonut.length} ACTIVE DISCIPLINE{classificationDonut.length === 1 ? "" : "S"}
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/50 dark:bg-white/10 border border-white/60 dark:border-white/15 text-slate-700 dark:text-slate-300 font-semibold">
-                {stacksDensity.length} {stacksDensity.length === 1 ? "Almari" : "Almaris"}
+            </span>
+          </div>
+
+          {/* 2-Column Content Area */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+            {/* Left — Animated Clock-Sweep Interactive Frosted Donut Chart */}
+            <div className="md:col-span-5 flex items-center justify-center">
+              <GlassSweepDonutChart
+                key={`donut-${timeframe}-${timeframeAnimTick}`}
+                slices={classificationDonut.map((d, idx) => {
+                  const gradients: Array<[string, string]> = [
+                    ["#7E22CE", "#F59E0B"],
+                    ["#D97706", "#FBBF24"],
+                    ["#059669", "#34D399"],
+                    ["#0284C7", "#38BDF8"],
+                    ["#DB2777", "#F472B6"],
+                  ];
+                  return {
+                    label: d.label,
+                    value: d.value,
+                    gradient: gradients[idx % gradients.length],
+                  };
+                })}
+                total={totalPhysicalVolumes}
+                size={208}
+                thickness={22}
+                centerDefaultLabel="TOTAL VOLUMES"
+                centerUnit="volumes"
+                selectedLabel={selectedClassLabel}
+                onSelectSlice={setSelectedClassLabel}
+                ariaLabel="Breakdown of collection by resource classification"
+              />
+            </div>
+
+            {/* Right — Interactive Click-to-Isolate Discipline Rows + Summary Telemetry */}
+            <div className="md:col-span-7 space-y-3">
+              <div className="max-h-[168px] overflow-y-auto pr-1 space-y-2">
+                {classificationDonut.map((d, idx) => {
+                  const pct =
+                    totalPhysicalVolumes > 0
+                      ? Math.round((d.value / totalPhysicalVolumes) * 100)
+                      : 0;
+                  const isSelected = selectedClassLabel === d.label;
+                  const isDimmed = selectedClassLabel !== null && !isSelected;
+                  const dotClasses = [
+                    "bg-gradient-to-tr from-[#7E22CE] via-[#A855F7] to-amber-400 shadow-[0_0_8px_rgba(168,85,247,0.65)]",
+                    "bg-gradient-to-tr from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.55)]",
+                    "bg-gradient-to-tr from-emerald-600 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)]",
+                    "bg-gradient-to-tr from-blue-600 to-sky-400 shadow-[0_0_8px_rgba(96,165,250,0.55)]",
+                    "bg-gradient-to-tr from-pink-600 to-rose-400 shadow-[0_0_8px_rgba(244,114,182,0.55)]",
+                  ];
+                  const barClasses = [
+                    "bg-gradient-to-r from-[#7E22CE] via-[#A855F7] to-amber-400",
+                    "bg-gradient-to-r from-amber-600 to-amber-400",
+                    "bg-gradient-to-r from-emerald-600 to-emerald-400",
+                    "bg-gradient-to-r from-blue-600 to-sky-400",
+                    "bg-gradient-to-r from-pink-600 to-rose-400",
+                  ];
+                  return (
+                    <button
+                      key={d.label}
+                      type="button"
+                      onClick={() =>
+                        setSelectedClassLabel((cur) => (cur === d.label ? null : d.label))
+                      }
+                      className={`w-full text-left rounded-2xl px-4 py-3 border transition-all duration-150 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 ${
+                        isSelected
+                          ? "bg-purple-500/[0.09] dark:bg-purple-500/[0.14] border-purple-400/50 dark:border-amber-400/45 shadow-sm"
+                          : "bg-white/70 dark:bg-white/[0.04] hover:bg-white/90 dark:hover:bg-white/[0.07] border-slate-200/80 dark:border-white/[0.10]"
+                      }`}
+                      style={{ opacity: isDimmed ? 0.45 : 1 }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotClasses[idx % dotClasses.length]}`} />
+                          <span className="font-semibold text-[13px] text-slate-900 dark:text-white truncate">
+                            {d.label}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-2 shrink-0 tabular-nums">
+                          <span className="font-['JetBrains_Mono'] text-[12px] font-bold text-slate-900 dark:text-white">
+                            {d.value.toLocaleString()} vols
+                          </span>
+                          <span className="text-purple-600 dark:text-amber-300 font-['JetBrains_Mono'] text-[11.5px] font-semibold">
+                            {pct}%
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-200/80 dark:bg-white/[0.08] overflow-hidden mt-2">
+                        <div
+                          key={`share-${timeframe}-${timeframeAnimTick}-${d.label}`}
+                          className={`ulm-share-bar h-full rounded-full ${barClasses[idx % barClasses.length]}`}
+                          style={{
+                            width: `${d.value > 0 ? Math.max(4, pct) : 0}%`,
+                            animationDelay: `${idx * 45}ms`,
+                          }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Compact 3-Metric Summary Footer */}
+              <div className="grid grid-cols-3 gap-2.5 pt-2">
+                <div className="rounded-2xl px-3.5 py-2.5 bg-white/65 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10]">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+                    DISTINCT TITLES
+                  </p>
+                  <p className="font-['Space_Grotesk'] text-[15px] font-bold tabular-nums text-slate-900 dark:text-white mt-0.5">
+                    {books.length.toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-2xl px-3.5 py-2.5 bg-white/65 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10]">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+                    AVG COPIES / TITLE
+                  </p>
+                  <p className="font-['Space_Grotesk'] text-[15px] font-bold tabular-nums text-slate-900 dark:text-white mt-0.5">
+                    {(totalPhysicalVolumes / Math.max(1, books.length)).toFixed(2)}x
+                  </p>
+                </div>
+                <div className="rounded-2xl px-3.5 py-2.5 bg-white/65 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.10]">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
+                    ON SHELF RATE
+                  </p>
+                  <p className="font-['Space_Grotesk'] text-[15px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {availabilityPercentage}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Right Card — Physical Stacks & Density (Crisp Frosted Glass Cupboard Rows + Allocation Summary) */}
+        <section className="ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-2xl backdrop-saturate-[185%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.20),0_12px_36px_rgba(0,0,0,0.28)] flex flex-col justify-between gap-4">
+          <div className="space-y-4">
+            {/* Header Row */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">
+                  Physical Stacks &amp; Density
+                </h3>
+                <p className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Physical cupboard mapping registered in central database
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.05] border border-slate-300/70 dark:border-white/[0.12] text-slate-700 dark:text-slate-200 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-[1.5px] bg-purple-500 dark:bg-amber-400" />
+                <span>
+                  {almaris.length} ALMARI{almaris.length === 1 ? "" : "S"}
+                </span>
               </span>
             </div>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4">
-              Physical cupboard mapping registered in central database:
-            </p>
 
-            <div className="space-y-3">
+            {/* 2-Column Stack Allocation Mini-KPI Strip */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-2xl px-3.5 py-2.5 bg-emerald-500/[0.07] border border-emerald-400/25">
+                <p className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 truncate">
+                  SHELVED IN ALMARIS
+                </p>
+                <p className="font-['Space_Grotesk'] text-[16px] font-bold tabular-nums text-slate-900 dark:text-white mt-0.5">
+                  {assignedTotal.toLocaleString()} vols
+                </p>
+              </div>
+              <div className="rounded-2xl px-3.5 py-2.5 bg-amber-500/[0.07] border border-amber-400/25">
+                <p className="text-[9.5px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 truncate">
+                  UNASSIGNED QUEUE
+                </p>
+                <p className="font-['Space_Grotesk'] text-[16px] font-bold tabular-nums text-slate-900 dark:text-white mt-0.5">
+                  {unassignedCount.toLocaleString()} vols
+                </p>
+              </div>
+            </div>
+
+            {/* Cupboard Rows List */}
+            <div className="max-h-[155px] overflow-y-auto pr-1 space-y-2.5">
               {stacksDensity.map((stack, idx) => {
                 const cap = Math.max(1, Number(stack.capacity) || 125);
                 const fillPct = Math.min(100, Math.round((stack.count / cap) * 100));
+                const cleanName = stack.name.startsWith(`${stack.code} • `)
+                  ? stack.name.slice(`${stack.code} • `.length)
+                  : stack.name;
                 return (
                   <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-white/40 dark:bg-white/[0.04] border border-white/55 dark:border-white/10"
+                    key={`${stack.code}-${idx}`}
+                    className="rounded-2xl p-3.5 bg-white/75 dark:bg-white/[0.04] hover:bg-white dark:hover:bg-white/[0.07] border border-slate-200/85 dark:border-white/[0.10] transition-all"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">
-                          {stack.name}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                          <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
-                          <span>{stack.location}</span>
-                        </p>
+                    <div className="flex items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-400/30 font-['JetBrains_Mono'] text-[11px] font-bold text-purple-700 dark:text-purple-200 flex items-center justify-center shrink-0">
+                          {stack.code}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-semibold text-slate-900 dark:text-white truncate">
+                            {cleanName}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                            <MapPin className="w-3 h-3 text-amber-500 dark:text-amber-400 shrink-0" />
+                            <span className="truncate">{stack.location}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-mono text-xs font-extrabold text-[#C8963E] block">
-                          {stack.count.toLocaleString()} vols
-                        </span>
-                        <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                          {stack.count} / {cap} cap
-                        </span>
-                      </div>
+                      <span className="font-['JetBrains_Mono'] text-[11px] font-semibold tabular-nums text-amber-600 dark:text-amber-300 shrink-0 whitespace-nowrap">
+                        {stack.count.toLocaleString()} / {cap.toLocaleString()} vols
+                      </span>
                     </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
+                    <div className="mt-2.5 h-1.5 w-full rounded-full bg-slate-200/80 dark:bg-white/[0.08] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#541A72] to-[#C8963E] transition-all"
-                        style={{ width: `${stack.count > 0 ? Math.max(6, fillPct) : 0}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-[#7E22CE] to-amber-400 transition-all duration-500"
+                        style={{
+                          width: `${stack.count > 0 ? Math.max(6, fillPct) : 0}%`,
+                        }}
                       />
                     </div>
                   </div>
                 );
               })}
-
-              {unassignedCount > 0 && (
-                <div className="p-3 rounded-xl bg-amber-500/[0.07] border border-amber-500/25 flex items-center justify-between">
-                  <div className="min-w-0 pr-2">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">
-                      UNASSIGNED • Catalog Queue
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                      Ready for 3D Almari shelf placement
-                    </p>
-                  </div>
-                  <span className="font-mono text-xs font-extrabold text-amber-600 dark:text-[#FFD147] shrink-0">
-                    {unassignedCount.toLocaleString()} vols
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Automated shelf capacity tracking</span>
-            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-              100% Synced
+          {/* Clean Footer Status Strip */}
+          <div className="pt-3 border-t border-slate-200/70 dark:border-white/[0.08] flex items-center justify-between text-[11px]">
+            <span className="text-slate-500 dark:text-slate-400">
+              Automated shelf capacity tracking
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-['JetBrains_Mono'] text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="w-[5px] h-[5px] rounded-[1px] bg-emerald-500 dark:bg-emerald-400" />
+              <span>100% Synced</span>
             </span>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

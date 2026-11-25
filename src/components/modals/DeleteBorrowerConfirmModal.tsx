@@ -64,11 +64,11 @@ export const DeleteBorrowerConfirmModal: React.FC<DeleteBorrowerConfirmModalProp
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-lg bg-white/95 dark:bg-[#0F172A] border border-rose-200 dark:border-rose-900/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150 animate-delete-shake text-slate-900 dark:text-[#F1F5F9]"
+        className="ulm-modal-dialog w-full max-w-lg bg-white/95 dark:bg-[#0F172A] border border-rose-200 dark:border-rose-900/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900 dark:text-[#F1F5F9]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -17,6 +17,7 @@ import {
   Check
 } from 'lucide-react';
 import { ResetToZeroService, DeletionSummary, ResetToZeroResult } from '../../services/resetToZeroService';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface ResetToZeroModalProps {
   isOpen: boolean;
@@ -84,9 +85,20 @@ export const ResetToZeroModal: React.FC<ResetToZeroModalProps> = ({
 
       if (res.success) {
         onResetComplete(res);
+      } else {
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Reset Failed',
+          message: res.message || 'Unable to reset library database.',
+        });
       }
     } catch (e: any) {
       setIsProcessing(false);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Reset Failed',
+        message: e.message || 'Unexpected failure during reset.',
+      });
       setResetResult({
         success: false,
         message: e.message || 'Unexpected failure during reset',
@@ -115,16 +127,25 @@ export const ResetToZeroModal: React.FC<ResetToZeroModalProps> = ({
       });
       if (res.success) {
         setUndoStatus('Reset successfully reverted. Refreshing catalog...');
+        notifyGlassToast({
+          type: 'info',
+          title: 'Reset Reverted',
+          message: 'Previous catalog snapshot restored. Refreshing...',
+        });
         setTimeout(() => {
           onClose();
           window.location.reload();
         }, 1200);
       } else {
-        setUndoStatus(`Undo failed: ${res.message}`);
+        const msg = `Undo failed: ${res.message}`;
+        setUndoStatus(msg);
+        notifyGlassToast({ type: 'danger', title: 'Undo Failed', message: res.message });
         setIsUndoing(false);
       }
     } catch (err: any) {
-      setUndoStatus(`Undo failed: ${err.message}`);
+      const msg = `Undo failed: ${err.message}`;
+      setUndoStatus(msg);
+      notifyGlassToast({ type: 'danger', title: 'Undo Failed', message: err.message });
       setIsUndoing(false);
     }
   };
@@ -134,10 +155,10 @@ export const ResetToZeroModal: React.FC<ResetToZeroModalProps> = ({
       onClick={() => {
         if (!isProcessing && !isUndoing) onClose();
       }}
-      className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%] animate-in fade-in duration-200"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/35 dark:bg-[#090514]/80 backdrop-blur-xl backdrop-saturate-[180%]"
     >
       <div 
-        className="ulm-preserve-glass relative w-full max-w-[520px] rounded-[24px] p-6 bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1C1132]/95 dark:via-[#140C26]/95 dark:to-[#0E081C]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-rose-500/30 shadow-[0_24px_64px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.75)] text-slate-900 dark:text-white overflow-hidden flex flex-col max-h-[92vh]"
+        className="ulm-modal-dialog ulm-preserve-glass relative w-full max-w-[520px] rounded-[24px] p-6 bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1C1132]/95 dark:via-[#140C26]/95 dark:to-[#0E081C]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-rose-500/30 shadow-[0_24px_64px_rgba(15,23,42,0.22)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.75)] text-slate-900 dark:text-white overflow-hidden flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

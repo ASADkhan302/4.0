@@ -8,6 +8,7 @@ import { AlmariService } from './almariService';
 import { SharedCountService } from './sharedCountService';
 import { StorageEngine } from './storageEngine';
 import { idbGet, idbSet, idbClearAll, computeBookSearchKey } from './indexedDbStorage';
+import { scheduleMasterExcelSync, syncMasterExcelToDisk } from './masterExcelSync';
 
 const STORAGE_KEYS = {
   BOOKS: 'ulm_lms_books_v1',
@@ -157,6 +158,14 @@ export class LibraryStorage {
           detail: { books: reconciledBooks, loans: currentLoans, timestamp: Date.now() },
         })
       );
+
+      // Debounced (800ms) live Master Excel & AutoBackup disk sync
+      scheduleMasterExcelSync(() => ({
+        books: this.booksCache || [],
+        members: this.getBorrowers(),
+        loans: this.getTransactions(),
+        almaris: AlmariService.getAlmaris(),
+      }));
     }
   }
 
@@ -165,6 +174,17 @@ export class LibraryStorage {
     this.booksRawString = null;
     this.historyCache = null;
     this.historyRawString = null;
+  }
+
+  static setBooksCache(books: Book[]): void {
+    this.booksCache = Array.isArray(books) ? books : [];
+    this.booksRawString = null;
+  }
+
+  static invokeMutationListeners(): void {
+    for (const fn of this.mutationListeners) {
+      try { fn(); } catch {}
+    }
   }
 
   static setDirectoryHandle(handle: any): void {
@@ -186,7 +206,9 @@ export class LibraryStorage {
   }
 
   static saveStorageLocation(config: StorageLocationConfig): void {
-    localStorage.setItem(STORAGE_KEYS.LOCATION, JSON.stringify(config));
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCATION, JSON.stringify(config));
+    } catch {}
     try {
       const settings = this.getSettings();
       settings.db_path = `${config.folderPath}\\${config.fileName}`;
@@ -240,15 +262,15 @@ export class LibraryStorage {
     if (typeof window !== 'undefined') {
       try {
         const isExplicitlyCleared = localStorage.getItem('ulm_database_cleared') === 'true';
+        if (isExplicitlyCleared) {
+          this.booksCache = [];
+          return [];
+        }
 
         // 1. Try desktop SQLite via window.ulmLibraryApi
         if (window.ulmLibraryApi && typeof window.ulmLibraryApi.queryBooks === 'function') {
           const res = await window.ulmLibraryApi.queryBooks({ page: 1, pageSize: Number.MAX_SAFE_INTEGER, exportAll: true });
           if (res && Array.isArray(res.items)) {
-            if (res.items.length === 0 && isExplicitlyCleared) {
-              this.booksCache = [];
-              return [];
-            }
             if (res.items.length > 0) {
               const mapped: Book[] = res.items.map((item: any, idx: number) => {
                 const cat = String(item.category || item.discipline || item.subject || item.department || 'General').trim() || 'General';
@@ -436,7 +458,16 @@ export class LibraryStorage {
       }
     }
 
-    if (typeof window !== 'undefined' && (localStorage.getItem('ulm_database_cleared') === 'true' || localStorage.getItem('ulm_initialized_empty') === 'true')) {
+    let isExplicitEmpty = false;
+    try {
+      isExplicitEmpty =
+        typeof window !== 'undefined' &&
+        (localStorage.getItem('ulm_database_cleared') === 'true' ||
+          localStorage.getItem('ulm_initialized_empty') === 'true');
+    } catch {
+      isExplicitEmpty = false;
+    }
+    if (isExplicitEmpty) {
       this.booksCache = [];
       return [];
     }
@@ -638,6 +669,8 @@ export class LibraryStorage {
           }
           const tx = db.transaction('books', 'readwrite');
           const store = tx.objectStore('books');
+          // Always clear stale records first so deleted books can NEVER resurrect from legacy IDB
+          store.clear();
           for (let i = 0; i < books.length; i++) {
             const b = books[i];
             const acc = String(b.accession_no || (b as any).accession_number || i + 1);
@@ -657,6 +690,66 @@ export class LibraryStorage {
           }
           tx.oncomplete = () => { db.close(); resolve(); };
           tx.onerror = () => { db.close(); resolve(); };
+        };
+        req.onerror = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  /**
+   * Targeted cursor-based deletion on legacy IndexedDB (`ulm_library_idb_v1` -> `books`)
+   * so deletions stay O(N) fast even for 50,000+ books and deleted records NEVER resurrect.
+   */
+  static async deleteBooksFromLegacyIdb(
+    deletedIds: Set<string>,
+    deletedBarcodes: Set<string>,
+    deletedAccessionsRaw: Set<string>,
+    deletedAccessionsDigits: Set<string>,
+    clearEntireStore: boolean = false
+  ): Promise<void> {
+    if (typeof indexedDB === 'undefined') return;
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('ulm_library_idb_v1');
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('books')) {
+            db.close();
+            resolve();
+            return;
+          }
+          const tx = db.transaction('books', 'readwrite');
+          const store = tx.objectStore('books');
+          if (clearEntireStore) {
+            store.clear();
+          } else {
+            const cursorReq = store.openCursor();
+            cursorReq.onsuccess = () => {
+              const cursor = cursorReq.result;
+              if (!cursor) return;
+              const rec = (cursor.value || {}) as Record<string, unknown>;
+              const recId = String(rec.id || cursor.key || '').trim();
+              const recBc = String(rec.barcode || '').trim().toUpperCase();
+              const recAccRaw = String(
+                rec.accession_no || rec.accession_number || rec.accessionNumber || ''
+              ).trim();
+              const recAccDigits = recAccRaw.replace(/\D/g, '');
+              if (
+                (recId && deletedIds.has(recId)) ||
+                (recBc && deletedBarcodes.has(recBc)) ||
+                (recAccRaw && deletedAccessionsRaw.has(recAccRaw)) ||
+                (recAccDigits && deletedAccessionsDigits.has(recAccDigits))
+              ) {
+                cursor.delete();
+              }
+              cursor.continue();
+            };
+          }
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); resolve(); };
+          tx.onabort = () => { db.close(); resolve(); };
         };
         req.onerror = () => resolve();
       } catch {
@@ -748,8 +841,10 @@ export class LibraryStorage {
 
     if (typeof window !== 'undefined') {
       if (reconciledBooks.length === 0) {
-        localStorage.setItem('ulm_database_cleared', 'true');
-        localStorage.setItem('ulm_initialized_empty', 'true');
+        try {
+          localStorage.setItem('ulm_database_cleared', 'true');
+          localStorage.setItem('ulm_initialized_empty', 'true');
+        } catch {}
         void this.clearAllDatabaseStores();
         this.notifyMutation();
         return;
@@ -813,8 +908,10 @@ export class LibraryStorage {
 
     if (typeof window !== 'undefined') {
       if (reconciledBooks.length === 0) {
-        localStorage.setItem('ulm_database_cleared', 'true');
-        localStorage.setItem('ulm_initialized_empty', 'true');
+        try {
+          localStorage.setItem('ulm_database_cleared', 'true');
+          localStorage.setItem('ulm_initialized_empty', 'true');
+        } catch {}
         await this.clearAllDatabaseStores();
         return [];
       }
@@ -933,7 +1030,9 @@ export class LibraryStorage {
     });
 
     this.saveBooks(updated);
-    localStorage.setItem(STORAGE_KEYS.USER_VERSION, '3');
+    try {
+      localStorage.setItem(STORAGE_KEYS.USER_VERSION, '3');
+    } catch {}
 
     this.logHistory({
       action: 'SCHEMA_MIGRATION',
@@ -1365,6 +1464,117 @@ export class LibraryStorage {
     return { success: true, message: 'Book record updated successfully.', book: books[index] };
   }
 
+  /**
+   * Authoritative single & bulk book deletion engine.
+   * Delegates directly to hardDeleteBooksCascade so deleted volumes are permanently removed
+   * from React state, SQLite, IndexedDB, legacy IDB, all localStorage mirrors, Almari placements,
+   * and live Master Excel (.xlsx) with zero resurrection.
+   */
+  static async deleteBooksByIds(
+    idsToDelete: string[],
+    mode: 'archive' | 'purge' = 'archive',
+    forceCloseActiveLoans: boolean = false
+  ): Promise<{
+    success: boolean;
+    deletedCount: number;
+    skippedCheckedOut: Book[];
+    remainingBooks: Book[];
+    message: string;
+  }> {
+    const rawTargets = (idsToDelete || []).map((v) => String(v || '').trim()).filter(Boolean);
+    const uniqueTargets = new Set(rawTargets);
+    const upperTargets = new Set(rawTargets.map((v) => v.toUpperCase()));
+    const digitTargets = new Set(rawTargets.map((v) => v.replace(/\D/g, '')).filter(Boolean));
+
+    if (uniqueTargets.size === 0) {
+      const current = this.getBooks();
+      return {
+        success: false,
+        deletedCount: 0,
+        skippedCheckedOut: [],
+        remainingBooks: current,
+        message: 'No book volumes selected for deletion.',
+      };
+    }
+
+    let currentBooks = this.getBooks();
+    if (currentBooks.length === 0) {
+      try {
+        const fromIdb = await idbGet<Book[]>('books_catalog');
+        if (Array.isArray(fromIdb) && fromIdb.length > 0) {
+          currentBooks = fromIdb;
+        }
+      } catch {}
+    }
+
+    const targetBooks = currentBooks.filter((b) => {
+      const bId = String(b.id || '').trim();
+      const bBc = String(b.barcode || '').trim().toUpperCase();
+      const bAcc = String(b.accession_no || '').trim();
+      const bAccDigits = bAcc.replace(/\D/g, '');
+      return (
+        (bId && uniqueTargets.has(bId)) ||
+        (bBc && upperTargets.has(bBc)) ||
+        (bAcc && uniqueTargets.has(bAcc)) ||
+        (bAccDigits && digitTargets.has(bAccDigits))
+      );
+    });
+
+    if (targetBooks.length === 0) {
+      return {
+        success: false,
+        deletedCount: 0,
+        skippedCheckedOut: [],
+        remainingBooks: currentBooks,
+        message: 'Selected volume(s) were not found in the repository.',
+      };
+    }
+
+    const cascadeResult = await hardDeleteBooksCascade(
+      currentBooks,
+      targetBooks,
+      this.getTransactions(),
+      {
+        forceDeleteCheckedOut: forceCloseActiveLoans,
+        mode,
+      }
+    );
+
+    if (cascadeResult.deletedCount === 0 && cascadeResult.skippedCheckedOut.length > 0) {
+      const names = cascadeResult.skippedCheckedOut
+        .slice(0, 3)
+        .map((b) => `"${b.book_name}"`)
+        .join(', ');
+      const extra =
+        cascadeResult.skippedCheckedOut.length > 3
+          ? ` +${cascadeResult.skippedCheckedOut.length - 3} more`
+          : '';
+      return {
+        success: false,
+        deletedCount: 0,
+        skippedCheckedOut: cascadeResult.skippedCheckedOut,
+        remainingBooks: cascadeResult.remainingBooks,
+        message: `${cascadeResult.skippedCheckedOut.length} selected volume(s) are currently CHECKED OUT (${names}${extra}). Return them first or authorize Force-Close Loan & Delete.`,
+      };
+    }
+
+    const skippedNote =
+      cascadeResult.skippedCheckedOut.length > 0
+        ? ` (${cascadeResult.skippedCheckedOut.length} checked-out skipped)`
+        : '';
+
+    return {
+      success: cascadeResult.deletedCount > 0,
+      deletedCount: cascadeResult.deletedCount,
+      skippedCheckedOut: cascadeResult.skippedCheckedOut,
+      remainingBooks: cascadeResult.remainingBooks,
+      message:
+        cascadeResult.deletedCount === 1
+          ? `✓ Deleted 1 volume & synced Master Excel.${skippedNote}`
+          : `✓ Deleted ${cascadeResult.deletedCount} volumes & synced Master Excel.${skippedNote}`,
+    };
+  }
+
   static deleteBook(
     id: string,
     permanent: boolean = false,
@@ -1389,79 +1599,16 @@ export class LibraryStorage {
       if (matchesCopy) activeLoanIndices.push(idx);
     });
 
-    if (activeLoanIndices.length > 0 && !forceCloseActiveLoan) {
+    if ((activeLoanIndices.length > 0 || targetBook.is_checked_out) && !forceCloseActiveLoan) {
       const primaryLoan = transactions[activeLoanIndices[0]];
       return {
         success: false,
-        message: `This volume is currently issued to ${primaryLoan.borrower_name || 'a borrower'}. Return it first or force-close the active loan to delete.`,
+        message: `This volume is currently issued to ${primaryLoan?.borrower_name || 'a borrower'}. Return it first or force-close the active loan to delete.`,
       };
     }
 
-    // If librarian explicitly confirmed Force-Close Loan & Delete, close the active loan(s) with audit log
-    if (activeLoanIndices.length > 0 && forceCloseActiveLoan) {
-      const todayIso = new Date().toISOString().split('T')[0];
-      for (const txIdx of activeLoanIndices) {
-        const loan = transactions[txIdx];
-        transactions[txIdx] = {
-          ...loan,
-          status: 'RETURNED',
-          return_date: todayIso,
-        };
-        this.logHistory({
-          action: 'LOAN_FORCE_CLOSED',
-          description: `Force-closed active loan for "${bookTitle}" (Borrower: ${loan.borrower_name || loan.borrower_id}) during volume deletion.`,
-          barcode,
-          book_id: id,
-          borrower_id: loan.borrower_id,
-          user: 'Librarian-Admin',
-        });
-      }
-      this.saveTransactions(transactions);
-    }
-
-    // Permanently remember accession number in withdrawn registry (numbers are never reused)
-    if (targetBook.accession_no) {
-      BookSheetService.registerWithdrawnAccession(targetBook.accession_no);
-    } else {
-      const match = barcode.match(/\d+/);
-      if (match) BookSheetService.registerWithdrawnAccession(match[0]);
-    }
-
-    // Clean up physical shelf placement keys for this copy
-    try {
-      const placements = AlmariService.getMasterPlacements();
-      let pChanged = false;
-      if (id && id in placements) {
-        delete placements[id];
-        pChanged = true;
-      }
-      if (barcode && barcode in placements) {
-        delete placements[barcode];
-        pChanged = true;
-      }
-      if (pChanged) AlmariService.saveMasterPlacements(placements);
-    } catch {}
-
-    if (permanent) {
-      books.splice(index, 1);
-    } else {
-      books[index] = {
-        ...books[index],
-        is_active: false,
-        almari_id: '',
-        almari_code: '',
-        shelf_no: 0,
-      };
-    }
-    this.saveBooks(books);
-
-    this.logHistory({
-      action: 'BOOK_DELETED',
-      description: `${permanent ? 'Permanently purged' : 'Soft-deleted (archived)'} book "${bookTitle}" (${barcode})${activeLoanIndices.length > 0 ? ' [Active loan force-closed]' : ''}`,
-      barcode,
-      book_id: id,
-      user: 'Librarian-Admin',
-    });
+    // Fire authoritative async deletion & update synchronous cache immediately
+    void this.deleteBooksByIds([id], permanent ? 'purge' : 'archive', forceCloseActiveLoan);
 
     return {
       success: true,
@@ -1539,7 +1686,9 @@ export class LibraryStorage {
   }
 
   static saveBorrowers(borrowers: Borrower[]): void {
-    localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(borrowers));
+    try {
+      localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(borrowers));
+    } catch {}
     this.notifyMutation();
   }
 
@@ -2043,13 +2192,17 @@ export class LibraryStorage {
     if (history.length > 500) history.pop();
     this.historyCache = history;
     this.historyRawString = JSON.stringify(history);
-    localStorage.setItem(STORAGE_KEYS.HISTORY, this.historyRawString);
+    try {
+      localStorage.setItem(STORAGE_KEYS.HISTORY, this.historyRawString);
+    } catch {}
   }
 
   static saveHistory(history: HistoryEntry[]): void {
     this.historyCache = history;
     this.historyRawString = JSON.stringify(history);
-    localStorage.setItem(STORAGE_KEYS.HISTORY, this.historyRawString);
+    try {
+      localStorage.setItem(STORAGE_KEYS.HISTORY, this.historyRawString);
+    } catch {}
     this.notifyMutation();
   }
 
@@ -2097,7 +2250,9 @@ export class LibraryStorage {
     const cleanSettings = { ...settings };
     delete (cleanSettings as any).theme;
     delete (cleanSettings as any).light_theme_style;
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cleanSettings));
+    try {
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cleanSettings));
+    } catch {}
 
     try {
       const updatedIdentity = {
@@ -2143,26 +2298,28 @@ export class LibraryStorage {
       } catch {}
     });
 
-    // Reset Almaris to only Institutional Holdings (IH) default
+    // Strictly wipe Almaris, Book Groups, Members, Books, and Loans to 0 (never auto-reseed defaults)
     try {
-      const defaultIh = {
-        id: 'alm-ih-01',
-        code: 'IH',
-        name_en: 'Institutional Holdings & Main Stack',
-        name_ur: 'ادارہ جاتی ذخیرہ کتب',
-        shelf_count: 5,
-        books_per_shelf: 25,
-        approx_capacity: 125,
-        location: 'Main Hall • Ground Floor',
-        location_note: 'Main Hall • Ground Floor',
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
-      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
-      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
+      localStorage.setItem('ulm_lms_books_v1', '[]');
+      localStorage.setItem('ulm_library_books_master_v1', '[]');
+      localStorage.setItem('ulm_storage_engine_books_v1', '[]');
+      localStorage.setItem('ulm_lms_transactions_v1', '[]');
+      localStorage.setItem('ulm_circulation_records_v1', '[]');
+      localStorage.setItem('ulm_lms_members_v1', '[]');
+      localStorage.setItem('ulm_lms_borrowers_v1', '[]');
+      localStorage.setItem('ulm_almaris_registry_v2', '[]');
+      localStorage.setItem('ulm_lms_almaris_v1', '[]');
+      localStorage.setItem('ulm_book_groups_v1', '[]');
+      localStorage.setItem('ulm_lms_book_groups_v1', '[]');
+      localStorage.setItem('ulm_almari_placements_master_v3', '{}');
+      localStorage.setItem('ulm_shelf_capacities_v3', '{}');
+      localStorage.removeItem('ulm_active_almari_id_v3');
+      localStorage.setItem('ulm_highest_serial_number_v1', '0');
+      localStorage.setItem('ulm_setup_completed_v1', 'false');
     } catch {}
 
-    AlmariService.resetCaches();
+    AlmariService.clearAllToZero();
     this.clearBooksCache();
 
     if (typeof window !== 'undefined') {
@@ -2217,19 +2374,21 @@ export class LibraryStorage {
       localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
       AlmariService.resetCaches();
     } catch {}
-    localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(INITIAL_BORROWERS));
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
-    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(INITIAL_HISTORY));
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(INITIAL_SETTINGS));
-    localStorage.setItem(STORAGE_KEYS.LOCATION, JSON.stringify({
-      mode: 'LOCAL_DISK',
-      folderPath: 'C:\\ULM_Library_Database',
-      folderName: 'ULM_Library_Database',
-      fileName: 'ulm_library_master.sqlite',
-      autoSaveToDisk: true,
-      askOnStartup: false,
-      isConfigured: false,
-    }));
+    try {
+      localStorage.setItem(STORAGE_KEYS.BORROWERS, JSON.stringify(INITIAL_BORROWERS));
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
+      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(INITIAL_HISTORY));
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(INITIAL_SETTINGS));
+      localStorage.setItem(STORAGE_KEYS.LOCATION, JSON.stringify({
+        mode: 'LOCAL_DISK',
+        folderPath: 'C:\\ULM_Library_Database',
+        folderName: 'ULM_Library_Database',
+        fileName: 'ulm_library_master.sqlite',
+        autoSaveToDisk: true,
+        askOnStartup: false,
+        isConfigured: false,
+      }));
+    } catch {}
   }
 
   // --- Reset to Demo Data ---
@@ -3447,4 +3606,404 @@ export function generateUniqueBarcodeCopies(
     nextAccession: currentAcc, // e.g. after 1..15, nextAccession is 16
   };
 }
+
+export interface HardDeleteBooksOptions {
+  forceDeleteCheckedOut?: boolean;
+  mode?: 'archive' | 'purge';
+  onProgress?: (processed: number, total: number, detail: string) => void;
+}
+
+export interface HardDeleteBooksResult {
+  remainingBooks: Book[];
+  updatedLoans: Transaction[];
+  deletedCount: number;
+  deletedBooks: Book[];
+  skippedCheckedOut: Book[];
+  forceClosedLoanCount: number;
+}
+
+/**
+ * Authoritative Cascade Book Deletion Engine (Single & Multi-Select).
+ * Permanently removes deleted books from EVERY persistence layer in one coordinated pass:
+ *   1. Active Loan safeguard (skips checked-out volumes or force-closes active loans if authorized)
+ *   2. Triple-key filtering (id + uppercase barcode + digits-only & exact accession_no)
+ *   3. LibraryStorage in-memory booksCache
+ *   4. Primary IndexedDB (`books_catalog`)
+ *   5. `window.ulmLibraryApi` (browser `ulm_library_idb_v1` + RAM page cache / desktop Electron SQLite)
+ *   6. Legacy IndexedDB (`ulm_library_idb_v1` -> `books`)
+ *   7. `StorageEngine` (Electron SQLite IPC + `ulm_storage_engine_books_v1`)
+ *   8. Active SQLite WASM instance (`RealStorageService.getActiveSqliteEngine()`)
+ *   9. All 3 `localStorage` book mirrors + `ulm_almari_placements_master_v3` + `ulm_highest_serial_number_v1`
+ *  10. Immediate Live Master Excel (`.xlsx`) & AutoBackup JSON disk sync
+ *  11. Global `ulm-library-sync` & `ulm-library-data-changed` broadcast
+ */
+export async function hardDeleteBooksCascade(
+  currentBooks: Book[],
+  targetBooks: Book[],
+  currentLoans: Transaction[] = [],
+  options: HardDeleteBooksOptions = {}
+): Promise<HardDeleteBooksResult> {
+  const mode = options.mode ?? 'archive';
+  const forceDeleteCheckedOut = Boolean(options.forceDeleteCheckedOut);
+  const safeCurrentBooks = Array.isArray(currentBooks) ? currentBooks : [];
+  const safeTargets = Array.isArray(targetBooks) ? targetBooks.filter(Boolean) : [];
+  const workingLoans: Transaction[] = Array.isArray(currentLoans)
+    ? [...currentLoans]
+    : [...LibraryStorage.getTransactions()];
+
+  if (safeTargets.length === 0) {
+    return {
+      remainingBooks: safeCurrentBooks,
+      updatedLoans: workingLoans,
+      deletedCount: 0,
+      deletedBooks: [],
+      skippedCheckedOut: [],
+      forceClosedLoanCount: 0,
+    };
+  }
+
+  options.onProgress?.(5, 100, 'Checking active circulation loans...');
+
+  // Build active-loan lookup sets for fast checked-out verification
+  const activeLoanBookIds = new Set<string>();
+  const activeLoanBarcodes = new Set<string>();
+  for (let i = 0; i < workingLoans.length; i++) {
+    const t = workingLoans[i];
+    if (!t) continue;
+    const isReturned =
+      String(t.status || '').toUpperCase() === 'RETURNED' || Boolean(t.return_date);
+    if (isReturned) continue;
+    if (t.book_id) activeLoanBookIds.add(String(t.book_id).trim());
+    if (t.barcode) activeLoanBarcodes.add(String(t.barcode).trim().toUpperCase());
+  }
+
+  const isVolumeCheckedOut = (b: Book): boolean => {
+    const bId = String(b.id || '').trim();
+    const bBc = String(b.barcode || '').trim().toUpperCase();
+    const statusUpper = String((b as Book & { status?: string }).status || '').toUpperCase();
+    return (
+      Boolean(b.is_checked_out) ||
+      statusUpper === 'ISSUED' ||
+      statusUpper === 'CHECKED OUT' ||
+      (b.available_copies !== undefined && Number(b.available_copies) === 0) ||
+      (bId !== '' && activeLoanBookIds.has(bId)) ||
+      (bBc !== '' && activeLoanBarcodes.has(bBc))
+    );
+  };
+
+  const checkedOutTargets: Book[] = [];
+  const availableTargets: Book[] = [];
+  for (const b of safeTargets) {
+    if (isVolumeCheckedOut(b)) {
+      checkedOutTargets.push(b);
+    } else {
+      availableTargets.push(b);
+    }
+  }
+
+  const deletable: Book[] = forceDeleteCheckedOut ? safeTargets : availableTargets;
+  const skippedCheckedOut: Book[] = forceDeleteCheckedOut ? [] : checkedOutTargets;
+
+  if (deletable.length === 0) {
+    return {
+      remainingBooks: safeCurrentBooks,
+      updatedLoans: workingLoans,
+      deletedCount: 0,
+      deletedBooks: [],
+      skippedCheckedOut,
+      forceClosedLoanCount: 0,
+    };
+  }
+
+  // 1. Build triple-key lookup sets so zero copies slip through even if IDs differ across engines
+  const deletedIds = new Set<string>();
+  const deletedBarcodes = new Set<string>();
+  const deletedAccessionsRaw = new Set<string>();
+  const deletedAccessionsDigits = new Set<string>();
+
+  for (const b of deletable) {
+    const idStr = String(b.id || '').trim();
+    const bcStr = String(b.barcode || '').trim().toUpperCase();
+    const accRaw = String(b.accession_no || '').trim();
+    const accDigits = accRaw.replace(/\D/g, '');
+    if (idStr) deletedIds.add(idStr);
+    if (bcStr) deletedBarcodes.add(bcStr);
+    if (accRaw) deletedAccessionsRaw.add(accRaw);
+    if (accDigits) deletedAccessionsDigits.add(accDigits);
+  }
+
+  // 2. Force-close matching active loans if explicitly authorized
+  let forceClosedLoanCount = 0;
+  if (forceDeleteCheckedOut && workingLoans.length > 0) {
+    const todayIso = new Date().toISOString().split('T')[0];
+    let loansMutated = false;
+    for (let i = 0; i < workingLoans.length; i++) {
+      const loan = workingLoans[i];
+      if (!loan) continue;
+      const isReturned =
+        String(loan.status || '').toUpperCase() === 'RETURNED' || Boolean(loan.return_date);
+      if (isReturned) continue;
+      const lBookId = String(loan.book_id || '').trim();
+      const lBarcode = String(loan.barcode || '').trim().toUpperCase();
+      if ((lBookId && deletedIds.has(lBookId)) || (lBarcode && deletedBarcodes.has(lBarcode))) {
+        workingLoans[i] = {
+          ...loan,
+          status: 'RETURNED',
+          return_date: todayIso,
+        };
+        loansMutated = true;
+        forceClosedLoanCount++;
+        LibraryStorage.logHistory({
+          action: 'LOAN_FORCE_CLOSED',
+          description: `Force-closed active loan for "${loan.book_name || loan.barcode}" (Borrower: ${loan.borrower_name || loan.borrower_id}) during volume deletion.`,
+          barcode: loan.barcode || '',
+          book_id: loan.book_id || '',
+          borrower_id: loan.borrower_id,
+          user: 'Librarian-Admin',
+        });
+      }
+    }
+    if (loansMutated) {
+      LibraryStorage.saveTransactions(workingLoans);
+    }
+  }
+
+  options.onProgress?.(20, 100, `Removing ${deletable.length.toLocaleString()} volume(s) from catalog...`);
+
+  // 3. Filter remaining books cleanly across all 3 keys & reconcile against updated loans
+  const filteredBooks = safeCurrentBooks.filter((b) => {
+    const bId = String(b.id || '').trim();
+    const bBc = String(b.barcode || '').trim().toUpperCase();
+    const bAccRaw = String(b.accession_no || '').trim();
+    const bAccDigits = bAccRaw.replace(/\D/g, '');
+    if (bId && deletedIds.has(bId)) return false;
+    if (bBc && deletedBarcodes.has(bBc)) return false;
+    if (bAccRaw && deletedAccessionsRaw.has(bAccRaw)) return false;
+    if (bAccDigits && deletedAccessionsDigits.has(bAccDigits)) return false;
+    return true;
+  });
+
+  const remainingBooks = reconcileBooksWithLoans(filteredBooks, workingLoans);
+  const actualRemovedCount = Math.max(
+    deletable.length,
+    Math.max(0, safeCurrentBooks.length - remainingBooks.length)
+  );
+
+  // Immediately update in-memory cache so LibraryStorage.getBooks() never returns stale copies
+  LibraryStorage.setBooksCache(remainingBooks);
+
+  // 4. Archive metadata if Archive & Remove mode selected (stored separately, never active)
+  if (mode === 'archive' && typeof window !== 'undefined') {
+    try {
+      const rawArchive = localStorage.getItem('ulm_archived_books_v1');
+      const archived = rawArchive ? JSON.parse(rawArchive) : [];
+      const archivedAt = new Date().toISOString();
+      const entries = deletable.slice(0, 500).map((b) => ({
+        ...b,
+        is_active: false,
+        archived_at: archivedAt,
+      }));
+      const merged = [...entries, ...(Array.isArray(archived) ? archived : [])].slice(0, 2000);
+      localStorage.setItem('ulm_archived_books_v1', JSON.stringify(merged));
+    } catch {}
+  }
+
+  // 5. Clean up Almari shelf placements & register withdrawn accessions
+  try {
+    const placements = AlmariService.getMasterPlacements();
+    let pChanged = false;
+    for (const b of deletable) {
+      if (b.accession_no) {
+        BookSheetService.registerWithdrawnAccession(b.accession_no);
+      } else if (b.barcode) {
+        const match = String(b.barcode).match(/\d+/);
+        if (match) BookSheetService.registerWithdrawnAccession(match[0]);
+      }
+      if (b.id && b.id in placements) {
+        delete placements[b.id];
+        pChanged = true;
+      }
+      if (b.barcode && b.barcode in placements) {
+        delete placements[b.barcode];
+        pChanged = true;
+      }
+      const upperBc = b.barcode ? String(b.barcode).trim().toUpperCase() : '';
+      if (upperBc && upperBc in placements) {
+        delete placements[upperBc];
+        pChanged = true;
+      }
+    }
+    if (pChanged) {
+      AlmariService.saveMasterPlacements(placements);
+    }
+  } catch {}
+
+  options.onProgress?.(45, 100, 'Purging deleted records from SQLite & IndexedDB...');
+
+  const idsArr = Array.from(deletedIds);
+  const barcodesArr = Array.from(deletedBarcodes);
+  const accessionsArr = Array.from(new Set([...deletedAccessionsRaw, ...deletedAccessionsDigits]));
+
+  // 6A. Purge from active in-memory SQLite WASM database (`Library.ulmlib`) if mounted
+  try {
+    const { RealStorageService } = await import('./realStorageService');
+    const sqliteEngine = RealStorageService.getActiveSqliteEngine();
+    if (sqliteEngine) {
+      sqliteEngine.deleteBooksBatch(idsArr, barcodesArr, accessionsArr, true);
+    }
+  } catch {}
+
+  // 6B. Purge from StorageEngine (Electron SQLite IPC + `ulm_storage_engine_books_v1`)
+  try {
+    await StorageEngine.deleteBooksBatch(idsArr, barcodesArr, accessionsArr);
+  } catch {}
+
+  // 6C. Purge from `window.ulmLibraryApi` (browser IDB + RAM page cache / desktop Electron SQLite)
+  if (typeof window !== 'undefined' && window.ulmLibraryApi) {
+    try {
+      if (typeof window.ulmLibraryApi.deleteBooksBatch === 'function') {
+        await window.ulmLibraryApi.deleteBooksBatch({
+          ids: idsArr,
+          barcodes: barcodesArr,
+          accessions: accessionsArr,
+        });
+      } else if (typeof window.ulmLibraryApi.deleteBook === 'function') {
+        for (const b of deletable) {
+          const key = b.id || b.barcode || b.accession_no;
+          if (key) {
+            await window.ulmLibraryApi.deleteBook(String(key));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ULM-Delete] ulmLibraryApi purge note:', err);
+    }
+  }
+
+  // 6D. Purge from primary IndexedDB (`books_catalog`) & legacy IndexedDB (`ulm_library_idb_v1`)
+  try {
+    await idbSet('books_catalog', remainingBooks);
+  } catch (err) {
+    console.warn('[ULM-Delete] IndexedDB books_catalog write note:', err);
+  }
+
+  try {
+    await LibraryStorage.deleteBooksFromLegacyIdb(
+      deletedIds,
+      deletedBarcodes,
+      deletedAccessionsRaw,
+      deletedAccessionsDigits,
+      remainingBooks.length === 0
+    );
+  } catch {}
+
+  options.onProgress?.(70, 100, 'Updating local mirrors & accession serials...');
+
+  // 6E. Recompute highest accession serial strictly from remainingBooks & update ALL 3 localStorage book keys
+  let maxSerial = 0;
+  for (let i = 0; i < remainingBooks.length; i++) {
+    const num = parseInt(String(remainingBooks[i].accession_no || '').replace(/\D+/g, ''), 10);
+    if (!Number.isNaN(num) && num > maxSerial) maxSerial = num;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('ulm_highest_serial_number_v1', String(maxSerial));
+      localStorage.setItem('ulm_catalog_total_count_v1', String(remainingBooks.length));
+    } catch {}
+
+    if (remainingBooks.length === 0) {
+      try {
+        localStorage.setItem('ulm_database_cleared', 'true');
+        localStorage.setItem('ulm_initialized_empty', 'true');
+        localStorage.setItem(STORAGE_KEYS.BOOKS, '[]');
+        localStorage.setItem(STORAGE_KEYS.MASTER_BOOKS, '[]');
+        localStorage.setItem('ulm_storage_engine_books_v1', '[]');
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem('ulm_database_cleared');
+        localStorage.removeItem('ulm_initialized_empty');
+      } catch {}
+
+      if (remainingBooks.length <= 1500) {
+        try {
+          const serialized = JSON.stringify(remainingBooks);
+          localStorage.setItem(STORAGE_KEYS.BOOKS, serialized);
+          localStorage.setItem(STORAGE_KEYS.MASTER_BOOKS, serialized);
+          localStorage.setItem('ulm_storage_engine_books_v1', serialized);
+        } catch {}
+      } else {
+        // Large catalog: remove truncated localStorage mirrors so IndexedDB is the sole source of truth
+        try {
+          localStorage.removeItem(STORAGE_KEYS.BOOKS);
+          localStorage.removeItem(STORAGE_KEYS.MASTER_BOOKS);
+          localStorage.removeItem('ulm_storage_engine_books_v1');
+        } catch {}
+      }
+    }
+  }
+
+  // 7. Record audit history entry
+  const firstTitle = deletable[0]?.book_name || 'Volume';
+  const summaryLabel =
+    actualRemovedCount === 1 ? `"${firstTitle}"` : `${actualRemovedCount} selected volumes`;
+
+  LibraryStorage.logHistory({
+    action: 'BOOK_DELETED',
+    description: `${mode === 'purge' ? 'Permanently purged' : 'Archived & removed'} ${summaryLabel}${
+      forceClosedLoanCount > 0 ? ` [${forceClosedLoanCount} active loan(s) force-closed]` : ''
+    }`,
+    barcode: actualRemovedCount === 1 ? deletable[0]?.barcode || '' : `BULK-${actualRemovedCount}`,
+    book_id: actualRemovedCount === 1 ? deletable[0]?.id || '' : 'BULK',
+    user: 'Librarian-Admin',
+  });
+
+  options.onProgress?.(85, 100, 'Syncing live Master Excel (.xlsx) & AutoBackup...');
+
+  // 8. Immediately sync Master Excel (.xlsx) & AutoBackup JSON
+  try {
+    await syncMasterExcelToDisk(
+      remainingBooks,
+      LibraryStorage.getBorrowers(),
+      workingLoans,
+      AlmariService.getAlmaris()
+    );
+  } catch (excelErr) {
+    console.warn('[ULM-Delete] Master Excel sync note:', excelErr);
+  }
+
+  // 9. Broadcast authoritative remainingBooks across every component & view
+  LibraryStorage.invokeMutationListeners();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('ulm-library-data-changed', {
+        detail: { reason: 'mutation', timestamp: new Date().toISOString() },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('ulm-library-sync', {
+        detail: {
+          books: remainingBooks,
+          loans: workingLoans,
+          deletedCount: actualRemovedCount,
+          reason: 'delete',
+          timestamp: Date.now(),
+        },
+      })
+    );
+  }
+
+  options.onProgress?.(100, 100, 'Deletion & sync complete.');
+
+  return {
+    remainingBooks,
+    updatedLoans: workingLoans,
+    deletedCount: actualRemovedCount,
+    deletedBooks: deletable,
+    skippedCheckedOut,
+    forceClosedLoanCount,
+  };
+}
+
 

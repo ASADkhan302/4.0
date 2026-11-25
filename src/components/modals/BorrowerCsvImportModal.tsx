@@ -299,11 +299,11 @@ export const BorrowerCsvImportModal: React.FC<BorrowerCsvImportModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md"
       onClick={() => !isImporting && onClose()}
     >
       <div 
-        className="w-full max-w-3xl bg-[#0B1220] border border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-200"
+        className="ulm-modal-dialog w-full max-w-3xl bg-[#0B1220] border border-[#334155] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

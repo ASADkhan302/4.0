@@ -26,18 +26,6 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
 import { Book, Borrower, Transaction, NavigationTab } from '../types/library';
 import { LibraryStorage } from '../services/storage';
 import { SharedCountService, LibraryCounts } from '../services/sharedCountService';
@@ -45,6 +33,19 @@ import { SharedCsvWriter } from '../utils/csvWriter';
 import { StatusPill } from './shared/StatusPill';
 import { ULM_OFFICIAL_CREST_DATA_URI } from '../constants/ulmOfficialCrest';
 import { useInstitutionalIdentity } from '../utils/themeTransition';
+import {
+  drawSmartPdfText,
+  openPrintablePdfDocument,
+  printIsolatedHtml,
+  saveJsPdfDocument,
+} from '../services/printAndPdfEngine';
+import { LiquidPillOverlay } from './ui/liquid-pill-physics';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
+import {
+  AnimatedCounter,
+  GlassBezierAreaChart,
+  GlassSweepDonutChart,
+} from './ui/GlassCharts';
 
 export type ReportTabId = 'overview' | 'circulation' | 'collection' | 'overdue' | 'health';
 export type TimePeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
@@ -127,8 +128,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('all');
   const [isPeriodMenuOpen, setIsPeriodMenuOpen] = useState(false);
   const [chartRange, setChartRange] = useState<'7d' | '30d' | 'all'>('30d');
+  const [chartRangeAnimTick, setChartRangeAnimTick] = useState(1);
+  const chartRangeSwitcherRef = useRef<HTMLDivElement | null>(null);
+  const chartRangeItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const [distributionMode, setDistributionMode] = useState<'discipline' | 'language'>('discipline');
+  const [distributionAnimTick, setDistributionAnimTick] = useState(1);
+  const [selectedHoldingLabel, setSelectedHoldingLabel] = useState<string | null>(null);
+  const distributionSwitcherRef = useRef<HTMLDivElement | null>(null);
+  const distributionItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const [consoleTab, setConsoleTab] = useState<'health' | 'overdue'>('health');
+  const [consoleTabAnimTick, setConsoleTabAnimTick] = useState(1);
+  const consoleTabSwitcherRef = useRef<HTMLDivElement | null>(null);
+  const consoleTabItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const [isFullLedgerExpanded, setIsFullLedgerExpanded] = useState(false);
 
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -684,13 +695,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       );
       setIsCheckingHealth(false);
+      notifyGlassToast({
+        type: 'info',
+        title: 'Database Audit Complete',
+        message: 'Verified foreign keys, copy counts, and overdue circulation ledgers.',
+      });
     }, 320);
   };
 
-  // Official PDF Export Handler (A4 Multi-page / Vector Fallback)
-  const handleSaveAsPdf = async () => {
-    if (isSavingPdf) return;
-    setIsSavingPdf(true);
+  // Build Official A4 Audit Report PDF (shared by Save as PDF & Sandboxed Print Fallback)
+  const buildOfficialReportPdfDocument = async (): Promise<{ doc: jsPDF; filename: string }> => {
+    const filename = `ULM_Official_Library_Report_${selectedPeriod}_${todayStr}.pdf`;
     try {
       const elem = reportPrintRef.current;
       if (!elem) throw new Error('Report element missing');
@@ -725,106 +740,241 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         heightLeft -= pdfHeight - margin * 2;
       }
 
-      pdf.save(`ULM_Official_Library_Report_${selectedPeriod}_${todayStr}.pdf`);
-      setPdfSavedToast(true);
-      setTimeout(() => setPdfSavedToast(false), 3500);
+      return { doc: pdf, filename };
     } catch (err) {
       console.warn('Canvas PDF export failed, using structured vector PDF:', err);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(14);
-      pdf.text('UNIVERSITY OF LAKKI MARWAT', 105, 18, { align: 'center' });
-      pdf.setFontSize(10);
-      pdf.text('Central Campus Library · Official Audit & Analytics Report', 105, 25, {
+      drawSmartPdfText(pdf, identity.universityName.toUpperCase(), 105, 18, 180, {
+        fontSizePt: 14,
+        bold: true,
+        color: '#111827',
         align: 'center',
       });
+      drawSmartPdfText(
+        pdf,
+        `${identity.libraryDepartmentName} · Official Audit & Analytics Report`,
+        105,
+        25,
+        180,
+        {
+          fontSizePt: 10,
+          bold: true,
+          color: '#334155',
+          align: 'center',
+        }
+      );
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(71, 85, 105);
       pdf.text(
         `Generated: ${new Date().toLocaleDateString('en-GB')} · Period: ${selectedPeriod.toUpperCase()}`,
         105,
-        30,
+        31,
         { align: 'center' }
       );
-      pdf.line(15, 33, 195, 33);
-      pdf.text(`Total Bibliographic Titles: ${counts.totalTitles}`, 20, 42);
-      pdf.text(`Total Physical Copies: ${counts.totalCopies}`, 110, 42);
-      pdf.text(`Volumes on Shelf: ${counts.copiesOnShelf}`, 20, 50);
-      pdf.text(`Volumes on Loan: ${counts.copiesOnLoan}`, 110, 50);
-      pdf.text(`Active Borrowers: ${counts.activeBorrowers}`, 20, 58);
+      pdf.line(15, 34, 195, 34);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text('Executive Summary Metrics', 16, 42);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.text(`Total Bibliographic Titles: ${counts.totalTitles.toLocaleString()}`, 18, 50);
+      pdf.text(`Total Physical Copies: ${counts.totalCopies.toLocaleString()}`, 110, 50);
+      pdf.text(`Volumes on Shelf: ${counts.copiesOnShelf.toLocaleString()}`, 18, 57);
+      pdf.text(`Volumes on Loan: ${counts.copiesOnLoan.toLocaleString()}`, 110, 57);
+      pdf.text(`Active Borrowers: ${counts.activeBorrowers.toLocaleString()}`, 18, 64);
       pdf.text(
         `Overdue Loans: ${counts.overdueLoans} (${counts.overdueRatePercent}%)`,
         110,
-        58
+        64
       );
-      pdf.save(`ULM_Official_Library_Report_${selectedPeriod}_${todayStr}.pdf`);
+
+      if (overdueActionList.length > 0) {
+        pdf.line(15, 72, 195, 72);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.text(`Overdue Action List (${overdueActionList.length} Volumes)`, 16, 80);
+        let y = 87;
+        overdueActionList.slice(0, 28).forEach((item, idx) => {
+          if (y > 280) return;
+          drawSmartPdfText(
+            pdf,
+            `${idx + 1}. ${item.borrowerName} (${item.universityId}) — ${item.bookName.slice(0, 42)} | Due: ${item.dueDate} | ${item.daysOverdue}d | Rs. ${item.fineDue}`,
+            16,
+            y,
+            178,
+            {
+              fontSizePt: 8,
+              color: '#111827',
+              align: 'left',
+            }
+          );
+          y += 6;
+        });
+      }
+
+      return { doc: pdf, filename };
+    }
+  };
+
+  // Official PDF Export Handler (A4 Multi-page / Vector Fallback via unified desktop-safe saver)
+  const handleSaveAsPdf = async () => {
+    if (isSavingPdf) return;
+    setIsSavingPdf(true);
+    try {
+      const { doc: pdf, filename } = await buildOfficialReportPdfDocument();
+      await saveJsPdfDocument(pdf, filename);
       setPdfSavedToast(true);
+      notifyGlassToast({
+        type: 'success',
+        title: 'PDF Report Saved',
+        message: 'Official library audit report exported to PDF.',
+        meta: filename,
+      });
       setTimeout(() => setPdfSavedToast(false), 3500);
     } finally {
       setIsSavingPdf(false);
     }
   };
 
-  // Safe Print Handler using isolated print iframe
+  // Build isolated white A4 Overdue & Audit Action List HTML for direct printing
+  const handlePrintOverdueActionList = () => {
+    const esc = (v: string | number | null | undefined) =>
+      String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    const rowsHtml =
+      overdueActionList.length > 0
+        ? overdueActionList
+            .map(
+              (item, idx) => `<tr>
+                <td class="c">${idx + 1}</td>
+                <td><strong>${esc(item.borrowerName)}</strong></td>
+                <td class="mono">${esc(item.universityId)}</td>
+                <td>${esc(item.bookName)}</td>
+                <td class="mono c">${esc(item.dueDate)}</td>
+                <td class="c">${item.daysOverdue}d</td>
+                <td class="r mono"><strong>Rs. ${item.fineDue.toLocaleString()}</strong></td>
+              </tr>`
+            )
+            .join('')
+        : `<tr><td colspan="7" class="c" style="padding:14px;color:#334155;">Zero overdue loans recorded. All active loans are within scheduled due windows.</td></tr>`;
+
+    const bodyHtml = `
+      <div class="doc">
+        <div class="hdr">
+          <h1>${esc(identity.universityName)}</h1>
+          <h2>${esc(identity.libraryDepartmentName)} — Official Overdue Action &amp; Audit List</h2>
+          <p class="sub">Generated: ${esc(new Date().toLocaleDateString('en-GB'))} · Period: ${esc(
+            selectedPeriod.toUpperCase()
+          )} · Active Titles: ${counts.totalTitles.toLocaleString()} · Copies on Loan: ${counts.copiesOnLoan.toLocaleString()} · Overdue: ${overdueActionList.length}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:6%;">#</th>
+              <th style="width:20%;">Borrower</th>
+              <th style="width:14%;">University ID</th>
+              <th style="width:30%;">Book Title</th>
+              <th style="width:11%;">Due Date</th>
+              <th style="width:9%;">Overdue</th>
+              <th style="width:10%;">Fine Due</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    `;
+
+    const pageCss = `
+      @page { size: A4 portrait; margin: 12mm; }
+      .doc { font-family: Georgia, 'Times New Roman', serif; color: #000; background: #fff; }
+      .hdr { text-align: center; border-bottom: 1.5px solid #1e293b; padding-bottom: 8px; margin-bottom: 14px; }
+      .hdr h1 { font-size: 16pt; text-transform: uppercase; margin: 0 0 3px 0; }
+      .hdr h2 { font-size: 11pt; margin: 0 0 4px 0; color: #334155; }
+      .hdr .sub { font-size: 8.5pt; font-family: Arial, sans-serif; color: #475569; margin: 0; }
+      table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; }
+      th, td { border: 1px solid #94a3b8; padding: 5px 7px; font-size: 9pt; text-align: left; }
+      th { background: #f1f5f9; font-weight: 700; text-transform: uppercase; font-size: 8pt; }
+      .c { text-align: center; }
+      .r { text-align: right; }
+      .mono { font-family: monospace; }
+    `;
+
+    void printIsolatedHtml(
+      `${identity.universityName} — Overdue Action List`,
+      bodyHtml,
+      pageCss,
+      async () => {
+        const { doc: pdf, filename } = await buildOfficialReportPdfDocument();
+        await openPrintablePdfDocument(pdf, filename);
+      }
+    ).then((res) => {
+      if (res?.usedPdfFallback) return;
+      if (res && !res.success && res.blocked) {
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Print Frame Blocked',
+          message: 'Use CSV or PDF export to download and print the overdue list.',
+        });
+      } else {
+        notifyGlassToast({
+          type: 'info',
+          title: 'Print Ready',
+          message: 'Overdue action list dispatched for printing.',
+        });
+      }
+    });
+  };
+
+  // Safe Print Handler using unified isolated print engine with sandbox PDF fallback
   const handlePrintReport = () => {
     const elem = reportPrintRef.current;
     if (!elem) {
-      window.print();
+      handlePrintOverdueActionList();
       return;
     }
-    try {
-      const printFrame = document.createElement('iframe');
-      printFrame.style.position = 'fixed';
-      printFrame.style.top = '-10000px';
-      printFrame.style.left = '-10000px';
-      printFrame.style.width = '210mm';
-      printFrame.style.height = '297mm';
-      printFrame.style.border = 'none';
-      document.body.appendChild(printFrame);
-
-      const frameDoc = printFrame.contentWindow?.document;
-      if (frameDoc) {
-        frameDoc.open();
-        frameDoc.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${identity.universityName} - ${identity.libraryDepartmentName} Audit Report</title>
-            <style>
-              @page { size: A4 portrait; margin: 12mm; }
-              body { font-family: Georgia, serif; color: #000; background: #fff; margin: 0; padding: 0; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
-              th, td { border: 1px solid #777; padding: 6px 8px; font-size: 11px; }
-              th { background-color: #f3f4f6; }
-              h1 { font-size: 18px; text-transform: uppercase; margin: 0 0 4px 0; text-align: center; }
-              h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px 0; text-align: center; color: #333; }
-              .text-right { text-align: right; }
-              .text-center { text-align: center; }
-              .font-mono { font-family: monospace; }
-              .font-bold { font-weight: bold; }
-            </style>
-          </head>
-          <body>${elem.innerHTML}</body>
-          </html>
-        `);
-        frameDoc.close();
-        setTimeout(() => {
-          try {
-            printFrame.contentWindow?.focus();
-            printFrame.contentWindow?.print();
-          } catch {
-            window.print();
-          } finally {
-            setTimeout(() => {
-              if (document.body.contains(printFrame)) document.body.removeChild(printFrame);
-            }, 3000);
-          }
-        }, 350);
-        return;
+    const pageCss = `
+      @page { size: A4 portrait; margin: 12mm; }
+      body { font-family: Georgia, serif; color: #000; background: #fff; margin: 0; padding: 0; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+      th, td { border: 1px solid #777; padding: 6px 8px; font-size: 11px; }
+      th { background-color: #f3f4f6; }
+      h1 { font-size: 18px; text-transform: uppercase; margin: 0 0 4px 0; text-align: center; }
+      h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px 0; text-align: center; color: #333; }
+      .text-right { text-align: right; }
+      .text-center { text-align: center; }
+      .font-mono { font-family: monospace; }
+      .font-bold { font-weight: bold; }
+    `;
+    void printIsolatedHtml(
+      `${identity.universityName} - ${identity.libraryDepartmentName} Audit Report`,
+      elem.innerHTML,
+      pageCss,
+      async () => {
+        const { doc: pdf, filename } = await buildOfficialReportPdfDocument();
+        await openPrintablePdfDocument(pdf, filename);
       }
-    } catch {
-      window.print();
-    }
+    ).then((res) => {
+      if (res?.usedPdfFallback) return;
+      if (res && !res.success && res.blocked) {
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Print Frame Blocked',
+          message: 'Use "Save this in PDF" to download and print the report.',
+        });
+      } else {
+        notifyGlassToast({
+          type: 'info',
+          title: 'Print Ready',
+          message: 'Official audit report dispatched for printing.',
+        });
+      }
+    });
   };
 
   // CSV Export Handler using SharedCsvWriter
@@ -849,7 +999,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         CallNumber: b.dewey_call_number,
         DateAdded: b.date_added || (b.created_at ? b.created_at.split(' ')[0] : todayStr),
       }));
-      SharedCsvWriter.downloadCsv(data, `ULM_Catalog_Inventory_${todayStr}.csv`);
+      const filename = `ULM_Catalog_Inventory_${todayStr}.csv`;
+      SharedCsvWriter.downloadCsv(data, filename);
+      notifyGlassToast({ type: 'success', title: 'Export Saved', message: `Exported ${data.length.toLocaleString()} catalog record(s).`, meta: filename });
     } else if (type === 'circulation') {
       const data = periodTxs.map((t) => ({
         TransactionID: t.id,
@@ -862,7 +1014,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         ReturnDate: t.return_date || 'N/A',
         Status: t.status,
       }));
-      SharedCsvWriter.downloadCsv(data, `ULM_Circulation_${selectedPeriod}_${todayStr}.csv`);
+      const filename = `ULM_Circulation_${selectedPeriod}_${todayStr}.csv`;
+      SharedCsvWriter.downloadCsv(data, filename);
+      notifyGlassToast({ type: 'success', title: 'Export Saved', message: `Exported ${data.length.toLocaleString()} circulation record(s).`, meta: filename });
     } else if (type === 'overdue') {
       const data = overdueActionList.map((o) => ({
         BorrowerName: o.borrowerName,
@@ -873,7 +1027,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         DaysOverdue: o.daysOverdue,
         EstimatedFineRs: o.fineDue,
       }));
-      SharedCsvWriter.downloadCsv(data, `ULM_Overdue_Loans_Action_List_${todayStr}.csv`);
+      const filename = `ULM_Overdue_Loans_Action_List_${todayStr}.csv`;
+      SharedCsvWriter.downloadCsv(data, filename);
+      notifyGlassToast({ type: 'success', title: 'Export Saved', message: `Exported ${data.length.toLocaleString()} overdue loan(s).`, meta: filename });
     } else if (type === 'members') {
       const data = activeBorrowers.map((b) => ({
         UniversityID: b.university_id || b.student_id,
@@ -885,7 +1041,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         Email: b.email,
         Status: b.status,
       }));
-      SharedCsvWriter.downloadCsv(data, `ULM_Active_Borrowers_${todayStr}.csv`);
+      const filename = `ULM_Active_Borrowers_${todayStr}.csv`;
+      SharedCsvWriter.downloadCsv(data, filename);
+      notifyGlassToast({ type: 'success', title: 'Export Saved', message: `Exported ${data.length.toLocaleString()} active member(s).`, meta: filename });
     } else if (type === 'fines') {
       const data = overdueActionList.map((o) => ({
         UniversityID: o.universityId,
@@ -896,7 +1054,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         FineRatePerDay: 'Rs 10',
         TotalFineDue: `Rs ${o.fineDue}`,
       }));
-      SharedCsvWriter.downloadCsv(data, `ULM_Fines_Ledger_${todayStr}.csv`);
+      const filename = `ULM_Fines_Ledger_${todayStr}.csv`;
+      SharedCsvWriter.downloadCsv(data, filename);
+      notifyGlassToast({ type: 'success', title: 'Export Saved', message: `Exported ${data.length.toLocaleString()} fine ledger record(s).`, meta: filename });
     }
   };
 
@@ -1057,7 +1217,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 type="button"
                 onClick={toggleExportMenu}
                 aria-expanded={isExportMenuOpen}
-                className="h-9 px-3.5 rounded-xl bg-[#541A72] hover:bg-[#6A2290] text-white font-semibold text-xs border border-[#A66BC9]/40 transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0"
+                className="ulm-btn-tactile h-9 px-3.5 rounded-xl bg-[#541A72] hover:bg-[#6A2290] text-white font-semibold text-xs border border-[#A66BC9]/40 transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#FFD147]" />
                 <span>Export CSV</span>
@@ -1136,7 +1296,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <button
               type="button"
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#1A1A1A] font-extrabold text-xs shadow-sm border border-[#E0B450]/50 transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+              className="ulm-btn-tactile h-9 px-4 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#1A1A1A] font-extrabold text-xs shadow-sm border border-[#E0B450]/50 transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               title="Open Official A4 Print Report"
             >
               <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -1150,7 +1310,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             ========================================================================= */}
         <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1 — Cataloged Holdings */}
-          <div className={kpiCardClass}>
+          <div className={`${kpiCardClass} ulm-stagger-card ulm-card-hover`} style={{ animationDelay: '0ms' }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">
                 CATALOGED HOLDINGS
@@ -1168,7 +1328,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 className="text-[26px] font-bold tracking-tight tabular-nums leading-none text-slate-900 dark:text-white"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {totalCopies.toLocaleString()}
+                <AnimatedCounter value={totalCopies} />
               </span>
               <span className="ml-2 text-[12px] italic font-medium pr-1 text-slate-500 dark:text-slate-400">
                 Cataloged copies
@@ -1184,7 +1344,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Card 2 — On Shelf Available */}
-          <div className={kpiCardClass}>
+          <div className={`${kpiCardClass} ulm-stagger-card ulm-card-hover`} style={{ animationDelay: '45ms' }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">
                 ON SHELF AVAILABLE
@@ -1202,7 +1362,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 className="text-[26px] font-bold tracking-tight tabular-nums leading-none text-slate-900 dark:text-white"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {onShelf.toLocaleString()}
+                <AnimatedCounter value={onShelf} />
               </span>
               <span className="ml-2 text-[12px] italic font-medium pr-1 text-slate-500 dark:text-slate-400">
                 Available on shelf
@@ -1220,7 +1380,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Card 3 — On Loan & Borrowers */}
-          <div className={kpiCardClass}>
+          <div className={`${kpiCardClass} ulm-stagger-card ulm-card-hover`} style={{ animationDelay: '90ms' }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">
                 ON LOAN &amp; BORROWERS
@@ -1238,7 +1398,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 className="text-[26px] font-bold tracking-tight tabular-nums leading-none text-slate-900 dark:text-white"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {onLoan.toLocaleString()}
+                <AnimatedCounter value={onLoan} />
               </span>
               <span className="ml-2 text-[12px] italic font-medium pr-1 text-slate-500 dark:text-slate-400">
                 Active checkouts
@@ -1254,7 +1414,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Card 4 — Overdue & Delinquency */}
-          <div className={kpiCardClass}>
+          <div className={`${kpiCardClass} ulm-stagger-card ulm-card-hover`} style={{ animationDelay: '135ms' }}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-600 dark:text-slate-300">
                 OVERDUE &amp; DELINQUENCY
@@ -1276,7 +1436,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 }`}
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
-                {overdueLoans.toLocaleString()}
+                <AnimatedCounter value={overdueLoans} />
               </span>
               <span className="ml-2 text-[12px] italic font-medium pr-1 text-slate-500 dark:text-slate-400">
                 Overdue volumes
@@ -1303,7 +1463,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             ========================================================================= */}
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           {/* Left (lg:col-span-7) — Circulation Activity Over Time */}
-          <div className={`${cardShellClass} lg:col-span-7 flex flex-col justify-between`}>
+          <div className={`${cardShellClass} ulm-stagger-card lg:col-span-7 flex flex-col justify-between`} style={{ animationDelay: '60ms' }}>
             <div>
               {/* Card Header */}
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1316,17 +1476,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </h3>
                 </div>
 
-                {/* Segmented Toggle: 7d | 30d | All */}
-                <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10">
+                {/* Segmented Toggle: 7d | 30d | All with Liquid Pill Physics */}
+                <div
+                  ref={chartRangeSwitcherRef}
+                  className="relative isolate inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10 gap-0.5"
+                >
+                  <LiquidPillOverlay
+                    containerRef={chartRangeSwitcherRef}
+                    itemRefs={chartRangeItemRefs}
+                    activeKey={chartRange}
+                    axis="x"
+                    variant="purple-pill"
+                    roundedClass="rounded-lg"
+                    triggerTick={chartRangeAnimTick}
+                  />
                   {(['7d', '30d', 'all'] as const).map((rng) => (
                     <button
                       key={rng}
+                      ref={(el) => {
+                        chartRangeItemRefs.current[rng] = el;
+                      }}
                       type="button"
-                      onClick={() => setChartRange(rng)}
-                      className={`h-7 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer uppercase ${
+                      data-liquid-active={chartRange === rng ? 'true' : undefined}
+                      onClick={() => {
+                        setChartRange(rng);
+                        setChartRangeAnimTick((t) => t + 1);
+                      }}
+                      className={`relative z-10 h-7 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer uppercase whitespace-nowrap shrink-0 ${
                         chartRange === rng
-                          ? 'bg-white dark:bg-[#2A174E] text-slate-900 dark:text-[#FFD147] shadow-2xs border border-slate-200/80 dark:border-[#C8963E]/40'
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          ? '!text-white'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {rng === 'all' ? 'All' : rng}
@@ -1342,7 +1521,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white"
                     style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   >
-                    {(issuedCount + returnedCount).toLocaleString()}
+                    <AnimatedCounter
+                      key={`rep-evt-${chartRange}-${chartRangeAnimTick}`}
+                      value={issuedCount + returnedCount}
+                    />
                   </span>
                   <span className="text-xs italic font-medium pr-1 text-slate-500 dark:text-slate-400">
                     circulation events logged
@@ -1351,89 +1533,38 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                 <div className="flex items-center gap-4 text-xs font-mono tabular-nums">
                   <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-[#C8963E]" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
                     <span>{issuedCount.toLocaleString()} issued</span>
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
                     <span>{returnedCount.toLocaleString()} returned</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Smooth Monotone AreaChart */}
-            <div className="h-[230px] w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={circulationOverTime}
-                  margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="ulmIssuedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#C8963E" stopOpacity={0.42} />
-                      <stop offset="95%" stopColor="#C8963E" stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="ulmReturnedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="rgba(148, 163, 184, 0.16)"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#94A3B8"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#94A3B8"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                    domain={[0, (dataMax: number) => Math.max(4, Math.ceil((Number.isFinite(dataMax) ? dataMax : 0) * 1.15))]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#140D22',
-                      borderColor: 'rgba(200, 150, 62, 0.35)',
-                      borderRadius: '12px',
-                      color: '#FFFFFF',
-                      fontSize: '12px',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="issued"
-                    name="Issued"
-                    stroke="#C8963E"
-                    strokeWidth={2.5}
-                    fillOpacity={1}
-                    fill="url(#ulmIssuedGrad)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="returned"
-                    name="Returned"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#ulmReturnedGrad)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            {/* Smooth Animated GlassBezierAreaChart */}
+            <div className="w-full mt-4">
+              <GlassBezierAreaChart
+                key={`rep-circ-${chartRange}-${chartRangeAnimTick}`}
+                data={circulationOverTime}
+                xKey="date"
+                height={208}
+                valueUnit="events"
+                showLegend={false}
+                minMaxDomain={4}
+                ariaLabel="Circulation activity over time"
+                series={[
+                  { key: 'issued', label: 'Books Issued', color: '#10B981', showArea: true },
+                  { key: 'returned', label: 'Books Returned', color: '#F59E0B', showArea: false },
+                ]}
+              />
             </div>
           </div>
 
           {/* Right (lg:col-span-5) — Collection & Language Ratio */}
-          <div className={`${cardShellClass} lg:col-span-5 flex flex-col justify-between`}>
+          <div className={`${cardShellClass} ulm-stagger-card lg:col-span-5 flex flex-col justify-between`} style={{ animationDelay: '115ms' }}>
             <div>
               {/* Header */}
               <div className="flex items-center justify-between gap-2">
@@ -1466,13 +1597,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                 <div className="mt-2 h-2.5 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden flex">
                   <div
-                    className="h-full bg-emerald-500 transition-all"
-                    style={{ width: `${availPct}%` }}
+                    key={`split-shelf-${selectedPeriod}`}
+                    className="ulm-share-bar h-full bg-gradient-to-r from-emerald-600 to-emerald-400"
+                    style={{ width: `${availPct}%`, animationDelay: '0ms' }}
                     title={`${onShelf.toLocaleString()} on shelf (${availPct}%)`}
                   />
                   <div
-                    className="h-full bg-[#C8963E] transition-all"
-                    style={{ width: `${loanPct}%` }}
+                    key={`split-loan-${selectedPeriod}`}
+                    className="ulm-share-bar h-full bg-gradient-to-r from-amber-500 to-amber-400"
+                    style={{ width: `${loanPct}%`, animationDelay: '110ms' }}
                     title={`${onLoan.toLocaleString()} on loan (${loanPct}%)`}
                   />
                 </div>
@@ -1513,31 +1646,49 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </div>
               </div>
 
-              {/* Language Breakdown List */}
-              <div className="space-y-1.5">
+              {/* Language Breakdown List with Animated scaleX Bars */}
+              <div className="space-y-2">
                 {languageDistribution.slice(0, 4).map((lang, idx) => {
                   const dotColors = [
-                    'bg-[#541A72] dark:bg-[#A66BC9]',
+                    'bg-[#7E22CE] dark:bg-[#A855F7]',
                     'bg-emerald-500',
-                    'bg-[#C8963E]',
-                    'bg-sky-500',
+                    'bg-amber-500',
+                    'bg-sky-400',
+                  ];
+                  const barGradients = [
+                    'bg-gradient-to-r from-[#7E22CE] to-[#A855F7]',
+                    'bg-gradient-to-r from-emerald-600 to-emerald-400',
+                    'bg-gradient-to-r from-amber-600 to-amber-400',
+                    'bg-gradient-to-r from-sky-600 to-sky-400',
                   ];
                   return (
                     <div
                       key={lang.language}
-                      className="flex items-center justify-between text-xs py-1 border-b border-slate-200/50 dark:border-white/[0.06] last:border-none"
+                      className="space-y-1 pb-1.5 border-b border-slate-200/50 dark:border-white/[0.06] last:border-none last:pb-0"
                     >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${dotColors[idx % dotColors.length]}`}
-                        />
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
-                          {lang.language}
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${dotColors[idx % dotColors.length]}`}
+                          />
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">
+                            {lang.language}
+                          </span>
+                        </div>
+                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 font-semibold">
+                          {lang.copies.toLocaleString()} ({lang.pct}%)
                         </span>
                       </div>
-                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300 font-semibold">
-                        {lang.copies.toLocaleString()} ({lang.pct}%)
-                      </span>
+                      <div className="h-1 w-full rounded-full bg-slate-200/75 dark:bg-white/[0.07] overflow-hidden">
+                        <div
+                          key={`lang-bar-${selectedPeriod}-${lang.language}`}
+                          className={`ulm-share-bar h-full rounded-full ${barGradients[idx % barGradients.length]}`}
+                          style={{
+                            width: `${lang.copies > 0 ? Math.max(3, lang.pct) : 0}%`,
+                            animationDelay: `${idx * 45}ms`,
+                          }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -1557,7 +1708,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             ========================================================================= */}
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           {/* Left (lg:col-span-3) — Top Borrowed & Department Activity */}
-          <div className={`${cardShellClass} lg:col-span-3 flex flex-col justify-between`}>
+          <div className={`${cardShellClass} ulm-stagger-card lg:col-span-3 flex flex-col justify-between`} style={{ animationDelay: '150ms' }}>
             <div>
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2.5">
@@ -1639,7 +1790,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Center (lg:col-span-5) — Discipline & Language Donut + Segmented Share Table */}
-          <div className={`${cardShellClass} lg:col-span-5 flex flex-col justify-between`}>
+          <div className={`${cardShellClass} ulm-stagger-card lg:col-span-5 flex flex-col justify-between`} style={{ animationDelay: '195ms' }}>
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2.5">
@@ -1651,26 +1802,54 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </h3>
                 </div>
 
-                {/* Toggle: By Discipline | By Language */}
-                <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10">
+                {/* Toggle: By Discipline | By Language with Liquid Pill Physics */}
+                <div
+                  ref={distributionSwitcherRef}
+                  className="relative isolate inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10 gap-0.5"
+                >
+                  <LiquidPillOverlay
+                    containerRef={distributionSwitcherRef}
+                    itemRefs={distributionItemRefs}
+                    activeKey={distributionMode}
+                    axis="x"
+                    variant="purple-pill"
+                    roundedClass="rounded-lg"
+                    triggerTick={distributionAnimTick}
+                  />
                   <button
+                    ref={(el) => {
+                      distributionItemRefs.current['discipline'] = el;
+                    }}
                     type="button"
-                    onClick={() => setDistributionMode('discipline')}
-                    className={`h-7 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    data-liquid-active={distributionMode === 'discipline' ? 'true' : undefined}
+                    onClick={() => {
+                      setDistributionMode('discipline');
+                      setSelectedHoldingLabel(null);
+                      setDistributionAnimTick((t) => t + 1);
+                    }}
+                    className={`relative z-10 h-7 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       distributionMode === 'discipline'
-                        ? 'bg-white dark:bg-[#2A174E] text-slate-900 dark:text-[#FFD147] shadow-2xs border border-slate-200/80 dark:border-[#C8963E]/40'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        ? '!text-white'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     By Discipline
                   </button>
                   <button
+                    ref={(el) => {
+                      distributionItemRefs.current['language'] = el;
+                    }}
                     type="button"
-                    onClick={() => setDistributionMode('language')}
-                    className={`h-7 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    data-liquid-active={distributionMode === 'language' ? 'true' : undefined}
+                    onClick={() => {
+                      setDistributionMode('language');
+                      setSelectedHoldingLabel(null);
+                      setDistributionAnimTick((t) => t + 1);
+                    }}
+                    className={`relative z-10 h-7 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       distributionMode === 'language'
-                        ? 'bg-white dark:bg-[#2A174E] text-slate-900 dark:text-[#FFD147] shadow-2xs border border-slate-200/80 dark:border-[#C8963E]/40'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        ? '!text-white'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     By Language
@@ -1678,53 +1857,29 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </div>
               </div>
 
-              {/* Side-by-Side Donut (5 cols) + Segmented Share Table (7 cols) */}
+              {/* Side-by-Side Animated Sweep Donut (5 cols) + Interactive Share Table (7 cols) */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center mt-2">
-                {/* Left (5 cols): Thick-ring Donut chart with centered total */}
-                <div className="sm:col-span-5 relative h-[180px] flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={donutChartData}
-                        dataKey="copies"
-                        nameKey="label"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={74}
-                        paddingAngle={2}
-                        stroke="none"
-                      >
-                        {donutChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#140D22',
-                          borderColor: 'rgba(200, 150, 62, 0.35)',
-                          borderRadius: '10px',
-                          color: '#FFFFFF',
-                          fontSize: '11px',
-                          fontFamily: 'var(--font-mono)',
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span
-                      className="text-[20px] font-bold tabular-nums text-slate-900 dark:text-white leading-none"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                    >
-                      {totalCopies.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mt-0.5">
-                      total
-                    </span>
-                  </div>
+                {/* Left (5 cols): Animated Clock-Sweep GlassSweepDonutChart (Zero overlapping tooltip!) */}
+                <div className="sm:col-span-5 flex items-center justify-center py-1">
+                  <GlassSweepDonutChart
+                    key={`rep-donut-${distributionMode}-${distributionAnimTick}`}
+                    slices={donutChartData.map((d) => ({
+                      label: d.label,
+                      value: d.ratio === 0 && d.label === 'Empty Stack' ? 0 : d.copies,
+                      color: d.color,
+                    }))}
+                    total={totalCopies}
+                    size={184}
+                    thickness={21}
+                    centerDefaultLabel="TOTAL VOLUMES"
+                    centerUnit="volumes"
+                    selectedLabel={selectedHoldingLabel}
+                    onSelectSlice={setSelectedHoldingLabel}
+                    ariaLabel="Holdings distribution donut chart"
+                  />
                 </div>
 
-                {/* Right (7 cols): 3-Column Table (Category | Copies | Share) */}
+                {/* Right (7 cols): Interactive Click-to-Isolate 3-Column Table (Category | Copies | Share) */}
                 <div className="sm:col-span-7 overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -1735,44 +1890,61 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/60 dark:divide-white/[0.06]">
-                      {distributionItems.slice(0, 6).map((row) => (
-                        <tr key={row.label}>
-                          <td className="py-2 pr-2 min-w-[140px]">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: row.color }}
-                              />
-                              <span
-                                className="font-semibold text-slate-800 dark:text-slate-200 truncate"
-                                dir="auto"
-                                title={row.label}
-                              >
-                                {row.label}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200">
-                            {row.copies.toLocaleString()}
-                          </td>
-                          <td className="py-2 pl-2">
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="w-12 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden shrink-0">
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${Math.max(8, row.pct)}%`,
-                                    backgroundColor: row.color,
-                                  }}
+                      {distributionItems.slice(0, 6).map((row, idx) => {
+                        const isSelected = selectedHoldingLabel === row.label;
+                        const isDimmed = selectedHoldingLabel !== null && !isSelected;
+                        return (
+                          <tr
+                            key={row.label}
+                            onClick={() =>
+                              setSelectedHoldingLabel((cur) => (cur === row.label ? null : row.label))
+                            }
+                            className={`cursor-pointer transition-all duration-150 ${
+                              isSelected
+                                ? 'bg-purple-500/[0.08] dark:bg-purple-500/[0.15]'
+                                : 'hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.04]'
+                            }`}
+                            style={{ opacity: isDimmed ? 0.42 : 1 }}
+                            title={`Click to ${isSelected ? 'reset' : `isolate ${row.label}`}`}
+                          >
+                            <td className="py-2 pr-2 min-w-[140px]">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ backgroundColor: row.color }}
                                 />
+                                <span
+                                  className="font-semibold text-slate-800 dark:text-slate-200 truncate"
+                                  dir="auto"
+                                >
+                                  {row.label}
+                                </span>
                               </div>
-                              <span className="font-mono text-[11px] font-semibold tabular-nums text-purple-700 dark:text-amber-300 w-9 text-right shrink-0">
-                                {row.pct}%
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono tabular-nums font-bold text-slate-700 dark:text-slate-200">
+                              {row.copies.toLocaleString()}
+                            </td>
+                            <td className="py-2 pl-2">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-12 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden shrink-0">
+                                  <div
+                                    key={`rep-share-${distributionMode}-${distributionAnimTick}-${row.label}`}
+                                    className="ulm-share-bar h-full rounded-full"
+                                    style={{
+                                      width: `${row.copies > 0 ? Math.max(8, row.pct) : 0}%`,
+                                      backgroundColor: row.color,
+                                      animationDelay: `${idx * 45}ms`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="font-mono text-[11px] font-semibold tabular-nums text-purple-700 dark:text-amber-300 w-9 text-right shrink-0">
+                                  {row.pct}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1794,7 +1966,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* Right (lg:col-span-4) — Live Database Health & Overdue Console */}
-          <div className={`${cardShellClass} lg:col-span-4 flex flex-col justify-between`}>
+          <div className={`${cardShellClass} ulm-stagger-card lg:col-span-4 flex flex-col justify-between`} style={{ animationDelay: '240ms' }}>
             <div>
               {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -1808,26 +1980,52 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {/* Inline Mini Switcher: Data Health | Overdue */}
-                  <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10">
+                  {/* Inline Mini Switcher: Data Health | Overdue with Liquid Pill Physics */}
+                  <div
+                    ref={consoleTabSwitcherRef}
+                    className="relative isolate inline-flex items-center rounded-xl bg-slate-100 dark:bg-white/[0.05] p-0.5 border border-slate-200/80 dark:border-white/10 gap-0.5"
+                  >
+                    <LiquidPillOverlay
+                      containerRef={consoleTabSwitcherRef}
+                      itemRefs={consoleTabItemRefs}
+                      activeKey={consoleTab}
+                      axis="x"
+                      variant="purple-pill"
+                      roundedClass="rounded-lg"
+                      triggerTick={consoleTabAnimTick}
+                    />
                     <button
+                      ref={(el) => {
+                        consoleTabItemRefs.current['health'] = el;
+                      }}
                       type="button"
-                      onClick={() => setConsoleTab('health')}
-                      className={`h-6 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      data-liquid-active={consoleTab === 'health' ? 'true' : undefined}
+                      onClick={() => {
+                        setConsoleTab('health');
+                        setConsoleTabAnimTick((t) => t + 1);
+                      }}
+                      className={`relative z-10 h-6 px-2 rounded-lg text-[10px] font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                         consoleTab === 'health'
-                          ? 'bg-white dark:bg-[#2A174E] text-slate-900 dark:text-[#FFD147] shadow-2xs'
-                          : 'text-slate-500 dark:text-slate-400'
+                          ? '!text-white'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Data Health
                     </button>
                     <button
+                      ref={(el) => {
+                        consoleTabItemRefs.current['overdue'] = el;
+                      }}
                       type="button"
-                      onClick={() => setConsoleTab('overdue')}
-                      className={`h-6 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      data-liquid-active={consoleTab === 'overdue' ? 'true' : undefined}
+                      onClick={() => {
+                        setConsoleTab('overdue');
+                        setConsoleTabAnimTick((t) => t + 1);
+                      }}
+                      className={`relative z-10 h-6 px-2 rounded-lg text-[10px] font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                         consoleTab === 'overdue'
-                          ? 'bg-white dark:bg-[#2A174E] text-rose-600 dark:text-rose-300 shadow-2xs'
-                          : 'text-slate-500 dark:text-slate-400'
+                          ? '!text-white'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Overdue ({overdueLoans})
@@ -1845,7 +2043,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={handlePrintOverdueActionList}
                     title="Print Action List"
                     className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 cursor-pointer"
                   >
@@ -1958,7 +2156,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={handlePrintOverdueActionList}
                       className="h-7 px-2.5 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer border border-rose-500/30"
                     >
                       <Printer className="w-3 h-3" />
@@ -1998,7 +2196,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             (Renders automatically when overdueActionList.length > 0 or when expanded)
             ========================================================================= */}
         {(overdueActionList.length > 0 || isFullLedgerExpanded) && (
-          <div className={`${cardShellClass} space-y-4 animate-in fade-in duration-150`}>
+          <div className={`${cardShellClass} ulm-stagger-card space-y-4`} style={{ animationDelay: '60ms' }}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className={iconBadgeClass}>
@@ -2025,7 +2223,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={handlePrintOverdueActionList}
                   className="h-8 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer border border-rose-500/35"
                 >
                   <Printer className="w-3.5 h-3.5" />
@@ -2128,8 +2326,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           OFFICIAL A4 PRINT REPORT MODAL (100% Preserved)
           ========================================================================= */}
       {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-4xl max-h-[90vh] bg-white text-black rounded-[12px] shadow-2xl overflow-y-auto p-8 relative font-serif">
+        <div className="ulm-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
+          <div className="ulm-modal-dialog w-full max-w-4xl max-h-[90vh] bg-white text-black rounded-[12px] shadow-2xl overflow-y-auto p-8 relative font-serif">
             {/* Action Bar (Hidden in Print) */}
             <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-300 print:hidden font-sans">
               <div className="flex items-center gap-2">
@@ -2147,7 +2345,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   type="button"
                   onClick={handleSaveAsPdf}
                   disabled={isSavingPdf}
-                  className="px-4 py-2 bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#1A1A1A] text-xs font-bold rounded cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-60"
+                  className="ulm-btn-tactile px-4 py-2 bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] text-[#1A1A1A] text-xs font-bold rounded cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-60"
                   title="Save and download this official report as PDF file"
                 >
                   <FileDown className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -2156,7 +2354,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <button
                   type="button"
                   onClick={handlePrintReport}
-                  className="px-4 py-2 bg-black text-white text-xs font-bold rounded cursor-pointer inline-flex items-center gap-1.5 hover:bg-gray-800 transition-colors"
+                  className="ulm-btn-tactile px-4 py-2 bg-black text-white text-xs font-bold rounded cursor-pointer inline-flex items-center gap-1.5 hover:bg-gray-800 transition-colors"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Send to Printer</span>
@@ -2164,7 +2362,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsPrintModalOpen(false)}
-                  className="px-3 py-2 bg-gray-200 text-gray-800 text-xs font-semibold rounded cursor-pointer hover:bg-gray-300 transition-colors"
+                  className="ulm-btn-tactile px-3 py-2 bg-gray-200 text-gray-800 text-xs font-semibold rounded cursor-pointer hover:bg-gray-300 transition-colors"
                 >
                   Close
                 </button>

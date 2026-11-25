@@ -1,16 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Building2, 
-  Layers, 
-  Check, 
-  X, 
-  AlertCircle, 
-  ArrowRight,
-  BookOpen
+import {
+  Building2,
+  Layers,
+  CheckCircle2,
+  X,
+  AlertCircle,
 } from 'lucide-react';
-import { Book, Almari, BookGroup, AlmariShelf } from '../../types/library';
+import { Book, Almari } from '../../types/library';
 import { AlmariService } from '../../services/almariService';
+import { LibraryStorage } from '../../services/storage';
+import { persistManualBookShelfAssignments } from '../../services/libraryStorageAndMigration';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface BulkAssignModalProps {
   isOpen: boolean;
@@ -23,6 +24,15 @@ interface BulkAssignModalProps {
   initialShelfNo?: number;
 }
 
+interface ShelfPreviewRow {
+  shelf_no: number;
+  capacity: number;
+  existingCount: number;
+  addedCount: number;
+  finalCount: number;
+  rangeStr: string;
+}
+
 export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
   isOpen,
   onClose,
@@ -33,8 +43,37 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
   initialAlmariId,
   initialShelfNo,
 }) => {
-  const groups = AlmariService.getGroups().filter(g => g.is_active);
-  const almaris = AlmariService.getAlmaris().filter(a => a.is_active);
+  const [syncVersion, setSyncVersion] = useState(0);
+
+  // Stay 100% live-synced whenever shelf capacities or cupboard definitions change
+  useEffect(() => {
+    if (!isOpen) return;
+    setSyncVersion((v) => v + 1);
+    const handleSync = () => setSyncVersion((v) => v + 1);
+    window.addEventListener('ulm-almari-capacity-sync', handleSync);
+    window.addEventListener('ulm-library-sync', handleSync);
+    window.addEventListener('ulm-library-data-changed', handleSync);
+    return () => {
+      window.removeEventListener('ulm-almari-capacity-sync', handleSync);
+      window.removeEventListener('ulm-library-sync', handleSync);
+      window.removeEventListener('ulm-library-data-changed', handleSync);
+    };
+  }, [isOpen]);
+
+  const groups = useMemo(() => {
+    void syncVersion;
+    return AlmariService.getGroups().filter((g) => g.is_active);
+  }, [syncVersion]);
+
+  const almaris = useMemo(() => {
+    void syncVersion;
+    return AlmariService.getAlmaris().filter((a) => a.is_active !== false);
+  }, [syncVersion]);
+
+  const shelfCapacities = useMemo(() => {
+    void syncVersion;
+    return AlmariService.getShelfCapacities();
+  }, [syncVersion]);
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id || '');
   const [selectedAlmariId, setSelectedAlmariId] = useState<string>(initialAlmariId || almaris[0]?.id || '');
@@ -42,11 +81,14 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
   const [selectedShelfNo, setSelectedShelfNo] = useState<number>(initialShelfNo || 1);
   const [orderBy, setOrderBy] = useState<'barcode_series' | 'call_number' | 'title' | 'author'>('barcode_series');
 
-  // Sync initial props
+  // Sync initial props & recover gracefully if active almari list updates
   useEffect(() => {
     if (initialAlmariId) setSelectedAlmariId(initialAlmariId);
+    else if (almaris.length > 0 && !almaris.some((a) => a.id === selectedAlmariId)) {
+      setSelectedAlmariId(almaris[0].id);
+    }
     if (initialShelfNo) setSelectedShelfNo(initialShelfNo);
-  }, [initialAlmariId, initialShelfNo]);
+  }, [initialAlmariId, initialShelfNo, almaris, selectedAlmariId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,35 +99,94 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
-  // Capacity left computation for target Almari
-  const targetAlmari = useMemo(() => almaris.find(a => a.id === selectedAlmariId), [almaris, selectedAlmariId]);
-  const targetAlmariShelves = useMemo(() => {
-    if (!selectedAlmariId) return [];
-    return AlmariService.getShelvesForAlmari(selectedAlmariId);
-  }, [selectedAlmariId]);
+  const targetAlmari = useMemo<Almari | undefined>(
+    () => almaris.find((a) => a.id === selectedAlmariId) || almaris[0],
+    [almaris, selectedAlmariId]
+  );
+
+  // Clamp selectedShelfNo if switching to a cupboard with fewer shelves
+  useEffect(() => {
+    if (!targetAlmari) return;
+    const maxShelves = Math.max(1, Number(targetAlmari.shelf_count) || 5);
+    if (selectedShelfNo > maxShelves) {
+      setSelectedShelfNo(1);
+    }
+  }, [targetAlmari, selectedShelfNo]);
+
+  // IDs/barcodes of currently selected books so moving books already in targetAlmari isn't double-counted
+  const selectedIdSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of selectedBooks) {
+      if (b.id) set.add(String(b.id).trim());
+      if (b.barcode) set.add(String(b.barcode).trim());
+    }
+    return set;
+  }, [selectedBooks]);
+
+  // Live physical occupancy across ALL cupboards & shelves (merging ulm_almari_placements_master_v3)
+  const liveOccupancy = useMemo(() => {
+    void syncVersion;
+    return AlmariService.getLiveShelfOccupancyMap(allBooks, almaris, selectedIdSet);
+  }, [allBooks, almaris, selectedIdSet, syncVersion]);
+
+  // Per-shelf live capacity & open slots for the selected target Almari
+  const targetShelfSlots = useMemo(() => {
+    if (!targetAlmari) return [];
+    const shelfCount = Math.max(1, Number(targetAlmari.shelf_count) || 5);
+    return Array.from({ length: shelfCount }, (_, idx) => {
+      const shelfNo = idx + 1;
+      const shelfMax = AlmariService.getShelfCapacity(targetAlmari, shelfNo, shelfCapacities);
+      const existingOnShelf = liveOccupancy.byAlmariShelf.get(`${targetAlmari.id}::${shelfNo}`) || 0;
+      const freeSlots = Math.max(0, shelfMax - existingOnShelf);
+      return {
+        shelf_no: shelfNo,
+        capacity: shelfMax,
+        existingOnShelf,
+        freeSlots,
+      };
+    });
+  }, [targetAlmari, shelfCapacities, liveOccupancy]);
 
   const almariCapacityStats = useMemo(() => {
-    if (!targetAlmari) return { totalCap: 0, currentCount: 0, capacityLeft: 0 };
-    const totalCap = AlmariService.getAlmariTotalCapacity(targetAlmari);
-    const currentCount = allBooks.filter(b => b.almari_id === targetAlmari.id).length;
+    if (!targetAlmari) {
+      return {
+        totalCap: 0,
+        currentCount: 0,
+        capacityLeft: 0,
+        availableFromStartShelf: 0,
+      };
+    }
+    const totalCap = AlmariService.getAlmariTotalCapacity(targetAlmari, shelfCapacities);
+    const currentCount = liveOccupancy.byAlmari.get(targetAlmari.id) || 0;
     const capacityLeft = Math.max(0, totalCap - currentCount);
-    return { totalCap, currentCount, capacityLeft };
-  }, [targetAlmari, allBooks]);
 
-  // Compute live preview of shelf distribution when placing into Almari
+    let availableFromStartShelf = capacityLeft;
+    if (shelfPlacementMode === 'fill_onward') {
+      availableFromStartShelf = targetShelfSlots
+        .filter((s) => s.shelf_no >= selectedShelfNo)
+        .reduce((sum, s) => sum + s.freeSlots, 0);
+    } else if (shelfPlacementMode === 'single') {
+      const targetSlot = targetShelfSlots.find((s) => s.shelf_no === selectedShelfNo);
+      availableFromStartShelf = targetSlot ? targetSlot.freeSlots : 0;
+    }
+
+    return { totalCap, currentCount, capacityLeft, availableFromStartShelf };
+  }, [targetAlmari, shelfCapacities, liveOccupancy, shelfPlacementMode, targetShelfSlots, selectedShelfNo]);
+
+  // Compute live preview of shelf distribution using LIVE per-shelf capacities & existing occupancy
   const placementPlan = useMemo(() => {
     if (mode !== 'assign_almari' || !targetAlmari) return null;
 
-    // Check books of another group
     const targetGroups = AlmariService.getGroupsForAlmari(targetAlmari.id);
-    const targetGroupIds = new Set(targetGroups.map(g => g.id));
-    const booksOfAnotherGroup = selectedBooks.filter(b => b.group_id && targetGroupIds.size > 0 && !targetGroupIds.has(b.group_id));
+    const targetGroupIds = new Set(targetGroups.map((g) => g.id));
+    const booksOfAnotherGroup = selectedBooks.filter(
+      (b) => b.group_id && targetGroupIds.size > 0 && !targetGroupIds.has(b.group_id)
+    );
 
-    // Sort books according to requested order
     const sorted = [...selectedBooks].sort((a, b) => {
       if (orderBy === 'barcode_series') {
-        const numA = AlmariService.extractAccessionNumber(a.barcode) || 0;
-        const numB = AlmariService.extractAccessionNumber(b.barcode) || 0;
+        const numA = AlmariService.extractAccessionNumber(a.barcode || a.accession_no) || 0;
+        const numB = AlmariService.extractAccessionNumber(b.barcode || b.accession_no) || 0;
         return numA - numB;
       }
       if (orderBy === 'call_number') {
@@ -97,116 +198,216 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
       return (a.book_name || '').localeCompare(b.book_name || '');
     });
 
-    const shelves: AlmariShelf[] = targetAlmariShelves.length > 0
-      ? targetAlmariShelves
-      : Array.from({ length: Math.max(1, Math.min(50, Math.floor(targetAlmari.shelf_count || 5))) }, (_, i) => ({
-          almari_id: targetAlmari.id,
-          shelf_no: i + 1,
-          capacity: Math.max(1, Math.min(200, Math.floor(targetAlmari.books_per_shelf || 30))),
-        }));
+    const nowIso = new Date().toISOString();
+    const buildAssignedBook = (book: Book, shelfNo: number): Book => ({
+      ...book,
+      almari_id: targetAlmari.id,
+      almari_code: targetAlmari.code,
+      almari_name: targetAlmari.name_en,
+      cupboard: targetAlmari.code,
+      shelf_no: shelfNo,
+      shelf: `${targetAlmari.code} · Shelf ${shelfNo}`,
+      row: `Shelf ${shelfNo}`,
+      section: targetAlmari.name_en,
+      placement_locked: true,
+      location_source: 'manual',
+      updated_at: nowIso,
+    });
 
     const updatedBooks: Book[] = [];
-    const shelfBreakdown: { shelf_no: number; capacity: number; count: number; rangeStr: string }[] = [];
+    const shelfBreakdown: ShelfPreviewRow[] = [];
 
     if (shelfPlacementMode === 'single') {
-      const shelfCap = shelves.find((s: AlmariShelf) => s.shelf_no === selectedShelfNo)?.capacity || 30;
+      const slot = targetShelfSlots.find((s) => s.shelf_no === selectedShelfNo) || {
+        shelf_no: selectedShelfNo,
+        capacity: AlmariService.getShelfCapacity(targetAlmari, selectedShelfNo, shelfCapacities),
+        existingOnShelf: 0,
+        freeSlots: AlmariService.getShelfCapacity(targetAlmari, selectedShelfNo, shelfCapacities),
+      };
       for (const b of sorted) {
-        updatedBooks.push({
-          ...b,
-          almari_id: targetAlmari.id,
-          shelf_no: selectedShelfNo,
-        });
+        updatedBooks.push(buildAssignedBook(b, selectedShelfNo));
       }
-      const range = AlmariService.computeShelfRange(sorted, shelfCap);
+      const range = AlmariService.computeShelfRange(sorted, slot.capacity);
       shelfBreakdown.push({
         shelf_no: selectedShelfNo,
-        capacity: shelfCap,
-        count: sorted.length,
+        capacity: slot.capacity,
+        existingCount: slot.existingOnShelf,
+        addedCount: sorted.length,
+        finalCount: slot.existingOnShelf + sorted.length,
         rangeStr: range.rangeStr,
       });
     } else if (shelfPlacementMode === 'fill_onward') {
-      const startingShelves = shelves.filter((s: AlmariShelf) => s.shelf_no >= selectedShelfNo).sort((a: AlmariShelf, b: AlmariShelf) => a.shelf_no - b.shelf_no);
+      const startingSlots = targetShelfSlots
+        .filter((s) => s.shelf_no >= selectedShelfNo)
+        .sort((a, b) => a.shelf_no - b.shelf_no);
+
       let cursor = 0;
-      for (const sh of startingShelves) {
+      for (const slot of startingSlots) {
         if (cursor >= sorted.length) break;
-        const cap = sh.capacity || 30;
-        const slice = sorted.slice(cursor, cursor + cap);
+        const takeCount = Math.min(slot.freeSlots, sorted.length - cursor);
+        if (takeCount <= 0) continue;
+
+        const slice = sorted.slice(cursor, cursor + takeCount);
         cursor += slice.length;
         for (const b of slice) {
-          updatedBooks.push({
-            ...b,
-            almari_id: targetAlmari.id,
-            shelf_no: sh.shelf_no,
-          });
+          updatedBooks.push(buildAssignedBook(b, slot.shelf_no));
         }
-        const range = AlmariService.computeShelfRange(slice, cap);
+        const range = AlmariService.computeShelfRange(slice, slot.capacity);
         shelfBreakdown.push({
-          shelf_no: sh.shelf_no,
-          capacity: cap,
-          count: slice.length,
+          shelf_no: slot.shelf_no,
+          capacity: slot.capacity,
+          existingCount: slot.existingOnShelf,
+          addedCount: slice.length,
+          finalCount: slot.existingOnShelf + slice.length,
           rangeStr: range.rangeStr,
         });
       }
-      // If overflow remains beyond last shelf, assign to last shelf
+
+      // If genuine overflow remains beyond the last shelf, append to final shelf
       if (cursor < sorted.length) {
-        const lastShelf = startingShelves[startingShelves.length - 1] || shelves[shelves.length - 1];
-        const overflow = sorted.slice(cursor);
-        for (const b of overflow) {
-          updatedBooks.push({
-            ...b,
-            almari_id: targetAlmari.id,
-            shelf_no: lastShelf.shelf_no,
-          });
+        const lastSlot =
+          startingSlots[startingSlots.length - 1] ||
+          targetShelfSlots[targetShelfSlots.length - 1];
+        if (lastSlot) {
+          const overflow = sorted.slice(cursor);
+          for (const b of overflow) {
+            updatedBooks.push(buildAssignedBook(b, lastSlot.shelf_no));
+          }
+          const existingRow = shelfBreakdown.find((r) => r.shelf_no === lastSlot.shelf_no);
+          if (existingRow) {
+            const combined = updatedBooks.filter((b) => b.shelf_no === lastSlot.shelf_no);
+            const range = AlmariService.computeShelfRange(combined, lastSlot.capacity);
+            existingRow.addedCount += overflow.length;
+            existingRow.finalCount = existingRow.existingCount + existingRow.addedCount;
+            existingRow.rangeStr = range.rangeStr;
+          } else {
+            const range = AlmariService.computeShelfRange(overflow, lastSlot.capacity);
+            shelfBreakdown.push({
+              shelf_no: lastSlot.shelf_no,
+              capacity: lastSlot.capacity,
+              existingCount: lastSlot.existingOnShelf,
+              addedCount: overflow.length,
+              finalCount: lastSlot.existingOnShelf + overflow.length,
+              rangeStr: range.rangeStr,
+            });
+          }
         }
       }
     } else {
-      // keep current shelf
+      // Keep current shelf number (clamped to target almari shelf count)
+      const maxShelves = Math.max(1, Number(targetAlmari.shelf_count) || 5);
+      const groupedByShelf = new Map<number, Book[]>();
       for (const b of sorted) {
-        updatedBooks.push({
-          ...b,
-          almari_id: targetAlmari.id,
-          shelf_no: b.shelf_no || 1,
-        });
+        const clampedShelf = Math.max(1, Math.min(maxShelves, Number(b.shelf_no) || 1));
+        updatedBooks.push(buildAssignedBook(b, clampedShelf));
+        const arr = groupedByShelf.get(clampedShelf) || [];
+        arr.push(b);
+        groupedByShelf.set(clampedShelf, arr);
       }
+      Array.from(groupedByShelf.entries())
+        .sort((a, b) => a[0] - b[0])
+        .forEach(([sNo, list]) => {
+          const slot = targetShelfSlots.find((s) => s.shelf_no === sNo);
+          const cap = slot?.capacity || AlmariService.getShelfCapacity(targetAlmari, sNo, shelfCapacities);
+          const existing = slot?.existingOnShelf || 0;
+          const range = AlmariService.computeShelfRange(list, cap);
+          shelfBreakdown.push({
+            shelf_no: sNo,
+            capacity: cap,
+            existingCount: existing,
+            addedCount: list.length,
+            finalCount: existing + list.length,
+            rangeStr: range.rangeStr,
+          });
+        });
     }
 
-    const isOverCapacity = sorted.length > almariCapacityStats.capacityLeft;
+    const isOverCapacity = sorted.length > almariCapacityStats.availableFromStartShelf;
+    const remainingOpenSlots = Math.max(0, almariCapacityStats.availableFromStartShelf - sorted.length);
+    const firstUsedShelf = shelfBreakdown.length > 0 ? shelfBreakdown[0].shelf_no : selectedShelfNo;
+    const lastUsedShelf =
+      shelfBreakdown.length > 0 ? shelfBreakdown[shelfBreakdown.length - 1].shelf_no : selectedShelfNo;
 
     return {
       updatedBooks,
       shelfBreakdown,
       isOverCapacity,
-      overCapacityCount: Math.max(0, sorted.length - almariCapacityStats.capacityLeft),
+      overCapacityCount: Math.max(0, sorted.length - almariCapacityStats.availableFromStartShelf),
+      remainingOpenSlots,
+      firstUsedShelf,
+      lastUsedShelf,
       booksOfAnotherGroup,
     };
-  }, [mode, targetAlmari, targetAlmariShelves, selectedBooks, selectedShelfNo, shelfPlacementMode, orderBy, almariCapacityStats]);
+  }, [
+    mode,
+    targetAlmari,
+    targetShelfSlots,
+    shelfCapacities,
+    selectedBooks,
+    selectedShelfNo,
+    shelfPlacementMode,
+    orderBy,
+    almariCapacityStats,
+  ]);
 
   if (!isOpen) return null;
 
   // Execution handlers
   const handleApplyGroup = () => {
     if (!selectedGroupId) return;
-    const grp = groups.find(g => g.id === selectedGroupId);
-    const updated = selectedBooks.map(b => ({
+    const grp = groups.find((g) => g.id === selectedGroupId);
+    const updated = selectedBooks.map((b) => ({
       ...b,
       group_id: selectedGroupId,
     }));
+    const updatedMap = new Map(updated.map((b) => [b.id, b]));
+    const mergedAll = allBooks.map((b) => updatedMap.get(b.id) || b);
+    LibraryStorage.saveBooks(mergedAll);
+
     onComplete(updated, `Assigned ${selectedBooks.length} book(s) to group "${grp?.name_en}".`);
+    notifyGlassToast({
+      type: 'success',
+      title: 'Bulk Assignment Complete',
+      message: `Assigned ${selectedBooks.length} book(s) to group "${grp?.name_en || selectedGroupId}".`,
+    });
     onClose();
   };
 
   const handleApplyAlmari = () => {
-    if (!selectedAlmariId || !placementPlan) return;
-    const alm = almaris.find(a => a.id === selectedAlmariId);
+    if (!targetAlmari || !placementPlan) return;
     const batchId = `batch-bulk-${Date.now()}`;
     const nowIso = new Date().toISOString();
 
+    // 1. Write every assigned book into ulm_almari_placements_master_v3 (Single Source of Truth)
+    const nextPlacements = { ...AlmariService.getMasterPlacements() };
+    const updatedById = new Map<string, Book>();
+
     for (const b of placementPlan.updatedBooks) {
-      const prevBook = allBooks.find(ob => ob.id === b.id);
-      const fromStr = prevBook && prevBook.almari_id
-        ? `${almaris.find(a => a.id === prevBook.almari_id)?.code || prevBook.almari_id}, Shelf ${prevBook.shelf_no || 1}`
-        : 'Unassigned';
-      const toStr = `${alm?.code}, Shelf ${b.shelf_no || 1}`;
+      const shelfNo = Number(b.shelf_no) || 1;
+      const entry = {
+        almari_id: targetAlmari.id,
+        almari_code: targetAlmari.code,
+        almari_name: targetAlmari.name_en,
+        shelf_no: shelfNo,
+        placement_locked: true,
+        updated_at: nowIso,
+      };
+      const idKey = b.id ? String(b.id).trim() : '';
+      const bcKey = b.barcode ? String(b.barcode).trim() : '';
+      if (idKey) {
+        nextPlacements[idKey] = entry;
+        updatedById.set(idKey, b);
+      }
+      if (bcKey) {
+        nextPlacements[bcKey] = entry;
+      }
+
+      const prevBook = allBooks.find((ob) => ob.id === b.id);
+      const fromStr =
+        prevBook && prevBook.almari_id
+          ? `${almaris.find((a) => a.id === prevBook.almari_id)?.code || prevBook.almari_id}, Shelf ${prevBook.shelf_no || 1}`
+          : 'Unassigned';
+      const toStr = `${targetAlmari.code}, Shelf ${shelfNo}`;
 
       AlmariService.recordMove({
         book_id: b.id,
@@ -217,11 +418,31 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
       });
     }
 
+    AlmariService.saveMasterPlacements(nextPlacements);
+
+    // 2. Persist full catalog to IndexedDB + Master Storage Engine & broadcast 'ulm-library-sync'
+    const mergedAllBooks = allBooks.map((b) => updatedById.get(String(b.id || '').trim()) || b);
+    LibraryStorage.saveBooks(mergedAllBooks);
+    try {
+      persistManualBookShelfAssignments(placementPlan.updatedBooks);
+    } catch {}
+
+    const shelfSpan =
+      placementPlan.firstUsedShelf === placementPlan.lastUsedShelf
+        ? `Shelf ${placementPlan.firstUsedShelf}`
+        : `Shelves ${placementPlan.firstUsedShelf}–${placementPlan.lastUsedShelf}`;
+
     onComplete(
       placementPlan.updatedBooks,
-      `Placed ${placementPlan.updatedBooks.length} book(s) into ${alm?.name_en} (${alm?.code}).`,
+      `Assigned ${placementPlan.updatedBooks.length} book(s) to Almari ${targetAlmari.code} (${targetAlmari.name_en}) · ${shelfSpan}.`,
       batchId
     );
+    notifyGlassToast({
+      type: 'success',
+      title: 'Assigned to Almari',
+      message: `Assigned ${placementPlan.updatedBooks.length} book(s) to Almari ${targetAlmari.code} (${targetAlmari.name_en}).`,
+      meta: `${targetAlmari.code} · ${shelfSpan}`,
+    });
     onClose();
   };
 
@@ -229,17 +450,17 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-[10px] backdrop-saturate-150"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl bg-white/95 dark:bg-[#141214]/95 backdrop-blur-2xl border-2 border-[#C8963E]/50 dark:border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-slate-900 dark:text-white"
-        onClick={e => e.stopPropagation()}
+        className="ulm-modal-dialog ulm-preserve-glass w-full max-w-3xl rounded-[24px] bg-gradient-to-br from-white/92 via-white/84 to-white/76 dark:from-[#1A102E]/94 dark:via-[#140C24]/92 dark:to-[#0F081C]/90 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/85 dark:border-[#C8963E]/45 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.85),0_24px_64px_rgba(15,23,42,0.28)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.18),0_24px_70px_rgba(0,0,0,0.65)] overflow-hidden flex flex-col max-h-[86vh] text-slate-900 dark:text-white"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-[2px] w-full bg-[#BC881B] shrink-0" />
+        <div className="h-[2px] w-full bg-gradient-to-r from-[#541A72] via-[#C8963E] to-[#FFD147] shrink-0" />
 
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50/90 dark:bg-[#1A1A1A] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+        <div className="px-6 py-4 bg-white/50 dark:bg-white/[0.03] border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-[#C8963E]/40 flex items-center justify-center text-[#8A4B00] dark:text-[#FFD147]">
               {mode === 'assign_group' ? (
@@ -260,6 +481,7 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-500 hover:text-slate-900 dark:text-[#B3AABD] dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-white/10 cursor-pointer"
           >
@@ -276,15 +498,15 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                 Select Target Book Group:
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {groups.map(grp => (
+                {groups.map((grp) => (
                   <button
                     key={grp.id}
                     type="button"
                     onClick={() => setSelectedGroupId(grp.id)}
-                    className={`p-3 rounded-[10px] border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                    className={`p-3 rounded-[12px] border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
                       selectedGroupId === grp.id
-                        ? 'border-[#C8963E] bg-amber-500/15 text-slate-900 dark:text-white font-bold'
-                        : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1A1A1A] text-slate-700 dark:text-[#B3AABD] hover:border-[#C8963E]'
+                        ? 'border-[#C8963E] bg-amber-500/15 text-slate-900 dark:text-white font-bold shadow-xs'
+                        : 'border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/[0.04] text-slate-700 dark:text-[#B3AABD] hover:border-[#C8963E]'
                     }`}
                   >
                     <span
@@ -293,7 +515,9 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                     />
                     <div className="truncate">
                       <div className="text-[13px] truncate">{grp.name_en}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-[#B3AABD] font-urdu" dir="auto">{grp.name_ur}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-[#B3AABD] font-urdu" dir="auto">
+                        {grp.name_ur}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -310,13 +534,13 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                     Select Target Almari ({almariCapacityStats.capacityLeft} slots available):
                   </label>
                   <select
-                    value={selectedAlmariId}
-                    onChange={e => setSelectedAlmariId(e.target.value)}
-                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
+                    value={targetAlmari?.id || ''}
+                    onChange={(e) => setSelectedAlmariId(e.target.value)}
+                    className="w-full h-10 px-3 bg-white/85 dark:bg-[#1B132B] border border-slate-300/90 dark:border-white/15 rounded-[10px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#C8963E]"
                   >
-                    {almaris.map(a => {
-                      const total = AlmariService.getAlmariTotalCapacity(a);
-                      const current = allBooks.filter(b => b.almari_id === a.id).length;
+                    {almaris.map((a) => {
+                      const total = AlmariService.getAlmariTotalCapacity(a, shelfCapacities);
+                      const current = liveOccupancy.byAlmari.get(a.id) || 0;
                       const left = Math.max(0, total - current);
                       return (
                         <option key={a.id} value={a.id}>
@@ -332,12 +556,12 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                   </label>
                   <select
                     value={shelfPlacementMode}
-                    onChange={e => setShelfPlacementMode(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
+                    onChange={(e) => setShelfPlacementMode(e.target.value as 'single' | 'fill_onward' | 'keep')}
+                    className="w-full h-10 px-3 bg-white/85 dark:bg-[#1B132B] border border-slate-300/90 dark:border-white/15 rounded-[10px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#C8963E]"
                   >
-                    <option value="fill_onward">Fill from shelf X onward by capacity</option>
-                    <option value="single">Choose a specific shelf</option>
-                    <option value="keep">Keep current shelf</option>
+                    <option value="fill_onward">Fill onward by shelf capacity</option>
+                    <option value="single">Place all on selected shelf</option>
+                    <option value="keep">Keep current shelf number</option>
                   </select>
                 </div>
               </div>
@@ -350,15 +574,12 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                     </label>
                     <select
                       value={selectedShelfNo}
-                      onChange={e => setSelectedShelfNo(Number(e.target.value))}
-                      className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
+                      onChange={(e) => setSelectedShelfNo(Number(e.target.value))}
+                      className="w-full h-10 px-3 bg-white/85 dark:bg-[#1B132B] border border-slate-300/90 dark:border-white/15 rounded-[10px] text-[13px] font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#C8963E]"
                     >
-                      {Array.from(
-                        { length: targetAlmari?.shelf_count || 5 },
-                        (_, i) => i + 1
-                      ).map(s => (
-                        <option key={s} value={s}>
-                          Shelf {s}
+                      {targetShelfSlots.map((slot) => (
+                        <option key={slot.shelf_no} value={slot.shelf_no}>
+                          Shelf {slot.shelf_no} ({slot.freeSlots} / {slot.capacity} free)
                         </option>
                       ))}
                     </select>
@@ -371,8 +592,8 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                   </label>
                   <select
                     value={orderBy}
-                    onChange={e => setOrderBy(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-white dark:bg-[#1A1A1A] border border-slate-300 dark:border-white/15 rounded-[8px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#BC881B]"
+                    onChange={(e) => setOrderBy(e.target.value as 'barcode_series' | 'call_number' | 'title' | 'author')}
+                    className="w-full h-10 px-3 bg-white/85 dark:bg-[#1B132B] border border-slate-300/90 dark:border-white/15 rounded-[10px] text-[13px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#C8963E]"
                   >
                     <option value="barcode_series">Barcode Series (Default)</option>
                     <option value="call_number">Call Number</option>
@@ -382,63 +603,109 @@ export const BulkAssignModal: React.FC<BulkAssignModalProps> = ({
                 </div>
               </div>
 
-              {/* Warnings */}
-              {placementPlan?.isOverCapacity && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
+              {/* Live Fit Status Banner (Only red warning on genuine overflow; emerald confirmation when it fits!) */}
+              {placementPlan && placementPlan.isOverCapacity ? (
+                <div className="p-3 bg-rose-500/12 border border-rose-500/35 rounded-xl text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2.5">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
                   <span>
-                    Warning: Selected {selectedBooks.length} books exceed available space ({almariCapacityStats.capacityLeft} slots). Overflow books will be assigned to the final shelf.
+                    Warning: Selected {selectedBooks.length} books exceed available space (
+                    {almariCapacityStats.availableFromStartShelf} open slots from Shelf {selectedShelfNo} onward).{' '}
+                    {placementPlan.overCapacityCount} overflow book(s) will be assigned to the final shelf.
                   </span>
                 </div>
+              ) : (
+                placementPlan &&
+                selectedBooks.length > 0 && (
+                  <div className="p-3 bg-emerald-500/12 border border-emerald-500/35 rounded-xl text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2.5 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>
+                      Fits cleanly across{' '}
+                      {placementPlan.firstUsedShelf === placementPlan.lastUsedShelf
+                        ? `Shelf ${placementPlan.firstUsedShelf}`
+                        : `Shelves ${placementPlan.firstUsedShelf}–${placementPlan.lastUsedShelf}`}{' '}
+                      ({placementPlan.remainingOpenSlots} open slot
+                      {placementPlan.remainingOpenSlots === 1 ? '' : 's'} remaining).
+                    </span>
+                  </div>
+                )
               )}
 
-              {/* Preview table of shelves, ranges and counts */}
+              {/* Preview table of shelves, ranges and live occupancy counts */}
               {placementPlan && placementPlan.shelfBreakdown.length > 0 && (
-                <div className="space-y-2 border-t border-slate-200 dark:border-white/[0.08] pt-3">
+                <div className="space-y-2 border-t border-slate-200/80 dark:border-white/[0.08] pt-3">
                   <div className="text-xs font-extrabold text-[#8A4B00] dark:text-[#E0B450] flex items-center justify-between">
                     <span>Shelf Distribution Preview</span>
-                    <span className="text-slate-600 dark:text-[#B3AABD]">{placementPlan.updatedBooks.length} books assigned</span>
+                    <span className="text-slate-600 dark:text-[#B3AABD] font-mono">
+                      {placementPlan.updatedBooks.length} books assigned
+                    </span>
                   </div>
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
-                    {placementPlan.shelfBreakdown.map((sb: { shelf_no: number; capacity: number; count: number; rangeStr: string }) => (
-                      <div key={sb.shelf_no} className="flex items-center justify-between bg-slate-50 dark:bg-[#1A1A1A] px-3 py-2 rounded text-xs border border-slate-200 dark:border-white/[0.04]">
-                        <span className="font-bold text-slate-900 dark:text-white">Shelf {sb.shelf_no}</span>
-                        <span className="font-mono font-bold text-[#8A4B00] dark:text-[#E0B450]">{sb.rangeStr}</span>
-                        <span className="text-slate-600 dark:text-[#B3AABD] font-mono">{sb.count} / {sb.capacity} books</span>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {placementPlan.shelfBreakdown.map((sb) => (
+                      <div
+                        key={sb.shelf_no}
+                        className="flex items-center justify-between gap-2 bg-white/70 dark:bg-white/[0.04] px-3 py-2 rounded-lg text-xs border border-slate-200/80 dark:border-white/[0.08]"
+                      >
+                        <span className="font-bold text-slate-900 dark:text-white shrink-0">
+                          Shelf {sb.shelf_no}
+                        </span>
+                        <span className="font-mono font-bold text-[#8A4B00] dark:text-[#E0B450] truncate">
+                          {sb.rangeStr}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0 font-mono">
+                          {sb.existingCount > 0 && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              ({sb.existingCount} existing + {sb.addedCount} new)
+                            </span>
+                          )}
+                          <span
+                            className={`font-bold ${
+                              sb.finalCount > sb.capacity
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            {sb.finalCount} / {sb.capacity} books
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="p-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-[10px] text-[12px] text-slate-600 dark:text-[#B3AABD] flex items-center gap-2">
+              <div className="p-3 bg-white/60 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/10 rounded-xl text-[12px] text-slate-600 dark:text-[#B3AABD] flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-[#B4690E] dark:text-[#FFD147] shrink-0" />
-                <span>Move runs in an atomic transaction with full Undo support. Barcodes and accession numbers are untouched.</span>
+                <span>
+                  Move runs in an atomic transaction with full Undo support. Barcodes and accession numbers are untouched.
+                </span>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50/90 dark:bg-[#1A1A1A] border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-2.5">
+        <div className="px-6 py-4 bg-white/50 dark:bg-white/[0.03] border-t border-slate-200/80 dark:border-white/10 flex items-center justify-end gap-2.5">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-200/80 hover:bg-slate-300/80 dark:bg-[#2B2730] dark:hover:bg-[#3F3B45] text-slate-800 dark:text-white text-[13px] font-bold rounded-xl cursor-pointer"
+            className="px-4 py-2 bg-slate-200/80 hover:bg-slate-300/80 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white text-[13px] font-bold rounded-xl cursor-pointer transition-colors"
           >
             Cancel
           </button>
           {mode === 'assign_group' && (
             <button
+              type="button"
               onClick={handleApplyGroup}
-              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm"
+              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm hover:brightness-110 transition-all"
             >
               Assign Group
             </button>
           )}
           {mode === 'assign_almari' && (
             <button
+              type="button"
               onClick={handleApplyAlmari}
-              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm"
+              className="px-5 py-2 bg-gradient-to-r from-[#8E4F0B] via-[#B4690E] to-[#CE851D] !text-white text-[13px] font-extrabold rounded-xl cursor-pointer shadow-sm hover:brightness-110 transition-all"
             >
               Assign to Almari
             </button>

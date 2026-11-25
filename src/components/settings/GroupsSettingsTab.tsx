@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { BookGroup } from '../../types/library';
 import { AlmariService } from '../../services/almariService';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface GroupsSettingsTabProps {
   onGroupsChanged?: () => void;
@@ -55,11 +56,28 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
   const [newColor, setNewColor] = useState('#3B82F6');
   const [newMatchCat, setNewMatchCat] = useState('');
   const [newMatchLang, setNewMatchLang] = useState('');
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
+  useEffect(() => {
+    const syncGroups = () => {
+      setGroups(AlmariService.getGroups());
+    };
+    window.addEventListener('ulm-library-sync', syncGroups);
+    window.addEventListener('ulm-library-data-changed', syncGroups);
+    return () => {
+      window.removeEventListener('ulm-library-sync', syncGroups);
+      window.removeEventListener('ulm-library-data-changed', syncGroups);
+    };
+  }, []);
+
+  const handleLoadDefaultGroups = () => {
+    const loaded = AlmariService.loadDefaultGroups();
+    setGroups(loaded);
+    onGroupsChanged?.();
+    notifyGlassToast({
+      type: 'success',
+      title: 'Default Groups Loaded',
+      message: `Loaded ${loaded.length} default book classification groups.`,
+    });
   };
 
   const handleStartEdit = (grp: BookGroup) => {
@@ -84,14 +102,19 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
     setGroups(refreshed);
     setEditingGroupId(null);
     onGroupsChanged?.();
-    showToast('Book group updated.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Book Group Updated',
+      message: `Updated group "${editNameEn.trim()}".`,
+    });
   };
 
   const handleSaveAdd = () => {
     if (!newNameEn.trim()) return;
+    const addedName = newNameEn.trim();
     AlmariService.addGroup({
-      name_en: newNameEn.trim(),
-      name_ur: newNameUr.trim() || newNameEn.trim(),
+      name_en: addedName,
+      name_ur: newNameUr.trim() || addedName,
       color: newColor,
       sort_order: groups.length + 1,
       is_active: true,
@@ -106,7 +129,11 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
     setNewMatchCat('');
     setNewMatchLang('');
     onGroupsChanged?.();
-    showToast('New book group added.');
+    notifyGlassToast({
+      type: 'success',
+      title: 'Book Group Added',
+      message: `Added new group "${addedName}".`,
+    });
   };
 
   const [groupToDelete, setGroupToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -132,7 +159,11 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
     const refreshed = AlmariService.getGroups();
     setGroups(refreshed);
     onGroupsChanged?.();
-    showToast(`Deleted group "${groupToDelete.name}".`);
+    notifyGlassToast({
+      type: 'danger',
+      title: 'Book Group Deleted',
+      message: `Deleted group "${groupToDelete.name}".`,
+    });
     setGroupToDelete(null);
   };
 
@@ -156,38 +187,40 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
   };
 
   return (
-    <div className="ulm-preserve-glass rounded-[22px] p-5 bg-gradient-to-br from-white/80 via-white/65 to-white/50 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-4">
-      {/* Toast */}
-      {toastMsg && (
-        <div className="p-2.5 bg-amber-500/[0.10] border border-amber-500/35 rounded-xl text-amber-800 dark:text-amber-300 text-[12px] font-semibold flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <span>{toastMsg}</span>
-        </div>
-      )}
-
-      {/* Header & Add Button */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/[0.10]">
+    <div className="h-full flex flex-col ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-5">
+      {/* Header & Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200/70 dark:border-white/[0.09]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500/12 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-['Plus_Jakarta_Sans'] text-[14px] font-bold text-slate-900 dark:text-white leading-tight">
+            <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white leading-tight">
               Book Groups (گروپس) Configuration
             </h3>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+            <p className="text-[12px] text-slate-600 dark:text-slate-400 mt-0.5">
               Classification groups, color badges, and auto-suggestion matching rules.
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsAdding(true)}
-          className="h-9 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
-        >
-          <FolderPlus className="w-3.5 h-3.5" />
-          <span>Add New Group</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleLoadDefaultGroups}
+            className="h-9 px-3.5 bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200/90 dark:border-white/[0.14] text-slate-800 dark:text-slate-200 font-semibold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Load Default Groups</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAdding(true)}
+            className="h-9 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>+ Add New Group</span>
+          </button>
+        </div>
       </div>
 
       {/* Delete Group Full-Viewport Portal Confirmation Modal */}
@@ -377,18 +410,51 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
         document.body
       )}
 
-      {/* Groups List Scrollable Compact Table */}
-      <div className="rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] overflow-hidden">
-        <div className="max-h-[520px] overflow-y-auto overflow-x-auto">
+      {/* Groups List Scrollable Compact Table or Clean 0-Item Empty State */}
+      <div className="flex-1 rounded-2xl bg-white/65 dark:bg-white/[0.03] border border-slate-200/85 dark:border-white/[0.10] overflow-hidden flex flex-col">
+        {groups.length === 0 ? (
+          <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center p-8 text-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 max-w-xs">
+              <p className="font-['Plus_Jakarta_Sans'] text-[13.5px] font-bold text-slate-900 dark:text-white">
+                No book groups configured yet.
+              </p>
+              <p className="text-[11.5px] text-slate-500 dark:text-slate-400">
+                Create custom subject groups for your catalog or load the standard university discipline groups.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsAdding(true)}
+                className="h-9 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                <span>+ Add New Group</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleLoadDefaultGroups}
+                className="h-9 px-3.5 bg-white/80 hover:bg-white dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-300/85 dark:border-white/[0.14] text-slate-800 dark:text-slate-200 font-semibold text-[12px] rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Load Default Groups</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+        <div className="max-h-[560px] overflow-y-auto overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-[#150E26]/95 backdrop-blur-md">
               <tr className="border-b border-slate-200/80 dark:border-white/[0.10]">
-                <th className="!py-2.5 !px-2.5 w-10 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">#</th>
-                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">GROUP</th>
-                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">COLOR</th>
-                <th className="!py-2.5 !px-3 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">AUTO-RULE</th>
-                <th className="!py-2.5 !px-3 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">STATUS</th>
-                <th className="!py-2.5 !px-3 text-right whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">ACTIONS</th>
+                <th className="!py-3 !px-3 w-12 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">#</th>
+                <th className="!py-3 !px-4 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">GROUP</th>
+                <th className="!py-3 !px-4 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">COLOR</th>
+                <th className="!py-3 !px-4 whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">AUTO-RULE</th>
+                <th className="!py-3 !px-4 text-center whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">STATUS</th>
+                <th className="!py-3 !px-4 text-right whitespace-nowrap ulm-kpi-label !text-[10px] font-bold uppercase tracking-[0.12em] !text-slate-500 dark:!text-slate-400">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="text-[12px] text-slate-800 dark:text-slate-200">
@@ -586,6 +652,7 @@ export const GroupsSettingsTab: React.FC<GroupsSettingsTabProps> = ({ onGroupsCh
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );

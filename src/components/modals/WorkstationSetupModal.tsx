@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'motion/react';
 import * as XLSX from 'xlsx';
 import {
   FolderOpen,
@@ -9,13 +10,12 @@ import {
   Sparkles,
   ArchiveRestore,
   X,
-  Check,
-  HardDrive,
 } from 'lucide-react';
 import { ULM_OFFICIAL_CREST_DATA_URI, handleCrestFallback } from '../../constants/ulmOfficialCrest';
 import { useInstitutionalIdentity, saveInstitutionalIdentity } from '../../utils/themeTransition';
 import { LibraryStorage, reconcileBooksWithLoans } from '../../services/storage';
 import { AlmariService } from '../../services/almariService';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 import { importBooksInChunks } from '../../services/accessionSeriesEngine';
 import { UsbBackupService } from '../../services/usbBackupService';
 import {
@@ -29,6 +29,11 @@ import {
   finishHeavyTask,
   runHeavyLibraryTask,
 } from '../../utils/heavyTaskRunner';
+import {
+  saveRepoDirHandle,
+} from '../../services/desktopBridge';
+import { idbSet } from '../../services/indexedDbStorage';
+import { syncMasterExcelToDisk } from '../../services/masterExcelSync';
 
 export interface WorkstationSetupModalProps {
   isOpen: boolean;
@@ -42,15 +47,8 @@ export interface WorkstationSetupModalProps {
   ) => void;
 }
 
-const PRESET_REPO_PATHS = [
-  'Documents\\ULM Library Data',
-  'C:\\ULM_Library_Database',
-  'D:\\ULM_Central_Library_Archive',
-];
-
 export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
   isOpen,
-  isResetMode = false,
   onClose,
   onNavigateToCatalog,
   onCompleteMessage,
@@ -58,47 +56,83 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
 }) => {
   const identity = useInstitutionalIdentity();
 
-  const [repositoryPath, setRepositoryPath] = useState<string>(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return (
-        localStorage.getItem('ulm_library_repo_path_v1') ||
-        'Documents\\ULM Library Data'
-      );
+  const [repoPath, setRepoPath] = useState<string>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return (
+          localStorage.getItem('ulm_library_repo_path_v1') ||
+          'Documents\\ULM Library Data'
+        );
+      }
+    } catch {
+      // ignore storage restrictions
     }
     return 'Documents\\ULM Library Data';
   });
 
   const [isSelectingFolder, setIsSelectingFolder] = useState(false);
-  const [showInlineFolderPicker, setShowInlineFolderPicker] = useState(false);
   const [pathSavedNotice, setPathSavedNotice] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const pathInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
 
+  // Attach webkitdirectory & directory directly to the real DOM input
   useEffect(() => {
-    if (isOpen && typeof window !== 'undefined' && window.localStorage) {
-      const saved = localStorage.getItem('ulm_library_repo_path_v1');
-      if (saved) setRepositoryPath(saved);
-      setErrorMsg(null);
-      setPathSavedNotice(null);
+    const el = folderInputRef.current;
+    if (el) {
+      (el as any).webkitdirectory = true;
+      el.setAttribute('webkitdirectory', '');
+      el.setAttribute('directory', '');
     }
+  }, [isOpen]);
+
+  // Listen for live path updates from System Settings (never overwrite user edits back to default)
+  useEffect(() => {
+    const onRepoPathSync = (ev: Event) => {
+      const next = (ev as CustomEvent<{ path?: string }>).detail?.path;
+      if (typeof next === 'string' && next.trim()) {
+        setRepoPath((prev) => (prev === next ? prev : next));
+      }
+    };
+    window.addEventListener('ulm-repo-path-sync', onRepoPathSync);
+    return () => window.removeEventListener('ulm-repo-path-sync', onRepoPathSync);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = localStorage.getItem('ulm_library_repo_path_v1');
+        if (saved && saved.trim()) {
+          setRepoPath(saved);
+        }
+      }
+    } catch {
+      // ignore storage restrictions
+    }
+    setErrorMsg(null);
   }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
-  const persistRepositoryPath = (pathValue: string, mode = 'configured') => {
-    const cleanPath = (pathValue || '').trim() || 'Documents\\ULM Library Data';
-    setRepositoryPath(cleanPath);
+  const commitRepoPath = (
+    rawPath: string,
+    options?: { isTyping?: boolean; mode?: string; showBadge?: boolean }
+  ) => {
+    const isTyping = options?.isTyping === true;
+    const clean = (rawPath || '').trim() || 'Documents\\ULM Library Data';
+    setRepoPath(isTyping ? rawPath : clean);
     try {
-      localStorage.setItem('ulm_library_repo_path_v1', cleanPath);
+      localStorage.setItem('ulm_library_repo_path_v1', clean);
       localStorage.setItem(
         'ulm_data_folder_config_v1',
         JSON.stringify({
-          mode,
-          folderPath: cleanPath,
+          mode: options?.mode || 'configured',
+          folderPath: clean,
           configuredAt: new Date().toISOString(),
           isConfigured: true,
         })
@@ -106,83 +140,130 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       const loc = LibraryStorage.getStorageLocation();
       LibraryStorage.saveStorageLocation({
         ...loc,
-        folderPath: cleanPath,
+        folderPath: clean,
         isConfigured: true,
       });
     } catch {}
-    return cleanPath;
+    window.dispatchEvent(new CustomEvent('ulm-repo-path-sync', { detail: { path: clean } }));
+    if (options?.showBadge) {
+      setPathSavedNotice('✓ Path updated');
+    }
+    return clean;
   };
 
   const markSetupFinished = (mode: string, pathValue: string) => {
-    const cleanPath = persistRepositoryPath(pathValue, mode);
+    const cleanPath = commitRepoPath(pathValue, { mode });
     try {
       localStorage.setItem('ulm_setup_completed_v1', 'true');
       markWorkstationSetupCompleted(mode);
     } catch {}
+    // Immediately write initial Master Excel (.xlsx) & AutoBackup (.json) into chosen folder
+    void syncMasterExcelToDisk(
+      LibraryStorage.getBooks(),
+      LibraryStorage.getBorrowers(),
+      LibraryStorage.getTransactions(),
+      AlmariService.getAlmaris()
+    );
     return cleanPath;
   };
 
-  // 1. Browse Folder Handler (Electron IPC -> File System Access API -> Inline Preset/Custom Path Selector)
-  const handleBrowseFolder = async () => {
-    setIsSelectingFolder(true);
+  const applySelectedFolderPath = async (selectedPath: string, mode = 'folder_selected') => {
+    const cleanPath = commitRepoPath(selectedPath, { mode, showBadge: true });
+    const syncRes = await syncMasterExcelToDisk(
+      LibraryStorage.getBooks(),
+      LibraryStorage.getBorrowers(),
+      LibraryStorage.getTransactions(),
+      AlmariService.getAlmaris()
+    ).catch(() => ({ excelWritten: false, backupWritten: false }));
+    setPathSavedNotice(
+      syncRes.excelWritten
+        ? `✓ Path updated · Master Excel synced (${cleanPath})`
+        : `✓ Path updated · ${cleanPath}`
+    );
+    notifyGlassToast({
+      type: 'success',
+      title: 'Repository Folder Updated',
+      message: syncRes.excelWritten
+        ? 'Path saved and Master Excel synced.'
+        : 'Library repository folder updated.',
+      meta: cleanPath,
+    });
+  };
+
+  // 1. Synchronous Browse Folder Handler (Zero await before .click() so Chrome keeps user-gesture!)
+  const handleBrowseFolder = () => {
     setErrorMsg(null);
     setPathSavedNotice(null);
 
+    // 1. Native Windows Desktop .exe (C# WPF + WebView2 / Electron)
+    const nativeApi = (window as any).desktopAPI || (window as any).electronAPI;
+    if (nativeApi?.selectLibraryFolder || nativeApi?.selectFolder) {
+      setIsSelectingFolder(true);
+      const call = nativeApi.selectLibraryFolder
+        ? nativeApi.selectLibraryFolder()
+        : nativeApi.selectFolder();
+      Promise.resolve(call)
+        .then((res: any) => {
+          const selectedPath =
+            typeof res === 'string'
+              ? res.trim()
+              : res && !res.canceled && typeof res.path === 'string'
+              ? res.path.trim()
+              : '';
+          if (selectedPath) {
+            void applySelectedFolderPath(selectedPath, 'desktop_ipc_folder');
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsSelectingFolder(false));
+      return;
+    }
+
+    if ((window as any).ulmLibraryApi?.selectCustomDataFolder) {
+      setIsSelectingFolder(true);
+      Promise.resolve((window as any).ulmLibraryApi.selectCustomDataFolder())
+        .then((res: any) => {
+          if (res && !res.canceled && res.activeDataDir) {
+            void applySelectedFolderPath(res.activeDataDir, 'native_folder');
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsSelectingFolder(false));
+      return;
+    }
+
+    // 2. Standalone Browser Tab (NOT inside a cross-origin iframe)
+    let isInIframe = true;
     try {
-      const win = window as any;
-
-      // A. Check Electron IPC (window.electronAPI?.selectLibraryFolder or window.ulmLibraryApi?.selectCustomDataFolder)
-      if (win?.electronAPI?.selectLibraryFolder) {
-        const selected = await win.electronAPI.selectLibraryFolder();
-        if (selected && typeof selected === 'string') {
-          persistRepositoryPath(selected, 'electron_folder');
-          setPathSavedNotice(`✓ Repository folder set to ${selected}`);
-          return;
-        }
-      }
-
-      if (win?.ulmLibraryApi?.selectCustomDataFolder) {
-        const res = await win.ulmLibraryApi.selectCustomDataFolder();
-        if (res && !res.canceled && res.activeDataDir) {
-          persistRepositoryPath(res.activeDataDir, 'native_folder');
-          setPathSavedNotice(`✓ Repository folder set to ${res.activeDataDir}`);
-          return;
-        }
-      }
-
-      // B. Try Browser File System Access API (showDirectoryPicker)
-      if (typeof win?.showDirectoryPicker === 'function') {
-        try {
-          const dirHandle = await win.showDirectoryPicker({
-            mode: 'readwrite',
-            startIn: 'documents',
-          });
-          if (dirHandle && dirHandle.name) {
-            win.__ulm_data_dir_handle = dirHandle;
-            const fullPath = `Documents\\${dirHandle.name}`;
-            persistRepositoryPath(fullPath, 'fs_access_api');
-            setPathSavedNotice(`✓ Connected local directory: ${fullPath}`);
-            setShowInlineFolderPicker(false);
-            return;
+      isInIframe = window.self !== window.top;
+    } catch {
+      isInIframe = true;
+    }
+    if (!isInIframe && typeof (window as any).showDirectoryPicker === 'function') {
+      setIsSelectingFolder(true);
+      (window as any)
+        .showDirectoryPicker({ mode: 'readwrite' })
+        .then(async (dirHandle: any) => {
+          if (dirHandle?.name) {
+            await idbSet('ulm_repo_dir_handle', dirHandle).catch(() => {});
+            await saveRepoDirHandle(dirHandle).catch(() => {});
+            await applySelectedFolderPath(`Documents\\${dirHandle.name}`, 'fs_access_api');
           }
-        } catch (pickerErr: any) {
-          if (pickerErr?.name === 'AbortError') {
-            return;
-          }
-          // If blocked by iframe security policy, fall through to inline Custom Path Editor / Preset Selector
-        }
-      }
+        })
+        .catch(() => {})
+        .finally(() => setIsSelectingFolder(false));
+      return;
+    }
 
-      // C. Fallback in browser / iframe preview: Open Inline Custom Path & Preset Selector
-      setShowInlineFolderPicker((prev) => !prev);
-      setTimeout(() => {
-        pathInputRef.current?.focus();
-        pathInputRef.current?.select();
-      }, 40);
-    } catch (err: any) {
-      setShowInlineFolderPicker(true);
-    } finally {
-      setIsSelectingFolder(false);
+    // 3. Inside Google AI Studio Preview Iframe (or Firefox/Safari):
+    // Fire .click() SYNCHRONOUSLY inside the click handler with ZERO await!
+    const el = folderInputRef.current;
+    if (el) {
+      (el as any).webkitdirectory = true;
+      el.setAttribute('webkitdirectory', '');
+      el.setAttribute('directory', '');
+      el.value = '';
+      el.click();
     }
   };
 
@@ -207,6 +288,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
             'ulm_storage_engine_books_v1',
             'ulm_lms_transactions_v1',
             'ulm_circulation_records_v1',
+            'ulm_lms_members_v1',
             'ulm_lms_borrowers_v1',
           ];
           for (const key of arrayKeysToZero) {
@@ -226,21 +308,25 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
           LibraryStorage.saveBorrowers([]);
           LibraryStorage.saveTransactions([]);
 
-          // 2. Initialize default Almari cupboards registry if empty
-          AlmariService.getAlmaris();
+          // 2. Save setup completed flag & repository path (do NOT force-reseed Almaris/Groups when factory-empty)
+          const cleanPath = markSetupFinished('new_library', repoPath);
 
-          // 3. Save setup completed flag & repository path
-          const cleanPath = markSetupFinished('new_library', repositoryPath);
-
-          // 4. Sync empty master register metadata
+          // 3. Sync empty master register metadata
           try {
             await syncMasterExcelRegister([]);
           } catch {}
 
-          // 5. Dispatch 'ulm-library-sync' so App.tsx and BooksCatalogView immediately show 0 books starting at #1
+          // 4. Dispatch 'ulm-library-sync' so App.tsx and BooksCatalogView immediately show 0 books starting at #1
           window.dispatchEvent(
             new CustomEvent('ulm-library-sync', {
-              detail: { books: [], loans: [], timestamp: Date.now() },
+              detail: {
+                books: [],
+                members: [],
+                loans: [],
+                almaris: AlmariService.getAlmaris(),
+                bookGroups: AlmariService.getGroups(),
+                timestamp: Date.now(),
+              },
             })
           );
           window.dispatchEvent(new CustomEvent('ulm-library-data-changed'));
@@ -253,7 +339,13 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
         }
       );
     } catch (err: any) {
-      setErrorMsg(`Failed to initialize clean catalog: ${err?.message || 'Unknown error'}`);
+      const msg = `Failed to initialize clean catalog: ${err?.message || 'Unknown error'}`;
+      setErrorMsg(msg);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Initialization Failed',
+        message: err?.message || 'Could not initialize clean catalog.',
+      });
     } finally {
       setIsBusy(false);
     }
@@ -377,7 +469,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       const finalBooks = await LibraryStorage.loadAllBooksFromDb();
       const reconciled = reconcileBooksWithLoans(finalBooks, LibraryStorage.getTransactions());
 
-      markSetupFinished('import_excel', repositoryPath);
+      markSetupFinished('import_excel', repoPath);
 
       window.dispatchEvent(
         new CustomEvent('ulm-library-sync', {
@@ -396,7 +488,14 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       onNavigateToCatalog?.();
       onClose?.();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to import Excel / CSV file.');
+      const msg = err?.message || 'Failed to import Excel / CSV file.';
+      setErrorMsg(msg);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Excel Import Failed',
+        message: msg,
+        meta: file.name,
+      });
     } finally {
       finishHeavyTask();
       setIsBusy(false);
@@ -433,6 +532,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       try {
         localStorage.removeItem('ulm_database_cleared');
         localStorage.removeItem('ulm_initialized_empty');
+        localStorage.removeItem('ulm_factory_reset_empty_v1');
       } catch {}
 
       if (isZipArchive) {
@@ -454,7 +554,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
           LibraryStorage.getTransactions()
         );
 
-        markSetupFinished('restore_package', repositoryPath);
+        markSetupFinished('restore_package', repoPath);
 
         window.dispatchEvent(
           new CustomEvent('ulm-library-sync', {
@@ -545,7 +645,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       const reconciled = reconcileBooksWithLoans(rawBooks, rawLoans);
       LibraryStorage.saveBooks(reconciled);
 
-      markSetupFinished('restore_package', repositoryPath);
+      markSetupFinished('restore_package', repoPath);
 
       window.dispatchEvent(
         new CustomEvent('ulm-library-sync', {
@@ -565,7 +665,14 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
       onNavigateToCatalog?.();
       onClose?.();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to restore backup package.');
+      const msg = err?.message || 'Failed to restore backup package.';
+      setErrorMsg(msg);
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Backup Restore Failed',
+        message: msg,
+        meta: file.name,
+      });
     } finally {
       finishHeavyTask();
       setIsBusy(false);
@@ -575,7 +682,7 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
 
   // 5. Enter Library Workstation & Top-Right Close Button (✕)
   const handleEnterOrCloseWorkstation = () => {
-    const cleanPath = markSetupFinished('enter_workstation', repositoryPath);
+    const cleanPath = markSetupFinished('enter_workstation', repoPath);
     if (onConfigured) {
       onConfigured(cleanPath);
     }
@@ -585,10 +692,35 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
   };
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[99995] w-screen h-screen flex items-center justify-center p-4 bg-slate-900/25 dark:bg-[#090514]/78 backdrop-blur-xl backdrop-saturate-[180%] animate-in fade-in duration-200 select-none"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.32 }}
+      className="fixed inset-0 z-[99998] w-screen h-screen flex items-center justify-center p-5 bg-slate-900/25 dark:bg-[#080412]/72 backdrop-blur-2xl backdrop-saturate-[185%] select-none"
       onClick={handleEnterOrCloseWorkstation}
     >
+      {/* Visually-Hidden Universal Windows File Explorer Folder Picker (webkitdirectory attached via useEffect) */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+        onChange={(e) => {
+          const files = e.target.files;
+          if (files && files.length > 0) {
+            const relPath = (files[0] as any).webkitRelativePath || '';
+            const folderName = relPath.split('/')[0] || 'ULM Library Data';
+            void applySelectedFolderPath(`Documents\\${folderName}`, 'explorer_webkitdirectory');
+          } else {
+            setPathSavedNotice(null);
+            setErrorMsg('Empty folder selected in browser preview. Type your desired path directly above (native Explorer supports empty folders in the Desktop .exe).');
+          }
+          e.target.value = '';
+        }}
+      />
+
       {/* Hidden File Inputs for Card 2 (Excel/CSV) and Card 3 (Backup Restore) */}
       <input
         ref={excelInputRef}
@@ -605,335 +737,274 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
         onChange={handleSetupBackupRestore}
       />
 
-      {/* Frosted Crystal Dialog Shell */}
-      <div
-        className="w-full max-w-[880px] rounded-[28px] overflow-hidden flex flex-col max-h-[92dvh] bg-gradient-to-br from-white/95 via-white/90 to-white/85 dark:from-[#1B1130]/95 dark:via-[#130B24]/95 dark:to-[#0D071A]/95 backdrop-blur-2xl backdrop-saturate-[190%] border border-slate-200/90 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.85),0_28px_80px_rgba(15,23,42,0.22)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.20),0_28px_80px_rgba(0,0,0,0.80)] text-slate-900 dark:text-white"
+      {/* Minimal Frosted Crystal Liquid-Glass Dialog Container */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        className="ulm-preserve-glass w-full max-w-[860px] rounded-[28px] p-7 sm:p-8 space-y-6 relative overflow-hidden max-h-[92dvh] overflow-y-auto custom-scrollbar bg-gradient-to-br from-white/88 via-white/78 to-white/68 dark:from-[#1F1438]/78 dark:via-[#150D29]/72 dark:to-[#0E081D]/78 backdrop-blur-2xl backdrop-saturate-[190%] border border-white/80 dark:border-white/[0.16] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.80),0_32px_90px_rgba(15,23,42,0.18)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.20),0_32px_90px_rgba(0,0,0,0.75)] text-slate-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Amethyst-to-Gold Refractive Highlight Line */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-[#581C87] via-amber-400 to-[#7E22CE] shrink-0" />
-
-        {/* Scrollable Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 sm:p-7 space-y-5">
-          {/* 1. LIVE-SYNCED HEADER */}
-          <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-white/[0.10]">
-            <div className="flex items-start gap-4 min-w-0">
-              {/* Custom or Official Crest Emblem */}
-              <div className="w-14 h-14 rounded-2xl p-2 bg-amber-500/15 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
-                <img
-                  src={identity.customCrestUrl || ULM_OFFICIAL_CREST_DATA_URI}
-                  alt={identity.universityName}
-                  onError={handleCrestFallback}
-                  className="w-full h-full object-contain drop-shadow-sm select-none"
-                  draggable={false}
-                />
-              </div>
-
-              <div className="space-y-1 min-w-0">
-                {/* Architectural Status Micro-Tag */}
-                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
-                  <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-500 dark:bg-amber-400 shrink-0" />
-                  <span>
-                    {isResetMode
-                      ? 'POST-RESET WORKSTATION INITIALIZATION'
-                      : 'WORKSTATION SETUP & ONBOARDING'}
-                  </span>
-                </div>
-
-                {/* Live Institution Name */}
-                <h2 className="font-['Playfair_Display'] text-[22px] font-extrabold text-slate-900 dark:text-white leading-tight truncate">
-                  {identity.universityName}
-                </h2>
-
-                {/* Live Library Department Subtitle */}
-                <p className="font-['JetBrains_Mono'] text-[10.5px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-300/90 truncate">
-                  {identity.libraryDepartmentName.toUpperCase()} · WORKSTATION SETUP SUITE
-                </p>
-
-                <p className="text-[12.5px] text-slate-600 dark:text-slate-300/90 leading-relaxed pt-0.5">
-                  Welcome to the official offline campus library workstation. Choose how you would like to initialize your local catalog and live Master Excel Register below.
-                </p>
-              </div>
-            </div>
-
-            {/* Crisp Top-Right ✕ Close Button */}
-            <button
-              type="button"
-              onClick={handleEnterOrCloseWorkstation}
-              title="Close and Enter Library Workstation"
-              aria-label="Close setup modal"
-              style={{ padding: 0, width: '36px', height: '36px', minWidth: '36px', minHeight: '36px' }}
-              className="w-9 h-9 p-0 rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-rose-500/15 hover:text-rose-500 hover:border-rose-500/35 border border-slate-200/80 dark:border-white/[0.14] text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all cursor-pointer shrink-0"
-            >
-              <X className="w-4 h-4 stroke-[2.25] shrink-0" />
-            </button>
-          </div>
-
-          {/* 2. CLEAN REPOSITORY PATH BAR (Inline Folder Icon + Working Browse Folder) */}
-          <div className="p-4 rounded-[20px] bg-white/80 dark:bg-white/[0.035] border border-slate-200/85 dark:border-white/[0.12] space-y-2.5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <label
-                htmlFor="ulm-setup-repo-path-input"
-                className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.13em] text-slate-500 dark:text-slate-400"
-              >
-                <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>DESIGNATED LIBRARY REPOSITORY PATH</span>
-              </label>
-
-              {pathSavedNotice && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-['JetBrains_Mono'] font-semibold text-emerald-600 dark:text-emerald-400">
-                  <Check className="w-3.5 h-3.5 shrink-0" />
-                  <span>{pathSavedNotice}</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <input
-                id="ulm-setup-repo-path-input"
-                ref={pathInputRef}
-                type="text"
-                value={repositoryPath}
-                onChange={(e) => {
-                  setRepositoryPath(e.target.value);
-                  try {
-                    localStorage.setItem('ulm_library_repo_path_v1', e.target.value);
-                  } catch {}
-                }}
-                placeholder="Documents\ULM Library Data"
-                className="flex-1 font-['JetBrains_Mono'] text-[12.5px] h-10 px-3.5 rounded-xl bg-white dark:bg-[#110A20]/90 border border-slate-200/90 dark:border-white/[0.14] text-slate-900 dark:text-white focus:outline-none focus:border-amber-500/70"
+        {/* 1. MINIMAL CLEAN HEADER */}
+        <div className="flex items-center justify-between gap-4 pb-5 border-b border-slate-200/70 dark:border-white/[0.09]">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-2xl p-2 bg-amber-500/12 border border-amber-400/35 flex items-center justify-center shrink-0">
+              <img
+                src={identity.customCrestUrl || ULM_OFFICIAL_CREST_DATA_URI}
+                alt={identity.universityName}
+                onError={handleCrestFallback}
+                className="w-full h-full object-contain drop-shadow-sm select-none"
+                draggable={false}
               />
-
-              <button
-                type="button"
-                onClick={handleBrowseFolder}
-                disabled={isSelectingFolder}
-                className="h-10 px-4 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.09] dark:bg-white/[0.07] dark:hover:bg-white/[0.12] border border-slate-200/90 dark:border-white/[0.15] text-slate-800 dark:text-white text-[12px] font-bold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
-              >
-                <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>{isSelectingFolder ? 'Selecting...' : 'Browse Folder'}</span>
-              </button>
             </div>
 
-            {/* Inline Custom Path & Preset Selector (Opens smoothly when native folder dialog is blocked in browser/iframe preview) */}
-            {showInlineFolderPicker && (
-              <div className="pt-2.5 mt-2 border-t border-slate-200/70 dark:border-white/[0.10] flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10.5px] font-['JetBrains_Mono'] uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
-                    <HardDrive className="w-3.5 h-3.5 text-amber-500" />
-                    Presets:
-                  </span>
-                  {PRESET_REPO_PATHS.map((preset) => {
-                    const isCurrent = repositoryPath.trim() === preset;
-                    return (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => {
-                          persistRepositoryPath(preset, 'preset_selected');
-                          setPathSavedNotice(`✓ Saved: ${preset}`);
-                        }}
-                        className={`h-8 px-2.5 rounded-lg font-['JetBrains_Mono'] text-[11px] font-semibold border transition-all cursor-pointer ${
-                          isCurrent
-                            ? 'bg-amber-500/15 border-amber-500/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-white/70 dark:bg-white/[0.04] border-slate-200/80 dark:border-white/[0.12] text-slate-700 dark:text-slate-300 hover:border-amber-500/40'
-                        }`}
-                      >
-                        {preset}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const saved = persistRepositoryPath(repositoryPath, 'custom_path_confirmed');
-                    setPathSavedNotice(`✓ Path confirmed: ${saved}`);
-                    setShowInlineFolderPicker(false);
-                  }}
-                  className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] inline-flex items-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Confirm Path</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 3. BALANCED 3-CARD INITIALIZATION GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* CARD 1 (Amber Accent): Start as a New Library */}
-            <div
-              onClick={handleInitializeCleanCatalog}
-              className="rounded-[22px] p-5 bg-white/75 dark:bg-white/[0.035] border border-amber-500/45 dark:border-amber-400/35 hover:border-amber-500 dark:hover:border-amber-400 flex flex-col justify-between gap-4 transition-all hover:-translate-y-[2px] shadow-sm cursor-pointer"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/35 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                    <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-500 shrink-0" />
-                    <span>RECOMMENDED</span>
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-[15.5px] font-extrabold text-slate-900 dark:text-white leading-snug">
-                    Start as a New Library
-                  </h3>
-                  <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
-                    Initialize a clean 0-book institutional catalog with continuous accession series starting at{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold text-amber-700 dark:text-amber-300">
-                      #1
-                    </span>{' '}
-                    and auto-synced Master Excel Register.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleInitializeCleanCatalog();
-                }}
-                style={{ color: '#FFFFFF' }}
-                className="w-full h-10 px-3.5 rounded-xl whitespace-nowrap bg-gradient-to-r from-[#B8731B] to-[#D49B27] hover:from-[#9E6012] hover:to-[#B8731B] text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <span>Initialize Clean Catalog</span>
-                <ArrowRight className="w-4 h-4 shrink-0" />
-              </button>
+            <div className="min-w-0">
+              <h2 className="font-['Playfair_Display'] text-[23px] font-extrabold text-slate-900 dark:text-white leading-tight truncate">
+                {identity.universityName}
+              </h2>
+              <p className="font-['JetBrains_Mono'] text-[10.5px] font-semibold tracking-[0.16em] text-amber-700 dark:text-amber-300 mt-1 truncate">
+                {identity.libraryDepartmentName.toUpperCase()} · WORKSTATION SETUP
+              </p>
             </div>
-
-            {/* CARD 2 (Emerald Accent): Import My Existing Excel Sheet */}
-            <div
-              onClick={() => excelInputRef.current?.click()}
-              className="rounded-[22px] p-5 bg-white/75 dark:bg-white/[0.035] border border-slate-200/85 dark:border-white/[0.12] hover:border-emerald-500/60 dark:hover:border-emerald-400/50 flex flex-col justify-between gap-4 transition-all hover:-translate-y-[2px] shadow-sm cursor-pointer"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-600 dark:text-emerald-300 shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/12 border border-emerald-500/35 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                    <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-500 shrink-0" />
-                    <span>EXCEL / CSV</span>
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-[15.5px] font-extrabold text-slate-900 dark:text-white leading-snug">
-                    Import My Existing Excel Sheet
-                  </h3>
-                  <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
-                    Upload your existing{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold">.xlsx</span> or{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold">.csv</span> register. Streams up to 100,000+ books with automatic 13-digit Code-128 barcodes.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  excelInputRef.current?.click();
-                }}
-                style={{ color: '#FFFFFF' }}
-                className="w-full h-10 px-3.5 rounded-xl whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <span>Select Excel / CSV File</span>
-                <ArrowRight className="w-4 h-4 shrink-0" />
-              </button>
-            </div>
-
-            {/* CARD 3 (Purple Accent): Restore Library Package (.ulmpack) */}
-            <div
-              onClick={() => backupInputRef.current?.click()}
-              className="rounded-[22px] p-5 bg-white/75 dark:bg-white/[0.035] border border-slate-200/85 dark:border-white/[0.12] hover:border-purple-500/60 dark:hover:border-purple-400/50 flex flex-col justify-between gap-4 transition-all hover:-translate-y-[2px] shadow-sm cursor-pointer"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="w-11 h-11 rounded-2xl bg-purple-500/15 border border-purple-500/35 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
-                    <ArchiveRestore className="w-5 h-5" />
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-500/12 border border-purple-500/35 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">
-                    <span className="w-1.5 h-1.5 rounded-[1.5px] bg-purple-500 shrink-0" />
-                    <span>BACKUP RESTORE</span>
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="font-['Plus_Jakarta_Sans'] text-[15.5px] font-extrabold text-slate-900 dark:text-white leading-snug">
-                    Restore Library Package (.ulmpack)
-                  </h3>
-                  <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
-                    Restore a verified{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold">.ulmpack</span>,{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold">.zip</span>, or{' '}
-                    <span className="font-['JetBrains_Mono'] font-bold">.json</span> snapshot including books, members, loans, and almari shelves.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  backupInputRef.current?.click();
-                }}
-                style={{ color: '#FFFFFF' }}
-                className="w-full h-10 px-3.5 rounded-xl whitespace-nowrap bg-[#581C87] hover:bg-[#6B21A8] text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <span>Restore Backup</span>
-                <ArrowRight className="w-4 h-4 shrink-0" />
-              </button>
-            </div>
-          </div>
-
-          {/* Inline Error Banner (Never Fails Silently) */}
-          {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/35 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-between gap-3 animate-in fade-in">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                <span className="break-words">{errorMsg}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setErrorMsg(null)}
-                style={{ padding: 0, width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                className="w-6 h-6 p-0 rounded-lg hover:bg-rose-500/15 flex items-center justify-center text-rose-500 cursor-pointer shrink-0"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 4. CLEAN FOOTER BAR */}
-        <div className="px-6 py-4 bg-slate-900/[0.03] dark:bg-black/30 border-t border-slate-200/80 dark:border-white/[0.10] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="inline-flex items-center gap-2 text-[11.5px] text-emerald-600 dark:text-emerald-400 font-medium">
-            <span className="w-2 h-2 rounded-[2px] bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.75)] shrink-0" />
-            <span>100% Offline Local Storage · Never overwrites an existing catalog</span>
           </div>
 
           <button
             type="button"
             onClick={handleEnterOrCloseWorkstation}
+            title="Close and Enter Library Workstation"
+            aria-label="Close setup modal"
+            style={{ padding: 0, width: '36px', height: '36px', minWidth: '36px', minHeight: '36px' }}
+            className="w-9 h-9 p-0 !rounded-xl bg-slate-900/[0.05] dark:bg-white/[0.06] hover:bg-rose-500/15 hover:text-rose-500 hover:border-rose-500/35 border border-slate-200/80 dark:border-white/[0.14] text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all cursor-pointer shrink-0"
+          >
+            <X className="w-4 h-4 stroke-[2.25] shrink-0" />
+          </button>
+        </div>
+
+        {/* 2. MINIMAL REPOSITORY PATH CARD */}
+        <div className="rounded-[22px] p-5 bg-white/65 dark:bg-white/[0.035] border border-slate-200/80 dark:border-white/[0.11] space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <label
+              htmlFor="ulm-setup-repo-path-input"
+              className="!flex !mb-0 items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300"
+            >
+              <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>DESIGNATED LIBRARY REPOSITORY PATH</span>
+            </label>
+
+            {pathSavedNotice && (
+              <span className="font-['JetBrains_Mono'] text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+                {pathSavedNotice}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              id="ulm-setup-repo-path-input"
+              ref={pathInputRef}
+              type="text"
+              value={repoPath}
+              onChange={(e) => {
+                commitRepoPath(e.target.value, { isTyping: true, mode: 'manual_input' });
+                if (e.target.value.trim()) {
+                  setPathSavedNotice('✓ Path updated');
+                }
+              }}
+              onBlur={() => {
+                if (!repoPath.trim()) {
+                  commitRepoPath('Documents\\ULM Library Data', { mode: 'manual_input' });
+                }
+              }}
+              placeholder="Documents\ULM Library Data"
+              className="ulm-compact-control flex-1 h-11 min-h-[44px] py-0 px-4 !rounded-xl bg-white/90 dark:bg-[#0D071B]/80 border border-slate-300/85 dark:border-white/[0.14] font-['JetBrains_Mono'] text-[13px] leading-normal text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-amber-400/75 transition-colors select-text"
+            />
+
+            <button
+              type="button"
+              onClick={handleBrowseFolder}
+              disabled={isSelectingFolder}
+              style={{ height: '44px', minHeight: '44px' }}
+              className="h-11 px-5 !rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/45 text-amber-700 dark:text-amber-300 font-semibold text-[12.5px] inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all cursor-pointer shrink-0"
+            >
+              <FolderOpen className="w-4 h-4 shrink-0" />
+              <span>{isSelectingFolder ? 'Opening Explorer...' : 'Browse Folder'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3. SPACIOUS 3-CARD INITIALIZATION GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          {/* CARD 1 (Amber Accent): Start as a New Library */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            onClick={handleInitializeCleanCatalog}
+            className="rounded-[22px] p-5 bg-white/70 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06] border border-slate-200/85 dark:border-white/[0.12] hover:border-amber-400/50 flex flex-col justify-between gap-5 transition-all duration-200 hover:-translate-y-1 cursor-pointer"
+          >
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/30 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 leading-none">
+                  RECOMMENDED
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-extrabold text-slate-900 dark:text-white leading-snug">
+                  Start as a New Library
+                </h3>
+                <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
+                  Start a clean 0-book catalog with continuous accession series at{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold text-amber-700 dark:text-amber-300">
+                    #1
+                  </span>{' '}
+                  and live Master Excel sync.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleInitializeCleanCatalog();
+              }}
+              style={{ color: '#FFFFFF' }}
+              className="h-10 w-full px-3.5 rounded-xl whitespace-nowrap bg-gradient-to-r from-[#B8731B] to-[#D49B27] hover:from-[#9E6012] hover:to-[#B8731B] text-white font-semibold text-[12.5px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <span>Initialize Clean Catalog</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
+            </button>
+          </motion.div>
+
+          {/* CARD 2 (Emerald Accent): Import My Existing Excel Sheet */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14 }}
+            onClick={() => excelInputRef.current?.click()}
+            className="rounded-[22px] p-5 bg-white/70 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06] border border-slate-200/85 dark:border-white/[0.12] hover:border-emerald-500/55 dark:hover:border-emerald-400/50 flex flex-col justify-between gap-5 transition-all duration-200 hover:-translate-y-1 cursor-pointer"
+          >
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-600 dark:text-emerald-300 shrink-0">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/12 border border-emerald-500/30 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 leading-none">
+                  EXCEL / CSV
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-extrabold text-slate-900 dark:text-white leading-snug">
+                  Import My Existing Excel Sheet
+                </h3>
+                <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
+                  Import your{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold">.xlsx</span> or{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold">.csv</span> register with automatic 13-digit Code-128 barcodes.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                excelInputRef.current?.click();
+              }}
+              style={{ color: '#FFFFFF' }}
+              className="h-10 w-full px-3.5 rounded-xl whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[12.5px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <span>Select Excel / CSV File</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
+            </button>
+          </motion.div>
+
+          {/* CARD 3 (Purple Accent): Restore Library Package (.ulmpack) */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.20 }}
+            onClick={() => backupInputRef.current?.click()}
+            className="rounded-[22px] p-5 bg-white/70 dark:bg-white/[0.035] hover:bg-white/90 dark:hover:bg-white/[0.06] border border-slate-200/85 dark:border-white/[0.12] hover:border-purple-500/55 dark:hover:border-purple-400/50 flex flex-col justify-between gap-5 transition-all duration-200 hover:-translate-y-1 cursor-pointer"
+          >
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/15 border border-purple-500/35 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0">
+                  <ArchiveRestore className="w-5 h-5" />
+                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-500/12 border border-purple-500/30 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300 leading-none">
+                  BACKUP RESTORE
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-extrabold text-slate-900 dark:text-white leading-snug">
+                  Restore Library Package (.ulmpack)
+                </h3>
+                <p className="text-[12px] text-slate-600 dark:text-slate-300/85 mt-1.5 leading-relaxed">
+                  Restore a verified{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold">.ulmpack</span>,{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold">.zip</span>, or{' '}
+                  <span className="font-['JetBrains_Mono'] font-bold">.json</span> library snapshot with all records intact.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                backupInputRef.current?.click();
+              }}
+              style={{ color: '#FFFFFF' }}
+              className="h-10 w-full px-3.5 rounded-xl whitespace-nowrap bg-[#581C87] hover:bg-[#6B21A8] text-white font-semibold text-[12.5px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <span>Restore Backup</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
+            </button>
+          </motion.div>
+        </div>
+
+        {/* Inline Error Banner (Never Fails Silently) */}
+        {errorMsg && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/35 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span className="break-words">{errorMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              style={{ padding: 0, width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+              className="w-6 h-6 p-0 rounded-lg hover:bg-rose-500/15 flex items-center justify-center text-rose-500 cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* 4. CLEAN MINIMAL FOOTER */}
+        <div className="pt-2 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={handleEnterOrCloseWorkstation}
             style={{ color: '#FFFFFF' }}
-            className="h-10 px-5 rounded-xl bg-gradient-to-r from-[#581C87] via-[#7E22CE] to-amber-500 hover:brightness-110 text-white font-bold text-[12.5px] shadow-md inline-flex items-center gap-2 transition-all cursor-pointer shrink-0"
+            className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#6B21A8] via-[#7E22CE] to-amber-500 hover:opacity-95 text-white font-bold text-[13px] shadow-lg inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all cursor-pointer shrink-0"
           >
             <span>Enter Library Workstation</span>
             <ArrowRight className="w-4 h-4 shrink-0" />
           </button>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body
   );
 };

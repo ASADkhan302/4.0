@@ -86,27 +86,20 @@ export const AppearanceSettingsTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Section Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-slate-200/80 dark:border-white/[0.10]">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
-            <Palette className="w-4 h-4 stroke-[2]" />
-          </div>
-          <div>
-            <h3 className="text-[14px] font-bold text-slate-900 dark:text-white leading-tight tracking-tight font-['Plus_Jakarta_Sans']">
-              Card 1 — Appearance, Display Scaling &amp; Official ULM 2017 Crest
-            </h3>
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-300/80 mt-0.5">
-              Workstation visual style, low-glare surface tone, fluid resolution scaling, and institutional crest.
-            </p>
-          </div>
+      <div className="flex items-center gap-3 pb-4 border-b border-slate-200/70 dark:border-white/[0.09]">
+        <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0">
+          <Palette className="w-4 h-4 stroke-[2]" />
         </div>
-
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/12 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-wider">
-          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
-          <span>DUAL-THEME ENGINE</span>
-        </span>
+        <div>
+          <h3 className="text-[15px] font-bold text-slate-900 dark:text-white leading-tight tracking-tight font-['Plus_Jakarta_Sans']">
+            Appearance, Display Scaling &amp; Official Crest
+          </h3>
+          <p className="text-[12px] text-slate-500 dark:text-slate-300/80 mt-0.5">
+            Workstation visual style, low-glare surface tone, fluid resolution scaling, and institutional crest.
+          </p>
+        </div>
       </div>
 
       {/* 2-Column Consolidated Layout */}

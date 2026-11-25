@@ -348,7 +348,13 @@ export class BookSheetService {
       return { accessionNo: valStr, highestNum: startSetting, zeroPaddingWidth: valStr.length };
     }
 
-    if (typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true') {
+    let isCleared = false;
+    try {
+      isCleared = typeof window !== 'undefined' && localStorage.getItem('ulm_database_cleared') === 'true';
+    } catch {
+      isCleared = false;
+    }
+    if (isCleared) {
       const valStr = String(startSetting);
       return { accessionNo: valStr, highestNum: startSetting, zeroPaddingWidth: valStr.length };
     }

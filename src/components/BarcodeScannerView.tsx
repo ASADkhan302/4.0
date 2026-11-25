@@ -34,6 +34,9 @@ import { StorageEngine } from '../services/storageEngine';
 import { persistManualBookShelfAssignments } from '../services/libraryStorageAndMigration';
 import { ULM_CREST_LOGO } from '../constants/branding';
 import { MemberCard } from './cards/MemberCard';
+import { notifyGlassToast } from './ui/LiquidGlassToast';
+import { ScannerLaserLine } from './ui/MotionPrimitives';
+import { resolveMemberCardStanding } from '../utils/memberStanding';
 
 interface BarcodeScannerViewProps {
   books: Book[];
@@ -431,9 +434,13 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
   const openDurationSelectorModal = useCallback(
     (targetBook: Book, targetBorrower: Borrower) => {
       if (isCopyCheckedOut(targetBook)) {
-        setIssueMessage({
-          type: 'error',
-          text: `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`,
+        const msg = `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`;
+        setIssueMessage({ type: 'error', text: msg });
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Borrowing Policy Warning',
+          message: msg,
+          meta: targetBook.barcode || undefined,
         });
         if (soundEnabled) playErrorBeep();
         return;
@@ -441,25 +448,37 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
       const elig = checkBorrowerEligibility(targetBorrower);
       if (elig.isSuspended) {
-        setIssueMessage({
-          type: 'error',
-          text: `Issuing strictly blocked: ${targetBorrower.name}'s account status is "${String(targetBorrower.status || 'INACTIVE').toUpperCase()}".`,
+        const msg = `Issuing strictly blocked: ${targetBorrower.name}'s account status is "${String(targetBorrower.status || 'INACTIVE').toUpperCase()}".`;
+        setIssueMessage({ type: 'error', text: msg });
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Borrowing Policy Warning',
+          message: msg,
+          meta: targetBorrower.university_id || undefined,
         });
         if (soundEnabled) playErrorBeep();
         return;
       }
       if (elig.isExpired) {
-        setIssueMessage({
-          type: 'error',
-          text: `Issuing strictly blocked: ${targetBorrower.name}'s membership card expired on ${targetBorrower.valid_until}. Renew membership first.`,
+        const msg = `Issuing strictly blocked: ${targetBorrower.name}'s membership card expired on ${targetBorrower.valid_until}. Renew membership first.`;
+        setIssueMessage({ type: 'error', text: msg });
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Borrowing Policy Warning',
+          message: msg,
+          meta: targetBorrower.university_id || undefined,
         });
         if (soundEnabled) playErrorBeep();
         return;
       }
       if (elig.isBlockedOverdue) {
-        setIssueMessage({
-          type: 'error',
-          text: `Cannot issue book: ${targetBorrower.name} has ${elig.overdueCount} overdue book(s) and unpaid fine of Rs. ${elig.totalFine}.`,
+        const msg = `Cannot issue book: ${targetBorrower.name} has ${elig.overdueCount} overdue book(s) and unpaid fine of Rs. ${elig.totalFine}.`;
+        setIssueMessage({ type: 'error', text: msg });
+        notifyGlassToast({
+          type: 'warning',
+          title: 'Borrowing Policy Warning',
+          message: msg,
+          meta: `Fine: Rs. ${elig.totalFine}`,
         });
         if (soundEnabled) playErrorBeep();
         return;
@@ -561,6 +580,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     setFoundBook(null);
     setFoundBorrower(null);
     setScanState('NOT_FOUND');
+    notifyGlassToast({
+      type: 'warning',
+      title: 'Barcode Not Found',
+      message: 'No book or registered member matches scanned code.',
+      meta: cleanCode,
+    });
     if (soundEnabled) playErrorBeep();
   };
 
@@ -644,6 +669,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       setPlacementSuccessMsg(
         `✓ Removed "${primaryUpdated.book_name}" (Acc #${primaryUpdated.accession_no || primaryUpdated.barcode}) from Almari — now in Unassigned Queue.`
       );
+      notifyGlassToast({
+        type: 'info',
+        title: 'Shelf Location Updated',
+        message: `Removed "${primaryUpdated.book_name}" to Unassigned Queue.`,
+        meta: `Acc #${primaryUpdated.accession_no || primaryUpdated.barcode}`,
+      });
       setPostReturnReshelveBanner(null);
       if (soundEnabled) playSuccessBarcodeBeep();
       setTimeout(() => setPlacementSuccessMsg(null), 5000);
@@ -694,6 +725,15 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     if (onCatalogBooksUpdated) onCatalogBooksUpdated(workingBooks, confirmationText);
 
     setPlacementSuccessMsg(confirmationText);
+    notifyGlassToast({
+      type: 'info',
+      title: 'Shelf Location Updated',
+      message:
+        updatedBooksToPersist.length > 1
+          ? `Stored ${updatedBooksToPersist.length} copies of "${primaryUpdated.book_name}".`
+          : `Stored "${primaryUpdated.book_name}" in ${targetAlmari.code} · Shelf ${clampedShelfNo}.`,
+      meta: `${targetAlmari.code} · Shelf ${clampedShelfNo}`,
+    });
     setPostReturnReshelveBanner(null);
     setApplyToSiblingCopies(false);
     if (soundEnabled) playSuccessBarcodeBeep();
@@ -730,6 +770,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     setPlacementSuccessMsg(
       `✓ Created Cupboard ${created.code} (${created.name_en}) with ${shelfCount} shelves (${refreshed.length} total cupboards).`
     );
+    notifyGlassToast({
+      type: 'success',
+      title: 'Almari Created',
+      message: `Created Cupboard ${created.code} (${created.name_en}).`,
+      meta: `${created.code} · ${shelfCount} shelves`,
+    });
     if (soundEnabled) playSuccessBarcodeBeep();
   };
 
@@ -775,14 +821,24 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     const elig = checkBorrowerEligibility(targetBorrower);
 
     if (elig.isQuotaReached && !quotaOverrideChecked) {
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: 'Member borrow quota reached. Confirm Librarian Quota Override to proceed.',
+        meta: `${elig.activeLoans.length}/${elig.quotaLimit} active`,
+      });
       if (soundEnabled) playErrorBeep();
       return;
     }
 
     if (isCopyCheckedOut(targetBook)) {
-      setIssueMessage({
-        type: 'error',
-        text: `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`,
+      const msg = `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`;
+      setIssueMessage({ type: 'error', text: msg });
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: msg,
+        meta: targetBook.barcode || undefined,
       });
       setIsDurationSelectorOpen(false);
       setPendingDurationTarget(null);
@@ -811,6 +867,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
       const res = LibraryStorage.issueBook(targetBook.id, targetBorrower.id, duration, issueOpts);
       issueSuccess = res.success;
       if (!res.success) issueMsg = res.message;
+      notifyGlassToast({
+        type: res.success ? 'success' : 'warning',
+        title: res.success ? 'Book Issued to Member' : 'Borrowing Policy Warning',
+        message: res.message,
+        meta: targetBook.barcode || undefined,
+      });
     }
 
     if (issueSuccess) {
@@ -977,18 +1039,26 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
     );
 
     if (!targetBook) {
-      setIssueMessage({
-        type: 'error',
-        text: `Book with barcode/accession "${cleanBookCode}" not found in catalog.`,
+      const msg = `Book with barcode/accession "${cleanBookCode}" not found in catalog.`;
+      setIssueMessage({ type: 'error', text: msg });
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Book Not Found',
+        message: msg,
+        meta: cleanBookCode,
       });
       if (soundEnabled) playErrorBeep();
       return;
     }
 
     if (isCopyCheckedOut(targetBook)) {
-      setIssueMessage({
-        type: 'error',
-        text: `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`,
+      const msg = `Copy "${targetBook.book_name}" (Acc #${targetBook.accession_no || targetBook.barcode}) is already checked out.`;
+      setIssueMessage({ type: 'error', text: msg });
+      notifyGlassToast({
+        type: 'warning',
+        title: 'Borrowing Policy Warning',
+        message: msg,
+        meta: targetBook.barcode || undefined,
       });
       if (soundEnabled) playErrorBeep();
       return;
@@ -1072,7 +1142,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               </p>
             </div>
 
-            <div className="max-w-2xl w-full mx-auto relative flex items-center gap-3 px-4 py-1.5 bg-white/85 dark:bg-[#0D0718]/85 backdrop-blur-xl border-2 border-[#C8963E]/65 focus-within:border-[#C8963E] focus-within:ring-4 focus-within:ring-[#C8963E]/20 rounded-2xl transition-all shadow-md">
+            <div className="max-w-2xl w-full mx-auto relative overflow-hidden flex items-center gap-3 px-4 py-1.5 bg-white/85 dark:bg-[#0D0718]/85 backdrop-blur-xl border-2 border-[#C8963E]/65 focus-within:border-[#C8963E] focus-within:ring-4 focus-within:ring-[#C8963E]/20 rounded-2xl transition-all shadow-md">
               <BarcodeIcon className="w-5 h-5 text-[#C8963E] shrink-0 pointer-events-none" />
               <input
                 ref={inputRef}
@@ -1089,11 +1159,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               />
               <button
                 type="submit"
-                className="h-10 px-5 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] active:bg-[#A87B16] !text-[#0B1220] font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                className="ulm-btn-tactile h-10 px-5 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] active:bg-[#A87B16] !text-[#0B1220] font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-sm tracking-wide transition-all cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <Search className="w-4 h-4 !text-[#0B1220] stroke-[2.5] shrink-0" />
                 <span className="font-bold !text-[#0B1220] leading-none tracking-wide">Lookup</span>
               </button>
+              <ScannerLaserLine active={true} />
             </div>
           </form>
 
@@ -1134,9 +1205,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
         {/* ---------------- SECTION: 2-COLUMN LIVE BORROWER ID CARD + SCANNED BOOK DESK (IDLE STATE) ---------------- */}
         {scanState === 'IDLE' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Column 1: Live Borrower ID Card Preview Desk */}
-            <div className={`${GLASS_PANEL_CLASS} space-y-4 flex flex-col justify-between`}>
+            <div
+              className={`${GLASS_PANEL_CLASS} ulm-stagger-card space-y-4 flex flex-col justify-between`}
+              style={{ animationDelay: '0ms' }}
+            >
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-300/60 dark:border-white/10">
                   <div className="flex items-center gap-2">
@@ -1174,7 +1248,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                         activeBorrowersList[0].student_id
                     )
                   }
-                  className="w-full h-10 rounded-xl bg-[#C8963E]/15 hover:bg-[#C8963E]/25 text-[#9A6B1A] dark:text-[#FFD147] border border-[#C8963E]/40 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="ulm-btn-tactile w-full h-10 rounded-xl bg-[#C8963E]/15 hover:bg-[#C8963E]/25 text-[#9A6B1A] dark:text-[#FFD147] border border-[#C8963E]/40 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Simulate Scanner Reading Member Card</span>
@@ -1183,7 +1257,10 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
             </div>
 
             {/* Column 2: Live Scanned Book Desk Preview (Full Book Dossier & Authoritative Location) */}
-            <div className={`${GLASS_PANEL_CLASS} space-y-4 flex flex-col justify-between`}>
+            <div
+              className={`${GLASS_PANEL_CLASS} ulm-stagger-card space-y-4 flex flex-col justify-between`}
+              style={{ animationDelay: '55ms' }}
+            >
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-300/60 dark:border-white/10">
                   <div className="flex items-center gap-2">
@@ -1312,9 +1389,12 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
         {/* ---------------- SECTION: BORROWER STATUS CARD (MODE B: STUDENT FIRST) ---------------- */}
         {scanState === 'BORROWER_FOUND' && foundBorrower && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-150">
+          <div key={foundBorrower.id} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column: Full Student Profile & Printable CR80 ID Card */}
-            <div className={`${GLASS_PANEL_CLASS} space-y-5 relative overflow-hidden flex flex-col justify-between`}>
+            <div
+              className={`${GLASS_PANEL_CLASS} ulm-stagger-card space-y-5 relative overflow-hidden flex flex-col justify-between`}
+              style={{ animationDelay: '0ms' }}
+            >
               <div className="space-y-4">
                 {/* Header: Member Identity & Status Badge */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-300/60 dark:border-white/10 pb-3">
@@ -1333,24 +1413,57 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                   </div>
 
                   <div>
-                    {isBlockedOverdue ? (
-                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/40 flex items-center gap-1.5 shadow-2xs">
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        <span>BLOCKED (Rs. {borrowerTotalFine})</span>
-                      </span>
-                    ) : isQuotaReached ? (
-                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1.5 shadow-2xs">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>
-                          QUOTA FULL ({borrowerActiveLoans.length}/{maxAllowedQuota})
+                    {(() => {
+                      const foundStanding = resolveMemberCardStanding(foundBorrower);
+                      if (foundStanding.state === 'SUSPENDED') {
+                        return (
+                          <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/40 flex items-center gap-1.5 shadow-2xs">
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            <span>SUSPENDED</span>
+                          </span>
+                        );
+                      }
+                      if (foundStanding.state === 'EXPIRED') {
+                        return (
+                          <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/40 flex items-center gap-1.5 shadow-2xs">
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            <span>CARD EXPIRED</span>
+                          </span>
+                        );
+                      }
+                      if (isBlockedOverdue) {
+                        return (
+                          <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/40 flex items-center gap-1.5 shadow-2xs">
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            <span>BLOCKED (Rs. {borrowerTotalFine})</span>
+                          </span>
+                        );
+                      }
+                      if (isQuotaReached) {
+                        return (
+                          <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1.5 shadow-2xs">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>
+                              QUOTA FULL ({borrowerActiveLoans.length}/{maxAllowedQuota})
+                            </span>
+                          </span>
+                        );
+                      }
+                      if (foundStanding.state === 'EXPIRING_SOON') {
+                        return (
+                          <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1.5 shadow-2xs">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>EXPIRING SOON</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-2xs">
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>ELIGIBLE</span>
                         </span>
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 rounded-lg text-[11px] font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-2xs">
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>ELIGIBLE</span>
-                      </span>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1464,7 +1577,10 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
             </div>
 
             {/* Right Column: "Which Book Does This Student Want?" (Scan Barcode or Search Title/Author) */}
-            <div className={`${GLASS_PANEL_CLASS} space-y-4 flex flex-col justify-between`}>
+            <div
+              className={`${GLASS_PANEL_CLASS} ulm-stagger-card space-y-4 flex flex-col justify-between`}
+              style={{ animationDelay: '55ms' }}
+            >
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-300/60 dark:border-white/10 pb-3">
                   <div className="flex items-center gap-2">
@@ -1602,7 +1718,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
         {/* ---------------- SCAN RESULTS: BOOK FOUND (MODE A: BOOK FIRST) ---------------- */}
         {scanState === 'BOOK_FOUND' && foundBook && (
-          <div className={`${GLASS_PANEL_CLASS} space-y-5 animate-in fade-in duration-150`}>
+          <div key={foundBook.id} className={`${GLASS_PANEL_CLASS} ulm-stagger-card space-y-5`}>
             {/* Header: Status & Accession Barcode Info */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-300/60 dark:border-white/10 pb-3.5">
               <div className="flex items-center gap-2.5 text-emerald-700 dark:text-emerald-300 font-bold text-sm sm:text-base">
@@ -2229,7 +2345,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
 
         {/* ---------------- SCAN RESULTS: NOT FOUND ---------------- */}
         {scanState === 'NOT_FOUND' && (
-          <div className={`${GLASS_PANEL_CLASS} border-rose-400/60 dark:border-rose-500/40 space-y-3 text-center animate-in fade-in duration-150`}>
+          <div key={searchedBarcode} className={`${GLASS_PANEL_CLASS} ulm-stagger-card border-rose-400/60 dark:border-rose-500/40 space-y-3 text-center`}>
             <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 mx-auto">
               <XCircle className="w-5 h-5" />
             </div>
@@ -2249,7 +2365,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenAddBookWithBarcode(searchedBarcode || '')}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] !text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                className="ulm-btn-tactile px-4 py-2 rounded-xl bg-gradient-to-r from-[#BC881B] to-[#D4A02A] hover:from-[#D4A02A] hover:to-[#E0B450] !text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5 !text-slate-950" />
                 <span className="!text-slate-950">+ Register New Book</span>
@@ -2259,7 +2375,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenAddBorrower()}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 !text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                  className="ulm-btn-tactile px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 !text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5 !text-white" />
                   <span className="!text-white">+ Register Member</span>
@@ -2269,7 +2385,7 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
               <button
                 type="button"
                 onClick={resetScanner}
-                className="px-3.5 py-2 rounded-xl bg-white/65 hover:bg-white/90 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-300/70 dark:border-white/15 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                className="ulm-btn-tactile px-3.5 py-2 rounded-xl bg-white/65 hover:bg-white/90 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-300/70 dark:border-white/15 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Scan Again
               </button>
@@ -2284,11 +2400,11 @@ export const BarcodeScannerView: React.FC<BarcodeScannerViewProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/20 dark:bg-slate-950/70 backdrop-blur-[10px] backdrop-saturate-150 overflow-y-auto animate-in fade-in duration-150"
+            className="ulm-modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/20 dark:bg-slate-950/70 backdrop-blur-[10px] backdrop-saturate-150 overflow-y-auto"
             onClick={() => setIsDurationSelectorOpen(false)}
           >
             <div
-              className="ulm-preserve-glass relative w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1B1030]/92 dark:via-[#140B24]/88 dark:to-[#0E071B]/85 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/85 dark:border-[#C8963E]/40 p-5 sm:p-6 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.9),0_24px_60px_rgba(15,23,42,0.25)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.22),0_24px_60px_rgba(0,0,0,0.65)] text-slate-900 dark:text-white space-y-5"
+              className="ulm-modal-dialog ulm-preserve-glass relative w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1B1030]/92 dark:via-[#140B24]/88 dark:to-[#0E071B]/85 backdrop-blur-2xl backdrop-saturate-[180%] border border-white/85 dark:border-[#C8963E]/40 p-5 sm:p-6 shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.9),0_24px_60px_rgba(15,23,42,0.25)] dark:shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.22),0_24px_60px_rgba(0,0,0,0.65)] text-slate-900 dark:text-white space-y-5"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}

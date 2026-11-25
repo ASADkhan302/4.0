@@ -164,6 +164,8 @@ interface CartesianProps<T> {
   xKey: keyof T & string;
   series: Series[];
   format?: (v: number) => string;
+  yTickFormat?: (v: number) => string;
+  yAxisWidth?: number;
   xFormat?: (v: string) => string;
   height?: number;
   description: string;
@@ -243,6 +245,8 @@ export function BarCompare<T extends Record<string, unknown>>({
   xKey,
   series,
   format = defaultFormat,
+  yTickFormat,
+  yAxisWidth = 62,
   xFormat,
   height = 220,
   description,
@@ -262,8 +266,8 @@ export function BarCompare<T extends Record<string, unknown>>({
                 tickLine={false}
                 axisLine={false}
                 tick={AXIS}
-                tickFormatter={format}
-                width={62}
+                tickFormatter={yTickFormat || format}
+                width={yAxisWidth}
                 allowDecimals={false}
                 domain={[0, (dataMax: number) => Math.max(4, Math.ceil((Number.isFinite(dataMax) ? dataMax : 0) * 1.15))]}
               />

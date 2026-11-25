@@ -88,16 +88,7 @@ export interface BackupImportVerificationResult {
   errors: string[];
 }
 
-interface ElectronSqliteBridge {
-  sqliteQuery?: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>;
-  sqliteExecute?: (sql: string, params?: unknown[]) => Promise<{ changes: number; lastInsertRowid?: number | string }>;
-}
-
-declare global {
-  interface Window {
-    electronAPI?: ElectronSqliteBridge;
-  }
-}
+// Window.electronAPI / Window.desktopAPI global contract is unified in src/types/desktop.d.ts
 
 const LS_KEYS = {
   BOOKS: 'ulm_storage_engine_books_v1',
@@ -330,6 +321,56 @@ export class StorageEngine {
     const filtered = current.filter((b) => b.accession !== accession);
     this.writeLocalList(LS_KEYS.BOOKS, filtered);
     return filtered.length !== current.length;
+  }
+
+  public static async deleteBooksBatch(
+    ids: string[],
+    barcodes: string[],
+    accessions: string[]
+  ): Promise<number> {
+    const idSet = new Set((ids || []).map((v) => String(v || '').trim()).filter(Boolean));
+    const barcodeSet = new Set(
+      (barcodes || []).map((v) => String(v || '').trim().toUpperCase()).filter(Boolean)
+    );
+    const accRawSet = new Set((accessions || []).map((v) => String(v || '').trim()).filter(Boolean));
+    const accDigitSet = new Set(
+      (accessions || []).map((v) => String(v || '').replace(/\D/g, '')).filter(Boolean)
+    );
+
+    if (this.isSqliteIpcConnected() && window.electronAPI?.sqliteExecute) {
+      for (const acc of accRawSet) {
+        try {
+          await window.electronAPI.sqliteExecute('DELETE FROM books WHERE accession = ?', [acc]);
+        } catch {}
+      }
+      for (const bc of barcodeSet) {
+        try {
+          await window.electronAPI.sqliteExecute('DELETE FROM books WHERE UPPER(barcode) = ?', [bc]);
+        } catch {}
+      }
+      for (const id of idSet) {
+        try {
+          await window.electronAPI.sqliteExecute('DELETE FROM books WHERE accession = ? OR barcode = ?', [id, id]);
+        } catch {}
+      }
+    }
+
+    const current = this.readLocalList<StorageBookRecord>(LS_KEYS.BOOKS, []);
+    const filtered = current.filter((b) => {
+      const bAny = b as StorageBookRecord & { id?: string; barcode?: string; accession_no?: string };
+      const bId = String(bAny.id || '').trim();
+      const bBc = String(bAny.barcode || '').trim().toUpperCase();
+      const bAccRaw = String(b.accession || bAny.accession_no || '').trim();
+      const bAccDigits = bAccRaw.replace(/\D/g, '');
+      return !(
+        (bId && idSet.has(bId)) ||
+        (bBc && barcodeSet.has(bBc)) ||
+        (bAccRaw && accRawSet.has(bAccRaw)) ||
+        (bAccDigits && accDigitSet.has(bAccDigits))
+      );
+    });
+    this.writeLocalList(LS_KEYS.BOOKS, filtered);
+    return Math.max(0, current.length - filtered.length);
   }
 
   public static async getMembers(): Promise<StorageMemberRecord[]> {
@@ -880,23 +921,25 @@ export class StorageEngine {
       } catch {}
     });
 
-    // Reset Almaris to only Institutional Holdings (IH) default
+    // Strictly wipe Almaris, Book Groups, Members, Books, and Loans to 0
     try {
-      const defaultIh = {
-        id: 'alm-ih-01',
-        code: 'IH',
-        name_en: 'Institutional Holdings & Main Stack',
-        name_ur: 'ادارہ جاتی ذخیرہ کتب',
-        shelf_count: 5,
-        books_per_shelf: 25,
-        approx_capacity: 125,
-        location: 'Main Hall • Ground Floor',
-        location_note: 'Main Hall • Ground Floor',
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
-      localStorage.setItem('ulm_almaris_registry_v2', JSON.stringify([defaultIh]));
-      localStorage.setItem('ulm_lms_almaris_v1', JSON.stringify([defaultIh]));
+      localStorage.setItem('ulm_factory_reset_empty_v1', 'true');
+      localStorage.setItem('ulm_lms_books_v1', '[]');
+      localStorage.setItem('ulm_library_books_master_v1', '[]');
+      localStorage.setItem('ulm_storage_engine_books_v1', '[]');
+      localStorage.setItem('ulm_lms_transactions_v1', '[]');
+      localStorage.setItem('ulm_circulation_records_v1', '[]');
+      localStorage.setItem('ulm_lms_members_v1', '[]');
+      localStorage.setItem('ulm_lms_borrowers_v1', '[]');
+      localStorage.setItem('ulm_almaris_registry_v2', '[]');
+      localStorage.setItem('ulm_lms_almaris_v1', '[]');
+      localStorage.setItem('ulm_book_groups_v1', '[]');
+      localStorage.setItem('ulm_lms_book_groups_v1', '[]');
+      localStorage.setItem('ulm_almari_placements_master_v3', '{}');
+      localStorage.setItem('ulm_shelf_capacities_v3', '{}');
+      localStorage.removeItem('ulm_active_almari_id_v3');
+      localStorage.setItem('ulm_highest_serial_number_v1', '0');
+      localStorage.setItem('ulm_setup_completed_v1', 'false');
     } catch {}
 
     if (typeof window !== 'undefined') {

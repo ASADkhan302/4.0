@@ -48,11 +48,11 @@ export const DataFilesDiffModal: React.FC<DataFilesDiffModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md ulm-modal-backdrop"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-3xl max-h-[90vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/10 rounded-[16px] shadow-2xl overflow-hidden flex flex-col relative"
+        className="w-full max-w-3xl max-h-[90vh] bg-gradient-to-b from-[#221F26] to-[#1A1A1A] border border-white/10 rounded-[16px] shadow-2xl overflow-hidden flex flex-col relative ulm-modal-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#BC881B]" />

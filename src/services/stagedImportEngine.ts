@@ -43,11 +43,13 @@ export class StagedImportEngine {
   }
 
   static saveActiveJob(job: ImportJob | null): void {
-    if (!job) {
-      localStorage.removeItem(ACTIVE_JOB_KEY);
-    } else {
-      localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(job));
-    }
+    try {
+      if (!job) {
+        localStorage.removeItem(ACTIVE_JOB_KEY);
+      } else {
+        localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(job));
+      }
+    } catch {}
   }
 
   static storeRows(fileHash: string, rows: CleanedBookRow[]): void {
@@ -406,7 +408,9 @@ export class StagedImportEngine {
     // Undo location movements
     const history = AlmariService.getLocationHistory();
     const remainingHistory = history.filter(h => !h.batch_id?.startsWith(jobId));
-    localStorage.setItem('ulm_lms_location_history_v1', JSON.stringify(remainingHistory));
+    try {
+      localStorage.setItem('ulm_lms_location_history_v1', JSON.stringify(remainingHistory));
+    } catch {}
 
     // Remove empty auto-created almaris
     const almaris = AlmariService.getAlmaris();
