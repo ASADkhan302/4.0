@@ -196,34 +196,31 @@ export const WorkstationSetupModal: React.FC<WorkstationSetupModalProps> = ({
     setPathSavedNotice(null);
 
     // 1. Native Windows Desktop .exe (C# WPF + WebView2 / Electron)
-    const nativeApi = (window as any).desktopAPI || (window as any).electronAPI;
-    if (nativeApi?.selectLibraryFolder || nativeApi?.selectFolder) {
+    const win = window as any;
+    if (win.desktopAPI || win.electronAPI || win.chrome?.webview) {
       setIsSelectingFolder(true);
-      const call = nativeApi.selectLibraryFolder
-        ? nativeApi.selectLibraryFolder()
-        : nativeApi.selectFolder();
-      Promise.resolve(call)
-        .then((res: any) => {
-          const selectedPath =
-            typeof res === 'string'
-              ? res.trim()
-              : res && !res.canceled && typeof res.path === 'string'
-              ? res.path.trim()
-              : '';
-          if (selectedPath) {
-            void applySelectedFolderPath(selectedPath, 'desktop_ipc_folder');
+      import('../../services/desktopBridge')
+        .then(({ changeLibraryLocationDetailed }) => changeLibraryLocationDetailed())
+        .then((res) => {
+          if (res.cancelled || res.canceled) return;
+          if (res.ok && res.path) {
+            void applySelectedFolderPath(res.path, 'desktop_ipc_folder');
+          } else {
+            setErrorMsg(res.error || 'Could not change library folder location.');
           }
         })
-        .catch(() => {})
+        .catch((err: any) => {
+          setErrorMsg(err?.message || 'Could not change library folder location.');
+        })
         .finally(() => setIsSelectingFolder(false));
       return;
     }
 
-    if ((window as any).ulmLibraryApi?.selectCustomDataFolder) {
+    if (win.ulmLibraryApi?.selectCustomDataFolder) {
       setIsSelectingFolder(true);
-      Promise.resolve((window as any).ulmLibraryApi.selectCustomDataFolder())
+      Promise.resolve(win.ulmLibraryApi.selectCustomDataFolder())
         .then((res: any) => {
-          if (res && !res.canceled && res.activeDataDir) {
+          if (res && !res.canceled && !res.cancelled && res.activeDataDir) {
             void applySelectedFolderPath(res.activeDataDir, 'native_folder');
           }
         })

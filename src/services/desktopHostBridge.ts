@@ -10,6 +10,7 @@ interface WebView2ChromeBridge {
   webview?: {
     postMessage: (message: unknown) => void;
     addEventListener?: (type: string, listener: (event: { data: unknown }) => void) => void;
+    removeEventListener?: (type: string, listener: (event: { data: unknown }) => void) => void;
   };
 }
 
@@ -30,6 +31,99 @@ export function isRunningInWebView2(): boolean {
   }
   const host = window.location?.hostname?.toLowerCase() || '';
   return host === 'app.local' || host === 'ulm-lms.local';
+}
+
+let rpcSeq = 0;
+
+/**
+ * Invokes a JSON-RPC command on the native C# WPF WebView2 host via `window.chrome.webview.postMessage`.
+ */
+export function invokeDesktop<T = unknown>(
+  method: string,
+  params?: Record<string, unknown>,
+  timeoutMs: number = 120000
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Desktop bridge unavailable outside browser window.'));
+      return;
+    }
+
+    const w = window as unknown as { chrome?: WebView2ChromeBridge };
+    const webview = w.chrome?.webview;
+    if (!webview || typeof webview.postMessage !== 'function') {
+      reject(new Error('WebView2 host bridge is not available.'));
+      return;
+    }
+
+    const id = `ulm_rpc_${Date.now()}_${++rpcSeq}`;
+    let settled = false;
+
+    const cleanup = (
+      timer: ReturnType<typeof setTimeout> | null,
+      listener: (event: { data: unknown }) => void
+    ) => {
+      if (timer) clearTimeout(timer);
+      if (typeof webview.removeEventListener === 'function') {
+        webview.removeEventListener('message', listener);
+      }
+    };
+
+    const onMessage = (event: { data: unknown }) => {
+      if (settled) return;
+      let payload = event?.data as Record<string, unknown> | string | null | undefined;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+      }
+      if (!payload || typeof payload !== 'object') return;
+
+      // Match JSON-RPC response by id
+      if (payload.id === id) {
+        settled = true;
+        cleanup(timer, onMessage);
+        if (payload.error) {
+          reject(new Error(String(payload.error)));
+        } else {
+          resolve((payload.result !== undefined ? payload.result : payload) as T);
+        }
+        return;
+      }
+
+      // Compatibility fallback for legacy C# host folder-selected event
+      if (
+        (method === 'changeLibraryLocation' || method === 'selectLibraryFolder') &&
+        payload.event === 'folder-selected' &&
+        typeof payload.folderPath === 'string'
+      ) {
+        settled = true;
+        cleanup(timer, onMessage);
+        resolve({ ok: true, cancelled: false, path: payload.folderPath } as unknown as T);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup(null, onMessage);
+      reject(new Error(`Desktop command "${method}" timed out.`));
+    }, timeoutMs);
+
+    if (typeof webview.addEventListener === 'function') {
+      webview.addEventListener('message', onMessage);
+    }
+
+    try {
+      webview.postMessage({ id, method, params: params ?? {} });
+    } catch (err) {
+      settled = true;
+      cleanup(timer, onMessage);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
 }
 
 /**

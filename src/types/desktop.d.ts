@@ -12,11 +12,21 @@ export interface DesktopWriteResult {
 
 export type DesktopWindowControlAction = 'minimize' | 'maximize' | 'close';
 
+export interface DesktopFolderResult {
+  ok?: boolean;
+  cancelled?: boolean;
+  canceled?: boolean;
+  path?: string | null;
+  error?: string;
+}
+
 export interface DesktopBridgeAPI {
   isDesktop: true;
   platform: 'win32' | 'darwin' | 'linux';
   getDefaultRepoPath: () => Promise<string>;
-  selectFolder: () => Promise<string | { canceled?: boolean; path?: string | null } | null>;
+  changeLibraryLocation?: () => Promise<string | DesktopFolderResult | null>;
+  chooseLibraryFolder?: () => Promise<string | DesktopFolderResult | null>;
+  selectFolder: () => Promise<string | DesktopFolderResult | null>;
   openFolderInExplorer: (folderPath: string) => Promise<boolean>;
   writeLibraryFile: (filename: string, content: string) => Promise<DesktopWriteResult>;
   writeLocalFile?: (
@@ -31,7 +41,7 @@ export interface DesktopBridgeAPI {
   windowControl?: (action: DesktopWindowControlAction) => void;
 
   // Optional legacy desktop bridge compatibility hooks
-  selectLibraryFolder?: () => Promise<string | { canceled?: boolean; path?: string | null } | null>;
+  selectLibraryFolder?: () => Promise<string | DesktopFolderResult | null>;
   sendWindowAction?: (action: string) => void;
   isWindowMaximized?: () => Promise<boolean>;
   onWindowMaximizeChange?: (cb: (isMax: boolean) => void) => () => void;

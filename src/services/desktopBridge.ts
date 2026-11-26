@@ -1,10 +1,11 @@
 import type {
   DesktopBridgeAPI,
   DesktopFileInfo,
+  DesktopFolderResult,
   DesktopWindowControlAction,
   DesktopWriteResult,
 } from '../types/desktop';
-import { sendWindowControl } from './desktopHostBridge';
+import { invokeDesktop, isRunningInWebView2, sendWindowControl } from './desktopHostBridge';
 import { idbGet, idbSet } from './indexedDbStorage';
 
 const DEFAULT_REPO_PATH = 'Documents\\ULM Library Data';
@@ -59,11 +60,14 @@ function safeWriteLocalStorage(key: string, value: string): void {
 export function isDesktopRuntime(): boolean {
   const bridge = getNativeBridge();
   return Boolean(
-    bridge &&
-      (bridge.isDesktop === true ||
-        typeof bridge.selectFolder === 'function' ||
-        typeof bridge.selectLibraryFolder === 'function' ||
-        typeof bridge.openFolderInExplorer === 'function')
+    isRunningInWebView2() ||
+      (bridge &&
+        (bridge.isDesktop === true ||
+          typeof bridge.changeLibraryLocation === 'function' ||
+          typeof bridge.selectFolder === 'function' ||
+          typeof bridge.selectLibraryFolder === 'function' ||
+          typeof bridge.chooseLibraryFolder === 'function' ||
+          typeof bridge.openFolderInExplorer === 'function'))
   );
 }
 
@@ -132,20 +136,108 @@ export async function getRepoPath(): Promise<string> {
   return saved || DEFAULT_REPO_PATH;
 }
 
+export interface ChangeLibraryLocationOutcome {
+  handled: boolean;
+  ok: boolean;
+  cancelled: boolean;
+  canceled: boolean;
+  path: string | null;
+  error?: string;
+}
+
 function normalizeNativeFolderResult(
-  raw: string | { canceled?: boolean; path?: string | null } | null | undefined
-): { canceled: boolean; path: string | null } {
-  if (!raw) return { canceled: true, path: null };
+  raw: string | DesktopFolderResult | null | undefined
+): { ok: boolean; cancelled: boolean; canceled: boolean; path: string | null; error?: string } {
+  if (raw === null || raw === undefined) {
+    return { ok: false, cancelled: true, canceled: true, path: null };
+  }
   if (typeof raw === 'string') {
     const trimmed = raw.trim();
-    return trimmed ? { canceled: false, path: trimmed } : { canceled: true, path: null };
+    return trimmed
+      ? { ok: true, cancelled: false, canceled: false, path: trimmed }
+      : { ok: false, cancelled: true, canceled: true, path: null };
   }
   if (typeof raw === 'object') {
-    if (raw.canceled) return { canceled: true, path: null };
+    const isCancelled = Boolean(raw.cancelled || raw.canceled);
+    if (isCancelled) {
+      return { ok: false, cancelled: true, canceled: true, path: null };
+    }
     const trimmed = typeof raw.path === 'string' ? raw.path.trim() : '';
-    return trimmed ? { canceled: false, path: trimmed } : { canceled: true, path: null };
+    if (trimmed && raw.ok !== false) {
+      return { ok: true, cancelled: false, canceled: false, path: trimmed };
+    }
+    if (raw.error) {
+      return {
+        ok: false,
+        cancelled: false,
+        canceled: false,
+        path: null,
+        error: String(raw.error),
+      };
+    }
+    return {
+      ok: false,
+      cancelled: raw.ok === undefined,
+      canceled: raw.ok === undefined,
+      path: null,
+      error: raw.ok === false ? 'Could not change library folder location.' : undefined,
+    };
   }
-  return { canceled: true, path: null };
+  return { ok: false, cancelled: true, canceled: true, path: null };
+}
+
+/**
+ * Desktop-first Change Library Location bridge:
+ * Calls `window.desktopAPI.changeLibraryLocation()` -> `selectLibraryFolder()` -> `chooseLibraryFolder()`
+ * -> `selectFolder()` -> WebView2 JSON-RPC `invokeDesktop('changeLibraryLocation')`.
+ * Never falls through to `showDirectoryPicker` when inside a Windows desktop/WebView2 host.
+ */
+export async function changeLibraryLocationDetailed(): Promise<ChangeLibraryLocationOutcome> {
+  const bridge = getNativeBridge();
+  const inWebView2 = isRunningInWebView2();
+
+  if (!bridge && !inWebView2) {
+    return { handled: false, ok: false, cancelled: false, canceled: false, path: null };
+  }
+
+  try {
+    let raw: string | DesktopFolderResult | null | undefined;
+    if (bridge && typeof bridge.changeLibraryLocation === 'function') {
+      raw = await bridge.changeLibraryLocation();
+    } else if (bridge && typeof bridge.selectLibraryFolder === 'function') {
+      raw = await bridge.selectLibraryFolder();
+    } else if (bridge && typeof bridge.chooseLibraryFolder === 'function') {
+      raw = await bridge.chooseLibraryFolder();
+    } else if (bridge && typeof bridge.selectFolder === 'function') {
+      raw = await bridge.selectFolder();
+    } else if (inWebView2) {
+      raw = await invokeDesktop<DesktopFolderResult>('changeLibraryLocation');
+    } else {
+      return {
+        handled: true,
+        ok: false,
+        cancelled: false,
+        canceled: false,
+        path: null,
+        error: 'Desktop folder picker bridge is unavailable in this host build.',
+      };
+    }
+
+    const res = normalizeNativeFolderResult(raw);
+    if (res.ok && res.path) {
+      safeWriteLocalStorage(REPO_PATH_STORAGE_KEY, res.path);
+    }
+    return { handled: true, ...res };
+  } catch (err) {
+    return {
+      handled: true,
+      ok: false,
+      cancelled: false,
+      canceled: false,
+      path: null,
+      error: err instanceof Error ? err.message : 'Could not change library folder location.',
+    };
+  }
 }
 
 /**
@@ -156,32 +248,15 @@ export async function pickRepoFolderDetailed(): Promise<{
   handled: boolean;
   canceled: boolean;
   path: string | null;
+  error?: string;
 }> {
-  const bridge = getNativeBridge();
-  if (!bridge) {
-    return { handled: false, canceled: false, path: null };
-  }
-
-  try {
-    if (typeof bridge.selectLibraryFolder === 'function') {
-      const res = normalizeNativeFolderResult(await bridge.selectLibraryFolder());
-      if (!res.canceled && res.path) {
-        safeWriteLocalStorage(REPO_PATH_STORAGE_KEY, res.path);
-      }
-      return { handled: true, ...res };
-    }
-    if (typeof bridge.selectFolder === 'function') {
-      const res = normalizeNativeFolderResult(await bridge.selectFolder());
-      if (!res.canceled && res.path) {
-        safeWriteLocalStorage(REPO_PATH_STORAGE_KEY, res.path);
-      }
-      return { handled: true, ...res };
-    }
-  } catch {
-    return { handled: false, canceled: false, path: null };
-  }
-
-  return { handled: false, canceled: false, path: null };
+  const res = await changeLibraryLocationDetailed();
+  return {
+    handled: res.handled,
+    canceled: res.cancelled,
+    path: res.path,
+    error: res.error,
+  };
 }
 
 /**
@@ -189,8 +264,8 @@ export async function pickRepoFolderDetailed(): Promise<{
  * or returns null in browser mode so callers can fall back to browser pickers.
  */
 export async function pickRepoFolder(): Promise<string | null> {
-  const res = await pickRepoFolderDetailed();
-  return !res.canceled && res.path ? res.path : null;
+  const res = await changeLibraryLocationDetailed();
+  return res.ok && res.path ? res.path : null;
 }
 
 /**

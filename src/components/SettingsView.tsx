@@ -57,6 +57,7 @@ import {
   openRepoFolder,
   checkDiskFile,
   saveRepoDirHandle,
+  changeLibraryLocationDetailed,
 } from '../services/desktopBridge';
 import { idbSet } from '../services/indexedDbStorage';
 import { notifyGlassToast } from './ui/LiquidGlassToast';
@@ -250,84 +251,110 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     notifyGlassToast({
       type: 'success',
       title: 'Repository Folder Updated',
-      message: noticeSuffix ? `Path saved (${noticeSuffix.replace(/^·\s*/, '')}).` : 'Library repository folder updated.',
+      message: noticeSuffix
+        ? `Library storage moved to ${cleanPath} (${noticeSuffix.replace(/^·\s*/, '')}).`
+        : `Library storage moved to ${cleanPath}`,
       meta: cleanPath,
     });
     setTimeout(() => setLocationNotice(null), 5000);
   };
 
-  // Synchronous Windows File Explorer Folder Picker (Zero await before .click() to preserve user-gesture!)
-  const handleChangeLocation = () => {
-    // 1. Native Windows Desktop .exe (C# WPF + WebView2 / Electron)
-    const nativeApi = (window as any).desktopAPI || (window as any).electronAPI;
-    if (nativeApi?.selectLibraryFolder || nativeApi?.selectFolder) {
+  // Desktop-first Change Library Location handler (WebView2 / .exe bridge first; browser fallback second)
+  const handleChangeLibraryLocation = async () => {
+    const win = window as any;
+    const hasDesktopHost = Boolean(
+      win.desktopAPI || win.electronAPI || win.chrome?.webview || isDesktopRuntime()
+    );
+
+    // 1. Windows Desktop .exe (C# WPF + WebView2 / Electron) — NEVER call showDirectoryPicker here
+    if (hasDesktopHost) {
       setIsChangingLocation(true);
-      const call = nativeApi.selectLibraryFolder
-        ? nativeApi.selectLibraryFolder()
-        : nativeApi.selectFolder();
-      Promise.resolve(call)
-        .then((res: any) => {
-          const selectedPath =
-            typeof res === 'string'
-              ? res.trim()
-              : res && !res.canceled && typeof res.path === 'string'
-              ? res.path.trim()
-              : '';
-          if (selectedPath) {
-            void applySelectedLocationPath(selectedPath);
-          } else {
-            setLocationNotice('Folder selection canceled.');
-            setTimeout(() => setLocationNotice(null), 3500);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setIsChangingLocation(false));
+      try {
+        const result = await changeLibraryLocationDetailed();
+        if (result.cancelled || result.canceled) {
+          return;
+        }
+        if (result.ok && result.path) {
+          await applySelectedLocationPath(result.path);
+          await handleCheckLibraryFile();
+          return;
+        }
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Change Location Failed',
+          message: result.error || 'Could not change library folder location.',
+        });
+      } catch (err: any) {
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Change Location Failed',
+          message: err?.message || 'Could not change library folder location.',
+        });
+      } finally {
+        setIsChangingLocation(false);
+      }
       return;
     }
 
-    if ((window as any).ulmLibraryApi?.selectCustomDataFolder) {
+    if (win.ulmLibraryApi?.selectCustomDataFolder) {
       setIsChangingLocation(true);
-      Promise.resolve((window as any).ulmLibraryApi.selectCustomDataFolder())
-        .then((res: any) => {
-          if (res && !res.canceled && res.activeDataDir) {
-            void applySelectedLocationPath(res.activeDataDir);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setIsChangingLocation(false));
+      try {
+        const res = await Promise.resolve(win.ulmLibraryApi.selectCustomDataFolder());
+        if (res?.canceled || res?.cancelled) return;
+        if (res && res.activeDataDir) {
+          await applySelectedLocationPath(res.activeDataDir);
+          await handleCheckLibraryFile();
+        } else {
+          notifyGlassToast({
+            type: 'danger',
+            title: 'Change Location Failed',
+            message: res?.error || 'Could not change library folder location.',
+          });
+        }
+      } catch (err: any) {
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Change Location Failed',
+          message: err?.message || 'Could not change library folder location.',
+        });
+      } finally {
+        setIsChangingLocation(false);
+      }
       return;
     }
 
-    // 2. Standalone Browser Tab (NOT inside a cross-origin iframe)
+    // 2. Normal Standalone Web Browser (NOT inside desktop WebView2 and NOT inside a cross-origin iframe)
     let isInIframe = true;
     try {
       isInIframe = window.self !== window.top;
     } catch {
       isInIframe = true;
     }
-    if (!isInIframe && typeof (window as any).showDirectoryPicker === 'function') {
+    if (!isInIframe && typeof win.showDirectoryPicker === 'function') {
       setIsChangingLocation(true);
-      (window as any)
-        .showDirectoryPicker({ mode: 'readwrite' })
-        .then(async (dirHandle: any) => {
-          if (dirHandle?.name) {
-            await idbSet('ulm_repo_dir_handle', dirHandle).catch(() => {});
-            await saveRepoDirHandle(dirHandle).catch(() => {});
-            await applySelectedLocationPath(`Documents\\${dirHandle.name}`, '· Master Excel synced');
-          }
-        })
-        .catch((err: any) => {
-          if (err?.name === 'AbortError') {
-            setLocationNotice('Folder selection canceled.');
-            setTimeout(() => setLocationNotice(null), 3500);
-          }
-        })
-        .finally(() => setIsChangingLocation(false));
+      try {
+        const dirHandle = await win.showDirectoryPicker({ mode: 'readwrite' });
+        if (dirHandle?.name) {
+          await idbSet('ulm_repo_dir_handle', dirHandle).catch(() => {});
+          await saveRepoDirHandle(dirHandle).catch(() => {});
+          await applySelectedLocationPath(`Documents\\${dirHandle.name}`, '· Master Excel synced');
+          await handleCheckLibraryFile();
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          notifyGlassToast({
+            type: 'danger',
+            title: 'Change Location Failed',
+            message: err?.message || 'Could not change library folder location.',
+          });
+        }
+      } finally {
+        setIsChangingLocation(false);
+      }
       return;
     }
 
-    // 3. Inside Google AI Studio Preview Iframe (or Firefox/Safari):
-    // Fire .click() SYNCHRONOUSLY inside the click handler with ZERO await!
+    // 3. Browser Preview Iframe / Fallback: trigger DOM-attached <input type="file" webkitdirectory />
     const el = folderInputRef.current;
     if (el) {
       (el as any).webkitdirectory = true;
@@ -1494,22 +1521,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Panel 2 — Library Folder Storage & Data Maintenance */}
-                <div className="ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200/70 dark:border-white/[0.09]">
-                    <div className="flex items-center gap-3">
+                <div className="ulm-preserve-glass rounded-[24px] p-6 bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[180%] border border-slate-200/85 dark:border-white/[0.14] shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.85),0_8px_24px_rgba(15,23,42,0.05)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)] space-y-5 overflow-hidden">
+                  <div className="flex flex-wrap items-start justify-between gap-2 pb-4 border-b border-slate-200/70 dark:border-white/[0.09]">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-xl bg-amber-500/12 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                         <HardDrive className="w-4 h-4" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <h3 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-slate-900 dark:text-white leading-tight">
                           Library Folder Storage &amp; Data Maintenance
                         </h3>
-                        <p className="text-[12px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        <p className="text-[12px] text-slate-600 dark:text-slate-400 mt-0.5 break-words">
                           Primary database file (Library.ulmlib), linked Excel book entry sheet, and reset controls.
                         </p>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.12] font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400 whitespace-nowrap shrink-0">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.12] font-['JetBrains_Mono'] ulm-kpi-label text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400 whitespace-nowrap shrink-0 max-w-full">
                       <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)] shrink-0" />
                       OFFLINE SECURE · DATABASE MOUNTED
                     </span>
@@ -1565,7 +1592,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={handleChangeLocation}
+                      onClick={() => void handleChangeLibraryLocation()}
                       disabled={isChangingLocation}
                       className="h-9 px-3.5 !rounded-xl ulm-kpi-label text-[11.5px] font-semibold border border-amber-500/35 dark:border-amber-400/30 bg-amber-500/[0.08] hover:bg-amber-500/[0.16] dark:bg-amber-500/[0.10] dark:hover:bg-amber-500/[0.20] text-slate-900 dark:text-amber-200 transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap disabled:opacity-50"
                     >

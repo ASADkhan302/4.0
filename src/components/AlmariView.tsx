@@ -27,6 +27,7 @@ import { Book, Almari } from '../types/library';
 import { AlmariService } from '../services/almariService';
 import { LibraryStorage } from '../services/storage';
 import { persistManualBookShelfAssignments } from '../services/libraryStorageAndMigration';
+import { writeFileToRepoFolder } from '../services/desktopBridge';
 import { notifyGlassToast } from './ui/LiquidGlassToast';
 
 export interface AlmariViewProps {
@@ -334,19 +335,117 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
   const [quickMoveAlmariId, setQuickMoveAlmariId] = useState<string>('');
   const [quickMoveShelfNo, setQuickMoveShelfNo] = useState<number>(1);
 
-  // Escape key dismissal for all 4 portaled Almari modals
+  // 50,000-Book Safe Shelf Assignment Modal State (+ Assign Book / Click Empty Shelf)
+  const [assignModalTarget, setAssignModalTarget] = useState<{
+    almari: Almari;
+    shelfNo: number;
+  } | null>(null);
+  const [assignSearchInput, setAssignSearchInput] = useState<string>('');
+  const [debouncedAssignQuery, setDebouncedAssignQuery] = useState<string>('');
+  const [assignOnlyUnassigned, setAssignOnlyUnassigned] = useState<boolean>(true);
+
   useEffect(() => {
-    if (!isAddAlmariOpen && !isEditAlmariOpen && !almariToDelete && !quickMoveBook) return;
+    const timer = window.setTimeout(() => {
+      setDebouncedAssignQuery(assignSearchInput.trim().toLowerCase());
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [assignSearchInput]);
+
+  // Escape key dismissal for all portaled Almari modals
+  useEffect(() => {
+    if (!isAddAlmariOpen && !isEditAlmariOpen && !almariToDelete && !quickMoveBook && !assignModalTarget) return;
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (quickMoveBook) setQuickMoveBook(null);
+      if (assignModalTarget) setAssignModalTarget(null);
+      else if (quickMoveBook) setQuickMoveBook(null);
       else if (almariToDelete) setAlmariToDelete(null);
       else if (isEditAlmariOpen) setIsEditAlmariOpen(false);
       else if (isAddAlmariOpen) setIsAddAlmariOpen(false);
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isAddAlmariOpen, isEditAlmariOpen, almariToDelete, quickMoveBook]);
+  }, [isAddAlmariOpen, isEditAlmariOpen, almariToDelete, quickMoveBook, assignModalTarget]);
+
+  // Shared Add Almari modal opener (wired to both top-bar + Add Almari and sidebar + Add)
+  const openAddAlmariModal = useCallback(() => {
+    setNewAlmariCode('');
+    setNewAlmariName('');
+    setNewAlmariWing('Main Hall • Ground Floor');
+    setNewAlmariShelves(5);
+    setNewAlmariShelfCap(25);
+    setIsAddAlmariOpen(true);
+  }, []);
+
+  const openAssignShelfModal = useCallback((almari: Almari, shelfNo: number) => {
+    clearHoverImmediately();
+    setAssignSearchInput('');
+    setDebouncedAssignQuery('');
+    setAssignOnlyUnassigned(placementMap.unassigned.length > 0);
+    setAssignModalTarget({ almari, shelfNo });
+  }, [clearHoverImmediately, placementMap.unassigned.length]);
+
+  const assignModalMatches = useMemo(() => {
+    if (!assignModalTarget) return { items: [] as Book[], total: 0 };
+    const sourcePool = assignOnlyUnassigned ? placementMap.unassigned : localBooks;
+    const q = debouncedAssignQuery;
+    const matched: Book[] = [];
+    let total = 0;
+
+    for (let i = 0; i < sourcePool.length; i++) {
+      const b = sourcePool[i];
+      if (!b || b.is_active === false) continue;
+      if (
+        b.almari_id === assignModalTarget.almari.id &&
+        Number(b.shelf_no) === assignModalTarget.shelfNo
+      ) {
+        continue;
+      }
+      if (!q || getBookSearchKey(b).includes(q)) {
+        total++;
+        if (matched.length < 50) {
+          matched.push(b);
+        }
+      }
+    }
+    return { items: matched, total };
+  }, [assignModalTarget, assignOnlyUnassigned, placementMap.unassigned, localBooks, debouncedAssignQuery]);
+
+  // Mirror almari registry & shelf capacities to desktop bridge / SQLite if present
+  const persistAlmarisToDesktopBridge = useCallback(
+    (latestAlmaris: Almari[], latestCaps: Record<string, number>) => {
+      try {
+        const bridge = (window as any).desktopAPI || (window as any).electronAPI;
+        if (!bridge) return;
+        void writeFileToRepoFolder(
+          'ULM_Almaris_Registry.json',
+          JSON.stringify(
+            {
+              updatedAt: new Date().toISOString(),
+              almaris: latestAlmaris,
+              shelfCapacities: latestCaps,
+            },
+            null,
+            2
+          ),
+          false
+        ).catch(() => {});
+        if (typeof bridge.sqliteExecute === 'function') {
+          void bridge
+            .sqliteExecute(
+              'CREATE TABLE IF NOT EXISTS ulm_kv_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)'
+            )
+            .then(() =>
+              bridge.sqliteExecute(
+                'INSERT OR REPLACE INTO ulm_kv_store (key, value, updated_at) VALUES (?, ?, ?)',
+                ['ulm_almaris_registry_v2', JSON.stringify(latestAlmaris), new Date().toISOString()]
+              )
+            )
+            .catch(() => {});
+        }
+      } catch {}
+    },
+    []
+  );
 
   const selectedAlmari = useMemo(() => {
     return almaris.find((a) => a.id === selectedAlmariId) || almaris[0] || null;
@@ -633,16 +732,22 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     else if (onOpenBook) onOpenBook(book);
   };
 
-  // Add Almari Handler
+  // Add Almari Handler — persists to all storage layers + desktop bridge and dispatches sync events
   const handleCreateManualAlmari = (e: React.FormEvent) => {
     e.preventDefault();
     const code =
       newAlmariCode.trim().toUpperCase() || `ALM-${String(almaris.length + 1).padStart(2, '0')}`;
     const nameEn = newAlmariName.trim() || `Academic Cupboard ${almaris.length + 1}`;
     const shelfCount = Math.max(1, Math.min(12, Number(newAlmariShelves) || 5));
-    const perShelfCap = Math.max(1, Math.min(200, Number(newAlmariShelfCap) || 24));
+    const perShelfCap = Math.max(1, Math.min(200, Number(newAlmariShelfCap) || 25));
+    const uniqueId = `almari_${Date.now()}`;
+
+    try {
+      localStorage.removeItem('ulm_factory_reset_empty_v1');
+    } catch {}
 
     const created = AlmariService.saveAlmari({
+      id: uniqueId,
       code,
       name_en: nameEn,
       name_ur: nameEn,
@@ -661,11 +766,25 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setShelfCapacities(updatedCaps);
 
     const refreshed = [...AlmariService.getAlmaris()];
+    try {
+      const serialized = JSON.stringify(refreshed);
+      localStorage.setItem('ulm_almaris_registry_v2', serialized);
+      localStorage.setItem('ulm_lms_almaris_v1', serialized);
+      localStorage.setItem('ulm_shelf_capacities_v3', JSON.stringify(updatedCaps));
+      localStorage.removeItem('ulm_factory_reset_empty_v1');
+    } catch {}
+
+    persistAlmarisToDesktopBridge(refreshed, updatedCaps);
+
     setAlmaris(refreshed);
     handleSelectAlmari(created.id);
     setIsAddAlmariOpen(false);
     setNewAlmariCode('');
     setNewAlmariName('');
+
+    window.dispatchEvent(new CustomEvent('ulm-library-sync', { detail: { source: 'almari-add', almariId: created.id } }));
+    window.dispatchEvent(new CustomEvent('ulm-almari-capacity-sync', { detail: { almariId: created.id } }));
+
     notifyGlassToast({
       type: 'success',
       title: 'Almari Created',
@@ -718,6 +837,13 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setShelfCapacities(updatedCaps);
 
     const refreshedAlmaris = [...AlmariService.getAlmaris()];
+    try {
+      const serialized = JSON.stringify(refreshedAlmaris);
+      localStorage.setItem('ulm_almaris_registry_v2', serialized);
+      localStorage.setItem('ulm_lms_almaris_v1', serialized);
+      localStorage.setItem('ulm_shelf_capacities_v3', JSON.stringify(updatedCaps));
+    } catch {}
+    persistAlmarisToDesktopBridge(refreshedAlmaris, updatedCaps);
     setAlmaris(refreshedAlmaris);
 
     // Reconcile immediately: returns out-of-bounds books from removed shelves to Unassigned Queue & syncs renamed almari_code
@@ -740,6 +866,8 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setIsEditAlmariOpen(false);
     setEditingAlmari(null);
     setSyncRevision((r) => r + 1);
+    window.dispatchEvent(new CustomEvent('ulm-library-sync', { detail: { source: 'almari-edit', almariId: updatedAlmari.id } }));
+    window.dispatchEvent(new CustomEvent('ulm-almari-capacity-sync', { detail: { almariId: updatedAlmari.id } }));
 
     const extraNote =
       updatedShelves < prevShelves && recon.outOfBoundsCount > 0
@@ -759,10 +887,12 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     const deletedId = almariToDelete.id;
     const deletedCode = almariToDelete.code;
 
-    // 1. Delete cupboard from persistent AlmariService
+    // 1. Delete cupboard from persistent AlmariService (cleans registry, v1, placements, capacities)
     AlmariService.deleteAlmari(deletedId);
     const refreshedAlmaris = [...AlmariService.getAlmaris()];
+    const refreshedCaps = AlmariService.getShelfCapacities();
     setAlmaris(refreshedAlmaris);
+    setShelfCapacities(refreshedCaps);
 
     // 2. Run deterministic reconciliation to unassign every orphaned volume cleanly
     const recon = AlmariService.reconcileAlmariPlacements(localBooks, refreshedAlmaris, {
@@ -770,11 +900,20 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       outOfBoundsMode: 'unassign',
     });
 
-    // 3. Auto-switch activeAlmariId to first remaining cupboard (or '' if 0 left)
+    // 3. Persist explicitly across localStorage & desktop bridge
+    try {
+      const serialized = JSON.stringify(refreshedAlmaris);
+      localStorage.setItem('ulm_almaris_registry_v2', serialized);
+      localStorage.setItem('ulm_lms_almaris_v1', serialized);
+      localStorage.setItem('ulm_shelf_capacities_v3', JSON.stringify(refreshedCaps));
+    } catch {}
+    persistAlmarisToDesktopBridge(refreshedAlmaris, refreshedCaps);
+
+    // 4. Auto-switch activeAlmariId to first remaining cupboard (or '' if 0 left)
     const nextAlmariId = refreshedAlmaris[0]?.id || '';
     handleSelectAlmari(nextAlmariId);
 
-    // 4. Sync parent & catalog
+    // 5. Sync parent, catalog & cross-view listeners
     if (onUpdateBooks) onUpdateBooks(recon.books);
     if (onCatalogBooksUpdated) {
       onCatalogBooksUpdated(
@@ -787,6 +926,10 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
     setIsEditAlmariOpen(false);
     setEditingAlmari(null);
     setSyncRevision((r) => r + 1);
+
+    window.dispatchEvent(new CustomEvent('ulm-library-sync', { detail: { source: 'almari-delete', almariId: deletedId } }));
+    window.dispatchEvent(new CustomEvent('ulm-almari-capacity-sync', { detail: { almariId: deletedId } }));
+
     notifyGlassToast({
       type: 'danger',
       title: 'Almari Deleted',
@@ -844,7 +987,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsAddAlmariOpen(true)}
+            onClick={openAddAlmariModal}
             className="ulm-btn-tactile h-9 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-xs hover:brightness-110 cursor-pointer flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5 !text-white" />
@@ -859,12 +1002,26 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         <div className="lg:col-span-3 space-y-3">
           {/* Cupboards List */}
           <div className="ulm-preserve-glass p-3.5 rounded-[22px] bg-gradient-to-br from-white/60 via-white/40 to-white/25 dark:from-white/[0.075] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-2xl backdrop-saturate-[180%] border border-white/70 dark:border-white/[0.14] shadow-[inset_1.5px_1.5px_2px_rgba(255,255,255,0.55),0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.2),0_8px_24px_rgba(0,0,0,0.18)] space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Cupboards ({almaris.length})
-              </span>
-              <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-[#FFD147]">
-                Unassigned: {placementMap.unassigned.length.toLocaleString()}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate">
+                  Cupboards ({almaris.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAddAlmariModal();
+                  }}
+                  aria-label="Add new cupboard"
+                  className="ulm-btn-tactile shrink-0 h-6 px-2 rounded-lg text-[10px] font-extrabold bg-[#541A72]/12 hover:bg-[#541A72]/22 dark:bg-[#FFD147]/15 dark:hover:bg-[#FFD147]/25 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/25 dark:border-[#FFD147]/35 inline-flex items-center gap-0.5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3 h-3 shrink-0" />
+                  <span>Add</span>
+                </button>
+              </div>
+              <span className="text-[10.5px] font-mono font-bold text-amber-700 dark:text-[#FFD147] shrink-0 whitespace-nowrap">
+                {placementMap.unassigned.length.toLocaleString()} unplaced
               </span>
             </div>
 
@@ -922,55 +1079,61 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                           : 'bg-white/55 dark:bg-white/[0.04] text-slate-800 dark:text-slate-100 border-slate-200/80 dark:border-white/10 hover:border-[#C8963E]/60 hover:bg-white/75 dark:hover:bg-white/[0.07]'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span
-                        className={`font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md border ${
-                          isSelected && !isDropTarget
-                            ? 'bg-black/25 text-[#FFD147] border-[#FFD147]/40'
-                            : 'bg-[#541A72]/10 dark:bg-white/10 text-[#541A72] dark:text-[#FFD147] border-[#541A72]/20 dark:border-white/15'
-                        }`}
-                      >
-                        {almari.code}
-                      </span>
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex items-center gap-1.5">
                         <span
-                          className={`text-[11px] font-mono font-bold tabular-nums ${
+                          className={`font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 ${
                             isSelected && !isDropTarget
-                              ? '!text-white'
+                              ? 'bg-black/25 text-[#FFD147] border-[#FFD147]/40'
+                              : 'bg-[#541A72]/10 dark:bg-white/10 text-[#541A72] dark:text-[#FFD147] border-[#541A72]/20 dark:border-white/15'
+                          }`}
+                        >
+                          {almari.code}
+                        </span>
+                        <span
+                          className={`text-[10.5px] font-mono font-bold tabular-nums truncate ${
+                            isSelected && !isDropTarget
+                              ? '!text-white/95'
                               : 'text-slate-700 dark:text-slate-300'
                           }`}
                         >
                           {allocated} / {capacity} vols
                         </span>
+                      </div>
 
+                      <div className="shrink-0 flex items-center gap-1">
                         <button
                           type="button"
+                          aria-label="Edit cupboard"
                           onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             handleOpenEditModal(almari);
                           }}
-                          className="p-1 rounded-md opacity-85 hover:opacity-100 hover:bg-white/20 transition-all cursor-pointer"
-                          title="Edit Almari Settings"
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
+                            isSelected && !isDropTarget
+                              ? 'border-white/15 bg-white/10 hover:bg-white/20 text-[#FFD147]'
+                              : 'border-slate-300/70 dark:border-white/10 bg-white/50 dark:bg-white/5 hover:bg-white/85 dark:hover:bg-white/10 text-[#541A72] dark:text-[#FFD147]'
+                          }`}
                         >
-                          <Edit2
-                            className={`w-3 h-3 ${
-                              isSelected && !isDropTarget
-                                ? 'text-[#FFD147]'
-                                : 'text-[#541A72] dark:text-[#FFD147]'
-                            }`}
-                          />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
 
                         <button
                           type="button"
+                          aria-label="Delete cupboard"
                           onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             setAlmariToDelete(almari);
                           }}
-                          className="p-1 rounded-md opacity-85 hover:opacity-100 hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 transition-all cursor-pointer"
-                          title="Delete Almari"
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
+                            isSelected && !isDropTarget
+                              ? 'border-white/15 bg-white/10 text-white/80 hover:bg-rose-500/25 hover:border-rose-400/40 hover:text-rose-200'
+                              : 'border-slate-300/70 dark:border-white/10 bg-white/50 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-rose-500/20 hover:border-rose-500/35 hover:text-rose-600 dark:hover:text-rose-300'
+                          }`}
                         >
-                          <Trash2 className="w-3 h-3 text-rose-500 dark:text-rose-400" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -1040,7 +1203,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   </p>
                   <button
                     type="button"
-                    onClick={() => setIsAddAlmariOpen(true)}
+                    onClick={openAddAlmariModal}
                     className="h-7 px-3 rounded-lg text-[11px] font-bold bg-[#541A72] !text-white cursor-pointer hover:brightness-110"
                   >
                     + Create First Almari
@@ -1227,9 +1390,9 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    aria-label="Edit cupboard"
                     onClick={() => handleOpenEditModal(selectedAlmari)}
                     className="h-8 px-3.5 rounded-xl text-xs font-bold bg-[#541A72]/10 hover:bg-[#541A72]/20 dark:bg-white/10 dark:hover:bg-white/20 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/25 dark:border-[#FFD147]/40 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    title="Edit Cupboard Title, Code, Location & Shelves"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                     <span>Edit Cupboard</span>
@@ -1237,9 +1400,9 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
 
                   <button
                     type="button"
+                    aria-label="Delete cupboard"
                     onClick={() => setAlmariToDelete(selectedAlmari)}
                     className="h-8 px-3 rounded-xl text-xs font-bold bg-rose-500/12 hover:bg-rose-500/22 text-rose-700 dark:text-rose-300 border border-rose-500/35 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    title="Delete Cupboard"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                     <span>Delete</span>
@@ -1313,24 +1476,34 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1.5 text-[11px]">
-                          <span className="font-medium text-slate-500 dark:text-slate-400">Max:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={200}
-                            value={capacity}
-                            onChange={(e) => {
-                              const parsed = parseInt(e.target.value, 10);
-                              handleSetShelfCapacity(
-                                selectedAlmari,
-                                shelfNo,
-                                Number.isFinite(parsed) ? parsed : 24
-                              );
-                            }}
-                            className="ulm-compact-control w-14 h-6 px-1.5 text-center font-mono font-bold rounded-lg bg-white/75 dark:bg-white/[0.07] border border-slate-300/80 dark:border-white/20 text-slate-900 dark:text-[#FFD147] focus:outline-none focus:border-[#C8963E] dark:focus:border-[#FFD147] shadow-2xs"
-                            title="Shelf capacity (1–200 volumes)"
-                          />
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => openAssignShelfModal(selectedAlmari, shelfNo)}
+                            className="h-6 px-2.5 rounded-lg text-[10.5px] font-bold bg-[#541A72]/10 hover:bg-[#541A72]/20 dark:bg-[#FFD147]/15 dark:hover:bg-[#FFD147]/25 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/25 dark:border-[#FFD147]/35 inline-flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3 shrink-0" />
+                            <span>Assign Book</span>
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-slate-500 dark:text-slate-400">Max:</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={200}
+                              value={capacity}
+                              onChange={(e) => {
+                                const parsed = parseInt(e.target.value, 10);
+                                handleSetShelfCapacity(
+                                  selectedAlmari,
+                                  shelfNo,
+                                  Number.isFinite(parsed) ? parsed : 24
+                                );
+                              }}
+                              className="ulm-compact-control w-14 h-6 px-1.5 text-center font-mono font-bold rounded-lg bg-white/75 dark:bg-white/[0.07] border border-slate-300/80 dark:border-white/20 text-slate-900 dark:text-[#FFD147] focus:outline-none focus:border-[#C8963E] dark:focus:border-[#FFD147] shadow-2xs"
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -1342,10 +1515,15 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                         className="relative min-h-[152px] flex items-end px-3 pt-4 pb-0 overflow-x-auto scroll-smooth gap-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-[#C8963E]/40 [&::-webkit-scrollbar-thumb]:rounded-full"
                       >
                         {shelfBooks.length === 0 ? (
-                          /* IMPLICIT STATE 8: Empty Shelf State */
-                          <div className="w-full h-24 rounded-xl border border-dashed border-slate-300/80 dark:border-white/15 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-mono italic text-center px-4">
-                            Empty Shelf — Drag books here or click an unassigned book to place
-                          </div>
+                          /* IMPLICIT STATE 8: Interactive Empty Shelf State (Click to Assign Book) */
+                          <button
+                            type="button"
+                            onClick={() => openAssignShelfModal(selectedAlmari, shelfNo)}
+                            className="w-full h-24 rounded-xl border border-dashed border-slate-300/80 dark:border-white/15 hover:border-[#C8963E] dark:hover:border-[#FFD147]/60 hover:bg-[#FFD147]/[0.06] flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-[#FFD147] font-mono italic text-center px-4 transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 shrink-0 not-italic" />
+                            <span>Empty Shelf — Drag books here or click to assign a volume</span>
+                          </button>
                         ) : (
                           shelfBooks.map((book, bIdx) => {
                             const strictKey = book.id || book.barcode || `shelf-${shelfNo}-${bIdx}`;
@@ -1471,7 +1649,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddAlmariOpen(true)}
+                onClick={openAddAlmariModal}
                 className="h-10 px-5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/50 shadow-md hover:brightness-110 cursor-pointer inline-flex items-center gap-2"
               >
                 <Plus className="w-4 h-4 !text-white" />
@@ -1522,14 +1700,14 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         )}
 
       {/* ========================================================================
-          PORTALED MODALS (IMPLICIT STATE 9: createPortal at fixed inset-0 z-[9999])
+          PORTALED MODALS (createPortal at fixed inset-0 z-[99999])
          ======================================================================== */}
 
       {/* MODAL 1: ADD MANUAL ALMARI */}
       {isAddAlmariOpen &&
         typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
             <form
               onSubmit={handleCreateManualAlmari}
               className="ulm-modal-dialog ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#C8963E]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
@@ -1643,7 +1821,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         editingAlmari &&
         typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
             <form
               onSubmit={handleSaveEditedAlmari}
               className="ulm-modal-dialog ulm-preserve-glass w-full max-w-md rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/60 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white"
@@ -1776,7 +1954,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
       {almariToDelete &&
         typeof document !== 'undefined' &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150">
             <div className="ulm-modal-dialog ulm-preserve-glass w-full max-w-sm rounded-[26px] bg-gradient-to-br from-white/85 via-white/70 to-white/55 dark:from-[#1A102E]/92 dark:via-[#140C24]/88 dark:to-[#0F081C]/85 backdrop-blur-2xl border-2 border-rose-500/50 p-5 space-y-4 shadow-2xl text-slate-900 dark:text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0">
@@ -1826,7 +2004,7 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
         createPortal(
           <div
             onClick={() => setQuickMoveBook(null)}
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150"
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150"
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -1987,6 +2165,142 @@ export const AlmariView: React.FC<AlmariViewProps> = ({
                   >
                     Save Shelf Placement
                   </button>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL 5: 50,000-BOOK SAFE SHELF ASSIGNMENT MODAL (MAX 50 VISIBLE ROWS) */}
+      {assignModalTarget &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            onClick={() => setAssignModalTarget(null)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 modal-backdrop ulm-modal-backdrop bg-slate-900/20 dark:bg-slate-950/65 backdrop-blur-[10px] backdrop-saturate-150"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="ulm-modal-dialog ulm-preserve-glass w-full max-w-lg rounded-[26px] bg-gradient-to-br from-white/90 via-white/80 to-white/70 dark:from-[#1A102E]/95 dark:via-[#140C24]/92 dark:to-[#0F081C]/90 backdrop-blur-2xl border border-white/85 dark:border-[#FFD147]/50 p-5 space-y-3.5 shadow-2xl text-slate-900 dark:text-white"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 dark:border-white/10 pb-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#541A72] dark:text-[#FFD147] truncate">
+                    Assign Book to {assignModalTarget.almari.code} · Shelf {assignModalTarget.shelfNo}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {assignModalTarget.almari.name_en} — Showing up to 50 instant matches
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignModalTarget(null)}
+                  aria-label="Close assign modal"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={assignSearchInput}
+                    onChange={(e) => setAssignSearchInput(e.target.value)}
+                    placeholder="Search title, author, barcode, accession #..."
+                    style={{ paddingLeft: '2.1rem', paddingRight: '1.8rem' }}
+                    className="w-full h-9 text-xs rounded-xl bg-white/85 dark:bg-black/40 border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#C8963E]"
+                  />
+                  {assignSearchInput && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignSearchInput('')}
+                      aria-label="Clear search"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-200/70 dark:bg-white/[0.06] border border-slate-300/60 dark:border-white/10 text-[11px] font-bold shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setAssignOnlyUnassigned(true)}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      assignOnlyUnassigned
+                        ? 'bg-[#541A72] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Unassigned
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssignOnlyUnassigned(false)}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      !assignOnlyUnassigned
+                        ? 'bg-[#541A72] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    All Books
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[10.5px] font-mono text-slate-500 dark:text-slate-400">
+                <span>
+                  Showing {assignModalMatches.items.length} of {assignModalMatches.total.toLocaleString()} matching volume(s)
+                </span>
+                {assignModalMatches.total > 50 && (
+                  <span className="text-amber-700 dark:text-[#FFD147]">Type to narrow results</span>
+                )}
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-1">
+                {assignModalMatches.items.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 rounded-xl border border-dashed border-slate-300 dark:border-white/10">
+                    No matching volumes found. Try switching to &quot;All Books&quot; or clearing the search.
+                  </div>
+                ) : (
+                  assignModalMatches.items.map((book) => (
+                    <div
+                      key={book.id || book.barcode}
+                      className="p-2.5 rounded-xl bg-white/75 dark:bg-white/[0.05] border border-slate-200/80 dark:border-white/10 flex items-center justify-between gap-2.5 hover:border-[#C8963E]/70 transition-all"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {book.book_name}
+                        </p>
+                        <p className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                          #{book.barcode || book.accession_no || book.id}
+                          {book.author ? ` · ${book.author}` : ''}
+                          {book.almari_code && Number(book.shelf_no) >= 1
+                            ? ` · Currently ${book.almari_code} S${book.shelf_no}`
+                            : ' · Unassigned'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          executeAssignBook(
+                            book,
+                            assignModalTarget.almari,
+                            assignModalTarget.shelfNo
+                          );
+                          setAssignModalTarget(null);
+                        }}
+                        className="shrink-0 h-7 px-3 rounded-lg text-[11px] font-extrabold bg-gradient-to-r from-[#541A72] to-[#B4690E] !text-white border border-[#FFD147]/45 hover:brightness-110 cursor-pointer"
+                      >
+                        Place Here
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
             </div>

@@ -158,7 +158,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto ulm-modal-backdrop">
-      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#140D22] dark:via-[#140D22]/95 dark:to-[#0B1120] border border-[#C8963E]/45 rounded-[26px] max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto ulm-modal-dialog">
+      <div className="bg-gradient-to-b from-[#FFFDF9] via-[#FAF6EC] to-[#F3EBD9] dark:from-[#140D22] dark:via-[#140D22]/95 dark:to-[#0B1120] border border-[#C8963E]/45 rounded-[26px] w-full max-w-[540px] mx-4 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto ulm-modal-dialog">
         {/* Header */}
         <div className="px-6 py-4 bg-white/80 dark:bg-[#131B2E] border-b border-[#DCCB9E] dark:border-white/[0.08] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -370,9 +370,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 </div>
               </div>
 
-              <p className="text-[11px] text-[#4A3B5C] dark:text-slate-400">
+              <p className="text-xs sm:text-[13px] leading-relaxed break-words text-[#4A3B5C] dark:text-slate-300">
                 Master Excel Register (
-                <span className="font-mono font-semibold text-[#1A1027] dark:text-slate-300">
+                <span className="font-mono font-semibold text-[#1A1027] dark:text-slate-100 break-all">
                   ULM_Master_Books_Register.xlsx
                 </span>
                 ) has been automatically updated with continuous sequential series.
@@ -389,9 +389,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-[#F3EBD9]/90 dark:bg-[#131B2E] border-t border-[#DCCB9E] dark:border-white/[0.08] flex items-center justify-end gap-2.5 shrink-0">
+        <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-4 bg-[#F3EBD9]/90 dark:bg-[#131B2E] border-t border-[#DCCB9E] dark:border-white/[0.08] shrink-0">
           {!summary ? (
-            <>
+            <div className="flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={handleClose}
@@ -418,9 +418,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   </>
                 )}
               </button>
-            </>
+            </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
               <button
                 type="button"
                 onClick={() => {
@@ -429,18 +429,17 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   setProgress(null);
                   setErrorMessage(null);
                 }}
-                className="px-4 h-10 rounded-xl bg-white hover:bg-slate-100 dark:bg-[#151C2C] dark:hover:bg-[#1C263B] text-[#1A1027] dark:text-slate-200 border border-[#DCCB9E] dark:border-white/10 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full min-w-0 px-3.5 py-2.5 rounded-xl border border-[#DCCB9E] dark:border-white/15 bg-white hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 text-xs sm:text-[13px] font-semibold text-[#1A1027] dark:text-slate-100 transition-all text-center whitespace-nowrap truncate cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#BC881B]" />
-                <span>+ Import / Append Another Excel Sheet</span>
+                + Import Another Sheet
               </button>
 
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-6 h-10 rounded-xl bg-[#BC881B] hover:bg-[#D4A02A] text-slate-950 text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                className="w-full min-w-0 px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-[13px] font-extrabold tracking-wide transition-all text-center whitespace-nowrap cursor-pointer shadow-sm"
               >
-                Done & View Catalog
+                DONE &amp; VIEW CATALOG
               </button>
             </div>
           )}

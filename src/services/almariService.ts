@@ -260,12 +260,17 @@ export class AlmariService {
     const current = [...this.getAlmaris()];
     const newAlmari: Almari = this.ensureAlmariShelves({
       ...almariData,
-      id: almariData.id || `alm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: almariData.id || `almari_${Date.now()}`,
       location: almariData.location || almariData.location_note || 'Main Hall • Ground Floor',
       location_note: almariData.location_note || almariData.location || 'Main Hall • Ground Floor',
       approx_capacity: almariData.approx_capacity || ((almariData.shelf_count || 5) * (almariData.books_per_shelf || 25)),
       created_at: almariData.created_at || new Date().toISOString(),
     });
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(this.FACTORY_RESET_EMPTY_KEY);
+      } catch {}
+    }
     const existsIdx = current.findIndex(a => a.id === newAlmari.id || a.code.toUpperCase() === newAlmari.code.toUpperCase());
     if (existsIdx >= 0) {
       current[existsIdx] = { ...current[existsIdx], ...newAlmari, id: current[existsIdx].id };
@@ -318,10 +323,60 @@ export class AlmariService {
   }
 
   static deleteAlmari(id: string): void {
-    const almaris = this.getAlmaris().filter(a => a.id !== id);
+    const existing = this.getAlmaris();
+    const target = existing.find(a => a.id === id);
+    const targetCodeUpper = target?.code ? target.code.toUpperCase() : '';
+    const almaris = existing.filter(a => a.id !== id);
     this.saveAlmaris(almaris);
     const links = this.getAlmariGroups().filter(l => l.almari_id !== id);
     this.saveAlmariGroups(links);
+
+    if (typeof window !== 'undefined') {
+      try {
+        // Purge deleted cupboard entries from master placements map
+        const rawPlacements = localStorage.getItem(this.MASTER_PLACEMENTS_KEY);
+        if (rawPlacements) {
+          const parsed = JSON.parse(rawPlacements);
+          if (parsed && typeof parsed === 'object') {
+            let changed = false;
+            for (const key of Object.keys(parsed)) {
+              const entry = parsed[key];
+              if (
+                entry &&
+                (entry.almari_id === id ||
+                  (targetCodeUpper && String(entry.almari_code || '').toUpperCase() === targetCodeUpper))
+              ) {
+                delete parsed[key];
+                changed = true;
+              }
+            }
+            if (changed) {
+              localStorage.setItem(this.MASTER_PLACEMENTS_KEY, JSON.stringify(parsed));
+            }
+          }
+        }
+      } catch {}
+
+      try {
+        // Purge shelf capacities for deleted cupboard
+        const rawCaps = localStorage.getItem(this.SHELF_CAPACITIES_KEY);
+        if (rawCaps) {
+          const parsedCaps = JSON.parse(rawCaps);
+          if (parsedCaps && typeof parsedCaps === 'object') {
+            let capChanged = false;
+            for (const k of Object.keys(parsedCaps)) {
+              if (k.startsWith(`${id}::`)) {
+                delete parsedCaps[k];
+                capChanged = true;
+              }
+            }
+            if (capChanged) {
+              localStorage.setItem(this.SHELF_CAPACITIES_KEY, JSON.stringify(parsedCaps));
+            }
+          }
+        }
+      } catch {}
+    }
   }
 
   /**
