@@ -1708,6 +1708,13 @@ export class LibraryStorage {
 
     const normPhone = this.normalizePakistaniPhone(borrower.phone);
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const resolvedPhoto =
+      borrower.photo_url ||
+      borrower.photo_path ||
+      borrower.photoDataUrl ||
+      borrower.photoUrl ||
+      borrower.photo ||
+      undefined;
     const newBorrower: Borrower = {
       ...borrower,
       id: this.generateId('bor'),
@@ -1716,6 +1723,11 @@ export class LibraryStorage {
       student_id: uid,
       barcode: borrower.barcode || uid,
       phone: normPhone,
+      photo_url: resolvedPhoto,
+      photo_path: resolvedPhoto,
+      photoUrl: resolvedPhoto,
+      photoDataUrl: resolvedPhoto,
+      photo: resolvedPhoto,
       borrow_limit: borrower.borrow_limit || (borrower.role === 'Faculty' ? 10 : borrower.role === 'Staff' ? 5 : 3),
       joined_date: borrower.joined_date || new Date().toISOString().split('T')[0],
       valid_until: borrower.valid_until || null,
@@ -1754,9 +1766,34 @@ export class LibraryStorage {
       }
     }
 
+    const hasPhotoUpdate =
+      'photo_url' in updates ||
+      'photo_path' in updates ||
+      'photoUrl' in updates ||
+      'photoDataUrl' in updates ||
+      'photo' in updates;
+    const syncedPhoto = hasPhotoUpdate
+      ? updates.photo_url ||
+        updates.photo_path ||
+        updates.photoDataUrl ||
+        updates.photoUrl ||
+        updates.photo ||
+        undefined
+      : borrowers[index].photo_url ||
+        borrowers[index].photo_path ||
+        borrowers[index].photoDataUrl ||
+        borrowers[index].photoUrl ||
+        borrowers[index].photo ||
+        undefined;
+
     const updated: Borrower = {
       ...borrowers[index],
       ...updates,
+      photo_url: syncedPhoto,
+      photo_path: syncedPhoto,
+      photoUrl: syncedPhoto,
+      photoDataUrl: syncedPhoto,
+      photo: syncedPhoto,
       student_id: updates.university_id || borrowers[index].university_id || borrowers[index].student_id,
       barcode: updates.barcode || updates.university_id || borrowers[index].barcode,
       phone: updates.phone ? this.normalizePakistaniPhone(updates.phone) : borrowers[index].phone,

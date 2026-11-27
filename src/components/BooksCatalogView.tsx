@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useCallback, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -38,7 +38,7 @@ import { BulkAssignModal } from './modals/BulkAssignModal';
 import { AlmariService } from '../services/almariService';
 import { AccessionSeriesEngine } from '../services/accessionSeriesEngine';
 import { LibraryStorage, reconcileBooksWithLoans } from '../services/storage';
-import { parseSerialNumber, resolveBookAlmariAndShelf, syncMasterExcelRegister } from '../services/libraryStorageAndMigration';
+import { parseSerialNumber, syncMasterExcelRegister } from '../services/libraryStorageAndMigration';
 import { sortBooksCatalog } from '../utils/almariSortUtils';
 import { isArabicOrUrduScript, matchesUrduSearch } from '../utils/urduUtils';
 import { LiquidGlassCard } from './ui/liquid-weather-glass';
@@ -52,6 +52,57 @@ interface CatalogGlassOption {
   label: string;
 }
 
+const SORT_OPTIONS: CatalogGlassOption[] = [
+  { value: 'newest', label: 'Sort: Newest' },
+  { value: 'title', label: 'Sort: Title' },
+  { value: 'author', label: 'Sort: Author' },
+  { value: 'accession', label: 'Sort: Accession' },
+  { value: 'almari_order', label: 'Sort: Almari' },
+  { value: 'dewey_decimal', label: 'Sort: Dewey Call #' },
+];
+
+const STATUS_OPTIONS: CatalogGlassOption[] = [
+  { value: 'all', label: 'All Copies' },
+  { value: 'AVAILABLE', label: 'Available Now' },
+  { value: 'LOANED', label: 'Fully Loaned' },
+];
+
+interface IndexedCatalogBook {
+  book: Book;
+  bookKey: string;
+  searchBlob: string;
+  category: string;
+  language: string;
+  languageLower: string;
+  isUrduTitle: boolean;
+  isUrduTitleOrAuthor: boolean;
+  isCheckedOut: boolean;
+  isAvailable: boolean;
+  almariId: string;
+  almariCode: string;
+  shelfNo: number;
+  shelfLabel: string;
+  groupId: string;
+  bookDate: string;
+  accessionNum: number;
+}
+
+const RE_CS = /computer|software|programming|algorithm|data|network|cyber|ai|artificial|system|it\b|tech/i;
+const RE_SCI = /math|calculus|algebra|geometry|statistic|physics|quantum|mechanics|chemistry|organic|biology|botany|zoology|science/i;
+const RE_PHY = /physics/i;
+const RE_CHEM = /chem|engineer/i;
+const RE_ISL = /islam|quran|hadith|fiqh|seerah|tafseer|arabic|history|philosophy|sociology|political|humanities|اسلام/i;
+const RE_LIT = /urdu|pashto|persian|literature|poetry|novel|linguistics|english literature|اردو|پشتو|فارسی/i;
+const RE_LIT_LANG = /^(urdu|pashto|persian|arabic)$/i;
+const RE_PASHTO = /pashto|پشتو/i;
+const RE_LAW_EDU = /law|legal|constitution|governance|education|teaching|economics|business|management|commerce|reference|encyclopedia/i;
+const RE_LAW = /law|legal|constitution/i;
+const RE_EDU = /education|teaching/i;
+const RE_GENERIC_PLACEHOLDER = /^(stack[-_\s]?0?1|cs[-_\s]?rack[-_\s]?0?1|unassigned.*|no\s*almari.*)$/i;
+const RE_SHELF_NUM = /(?:shelf|row|s)[-_\s#]*(\d+)/i;
+const RE_ROW_NUM = /(\d+)/;
+const RE_DIGITS_ONLY = /^\d+$/;
+
 interface CatalogGlassDropdownProps {
   value: string;
   onChange: (value: string) => void;
@@ -62,7 +113,7 @@ interface CatalogGlassDropdownProps {
   ariaLabel?: string;
 }
 
-const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
+const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = React.memo(({
   value,
   onChange,
   options,
@@ -79,7 +130,7 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
     width: 188,
   });
 
-  const updatePos = () => {
+  const updatePos = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
     const menuWidth = Math.max(rect.width, 192);
@@ -89,14 +140,14 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
       left: Math.min(rect.left, maxLeft),
       width: menuWidth,
     });
-  };
+  }, []);
 
-  const toggleOpen = () => {
-    if (!isOpen) {
-      updatePos();
-    }
-    setIsOpen((prev) => !prev);
-  };
+  const toggleOpen = useCallback(() => {
+    setIsOpen((prev) => {
+      if (!prev) updatePos();
+      return !prev;
+    });
+  }, [updatePos]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,9 +163,12 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
       window.removeEventListener('scroll', handleReposition, true);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePos]);
 
-  const selectedOption = options.find((opt) => opt.value === value) || options[0];
+  const selectedOption = useMemo(
+    () => options.find((opt) => opt.value === value) || options[0],
+    [options, value]
+  );
 
   return (
     <div className="relative shrink-0">
@@ -126,15 +180,15 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
         aria-expanded={isOpen}
         className={`${
           compact ? 'h-8 px-2.5 rounded-lg' : 'h-[38px] px-3.5 rounded-xl'
-        } ${minWidthClass} ${maxWidthClass} inline-flex items-center justify-between gap-2 text-xs font-semibold bg-white/75 dark:bg-[#1B1130]/80 hover:bg-white/95 dark:hover:bg-[#24163E]/90 backdrop-blur-xl border ${
+        } ${minWidthClass} ${maxWidthClass} inline-flex items-center justify-between gap-2 text-xs font-semibold bg-white/80 dark:bg-[#1B1130]/85 hover:bg-white/95 dark:hover:bg-[#24163E]/95 border ${
           isOpen
             ? 'border-[#C8963E] dark:border-[#FFD147]/80 ring-2 ring-[#C8963E]/20'
             : 'border-slate-200/90 dark:border-white/15 hover:border-[#C8963E]/60 dark:hover:border-[#FFD147]/50'
-        } text-slate-800 dark:text-slate-100 shadow-2xs transition-all cursor-pointer shrink-0`}
+        } text-slate-800 dark:text-slate-100 shadow-2xs transition-colors duration-150 cursor-pointer shrink-0`}
       >
         <span className="truncate">{selectedOption?.label || value}</span>
         <ChevronDown
-          className={`w-3.5 h-3.5 text-[#C8963E] dark:text-[#FFD147] shrink-0 transition-transform duration-200 ${
+          className={`w-3.5 h-3.5 text-[#C8963E] dark:text-[#FFD147] shrink-0 transition-transform duration-150 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -160,10 +214,12 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
                     key={opt.value}
                     type="button"
                     onClick={() => {
-                      onChange(opt.value);
                       setIsOpen(false);
+                      if (opt.value !== value) {
+                        onChange(opt.value);
+                      }
                     }}
-                    className={`w-full px-3.5 py-2 rounded-xl text-left text-[12px] font-['Plus_Jakarta_Sans'] flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                    className={`w-full px-3.5 py-2 rounded-xl text-left text-[12px] font-['Plus_Jakarta_Sans'] flex items-center justify-between gap-3 transition-colors duration-100 cursor-pointer ${
                       active
                         ? 'bg-gradient-to-r from-[#581C87] to-[#7E22CE] !text-white font-semibold shadow-sm'
                         : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/[0.10] font-medium'
@@ -180,7 +236,595 @@ const CatalogGlassDropdown: React.FC<CatalogGlassDropdownProps> = ({
         )}
     </div>
   );
-};
+});
+CatalogGlassDropdown.displayName = 'CatalogGlassDropdown';
+
+interface CatalogBookCardProps {
+  entry: IndexedCatalogBook;
+  cardIdx: number;
+  isSelected: boolean;
+  isCopied: boolean;
+  isExtendOpen: boolean;
+  extendCount: number;
+  nextSeriesAccession: number;
+  onSelectBook?: (book: Book) => void;
+  onToggleSelect: (bookKey: string, idx: number, shiftKey: boolean) => void;
+  onIssue: (book: Book) => void;
+  onReturn: (book: Book) => void;
+  onToggleExtend: (bookKey: string) => void;
+  onCloseExtend: () => void;
+  onChangeExtendCount: (nextCount: number) => void;
+  onConfirmExtend: (book: Book) => void;
+  onCopyBarcode: (barcode: string, bookKey: string) => void;
+  onEditBook?: (book: Book) => void;
+  onDeleteBook?: (book: Book) => void;
+}
+
+const CatalogBookCard: React.FC<CatalogBookCardProps> = React.memo(({
+  entry,
+  cardIdx,
+  isSelected,
+  isCopied,
+  isExtendOpen,
+  extendCount,
+  nextSeriesAccession,
+  onSelectBook,
+  onToggleSelect,
+  onIssue,
+  onReturn,
+  onToggleExtend,
+  onCloseExtend,
+  onChangeExtendCount,
+  onConfirmExtend,
+  onCopyBarcode,
+  onEditBook,
+  onDeleteBook,
+}) => {
+  const { book, bookKey, isUrduTitle, almariCode, shelfLabel, isCheckedOut } = entry;
+
+  return (
+    <div
+      style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: '220px',
+      }}
+      className={`ulm-preserve-glass group relative rounded-[22px] bg-white/90 dark:bg-[#17132d]/92 border p-3.5 flex flex-col justify-between shadow-[0_8px_22px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_26px_rgba(0,0,0,0.34)] transition-colors duration-150 hover:border-[#FFD147]/65 ${
+        isSelected
+          ? 'border-[#FFD147] ring-1.5 ring-[#FFD147]/40'
+          : 'border-slate-200/85 dark:border-white/[0.13]'
+      }`}
+    >
+      <div>
+        <div className="flex items-start gap-3">
+          {/* Compact 3D Leather Volume Spine */}
+          <div
+            onClick={() => onSelectBook && onSelectBook(book)}
+            className="w-[52px] h-[70px] rounded-lg bg-gradient-to-br from-[#240836] via-[#3B1054] to-[#1E0730] border border-[#FFD147]/40 shadow-xs flex flex-col items-center justify-between p-1 shrink-0 relative overflow-hidden cursor-pointer"
+          >
+            <div className="absolute left-1 top-0 bottom-0 w-[1.5px] bg-black/40" />
+            <span className="text-[6.5px] font-mono font-bold text-[#FFD147] tracking-widest uppercase">
+              ULM
+            </span>
+            <BookMarked className="w-3.5 h-3.5 text-[#FFD147]" />
+            <span className="text-[5.5px] font-extrabold uppercase text-white/80 tracking-widest">
+              PRESS
+            </span>
+          </div>
+
+          {/* Book Metadata */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/30">
+                  {book.category || 'General'}
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                  {book.language || 'English'}
+                </span>
+                {book.edition && (
+                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                    {book.edition}
+                  </span>
+                )}
+              </div>
+
+              {/* Custom Frosted Crystal Checkbox with Shift+Click Range Support */}
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                aria-label={`Select ${book.book_name}`}
+                title="Click to select (Shift+Click for range)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelect(bookKey, cardIdx, e.shiftKey);
+                }}
+                style={{ padding: 0, width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }}
+                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors duration-150 cursor-pointer shrink-0 border ${
+                  isSelected
+                    ? 'bg-gradient-to-br from-[#D49B27] to-[#B8731B] border-[#FFD147] text-slate-950 shadow-xs'
+                    : 'bg-white/80 dark:bg-white/[0.06] border-slate-300/90 dark:border-white/25 hover:border-amber-500/70 text-transparent'
+                }`}
+              >
+                <Check className="w-3 h-3 stroke-[3]" />
+              </button>
+            </div>
+
+            <h3
+              onClick={() => onSelectBook && onSelectBook(book)}
+              dir="auto"
+              className={`font-extrabold text-[13px] text-slate-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors leading-snug ${
+                isUrduTitle ? 'font-urdu text-sm leading-relaxed' : ''
+              }`}
+              title={book.book_name}
+            >
+              {book.book_name}
+            </h3>
+
+            <p
+              dir="auto"
+              className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate"
+            >
+              by {book.author || 'Unknown'}
+            </p>
+          </div>
+        </div>
+
+        {/* Accession & Barcode Strip */}
+        <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2 text-[10px]">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold text-[9px] shrink-0">
+              {book.accession_no || book.dewey_call_number || '000 ULM'}
+            </span>
+            <span className="font-mono text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[110px] text-[9.5px]">
+              #{book.barcode}
+            </span>
+            {(book.copy_total_in_batch || 1) > 1 && (
+              <span className="px-1.5 py-0.5 rounded bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] font-mono font-bold text-[8.5px] shrink-0">
+                Copy {book.copy_number || 1} of {book.copy_total_in_batch}
+              </span>
+            )}
+          </div>
+
+          {isCheckedOut ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/35 text-amber-600 dark:text-amber-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider shrink-0">
+              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] shrink-0" />
+              CHECKED OUT
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.10] text-emerald-600 dark:text-emerald-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider shrink-0">
+              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.75)] shrink-0" />
+              {(book.sibling_total_copies || 1) > 1
+                ? `IN STACK (${book.sibling_available_copies}/${book.sibling_total_copies})`
+                : 'IN STACK'}
+            </span>
+          )}
+        </div>
+
+        {/* Shelf Location */}
+        <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-slate-600 dark:text-slate-300">
+          <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
+          <span className="truncate font-medium">
+            {almariCode ? `${almariCode} • ${shelfLabel}` : 'Unassigned (No Almari)'}
+          </span>
+        </div>
+      </div>
+
+      {/* Inline + Copy Series Extension Popover */}
+      {isExtendOpen && (
+        <div className="mt-2.5 !rounded-2xl p-3 bg-amber-500/[0.09] dark:bg-[#22153A] border border-amber-400/35 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
+              <span className="ulm-kpi-label text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 font-['Plus_Jakarta_Sans'] truncate">
+                Extend Copies in Series
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onCloseExtend}
+              className="!w-6 !h-6 !min-h-0 !p-0 !rounded-lg hover:bg-amber-500/20 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors shrink-0 cursor-pointer"
+              aria-label="Close extend copies panel"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="px-2.5 py-1.5 rounded-xl bg-white/75 dark:bg-[#0F081E]/85 border border-slate-200/80 dark:border-white/[0.08] font-['JetBrains_Mono'] ulm-kpi-label text-[10.5px] text-slate-700 dark:text-slate-200 leading-relaxed">
+            {extendCount === 1 ? (
+              <span>
+                Next:{' '}
+                <strong className="text-amber-600 dark:text-amber-300">
+                  #{nextSeriesAccession}
+                </strong>{' '}
+                ·{' '}
+                <span className="text-slate-500 dark:text-slate-400">
+                  {AccessionSeriesEngine.formatBarcode(nextSeriesAccession)}
+                </span>
+              </span>
+            ) : (
+              <span>
+                Range:{' '}
+                <strong className="text-amber-600 dark:text-amber-300">
+                  #{nextSeriesAccession} → #{nextSeriesAccession + extendCount - 1}
+                </strong>{' '}
+                <span className="text-slate-500 dark:text-slate-400">
+                  ({extendCount} vols)
+                </span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center h-8 rounded-xl bg-white dark:bg-[#0E071C] border border-amber-400/40 p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => onChangeExtendCount(Math.max(1, extendCount - 1))}
+                className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={extendCount}
+                onChange={(e) =>
+                  onChangeExtendCount(Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1)))
+                }
+                className="ulm-scanner-bare-input w-10 h-7 text-center bg-transparent font-['Space_Grotesk'] text-[12.5px] font-bold text-slate-900 dark:text-white focus:outline-none p-0"
+              />
+              <button
+                type="button"
+                onClick={() => onChangeExtendCount(Math.min(50, extendCount + 1))}
+                className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onConfirmExtend(book)}
+              className="ulm-btn-tactile ulm-kpi-label flex-1 h-8 px-3 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[11.5px] font-['Plus_Jakarta_Sans'] whitespace-nowrap shadow-sm transition-colors cursor-pointer inline-flex items-center justify-center"
+            >
+              + Add {extendCount} in Series
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Actions */}
+      <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSelectBook && onSelectBook(book)}
+            className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] hover:bg-slate-900/[0.11] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center transition-colors cursor-pointer"
+          >
+            Details
+          </button>
+          {isCheckedOut ? (
+            <button
+              type="button"
+              onClick={() => onReturn(book)}
+              className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 shadow-sm transition-colors cursor-pointer"
+              title={book.borrower_name ? `Checked out to ${book.borrower_name} — Click to Return` : 'Return this copy to shelf'}
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Return</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onIssue(book)}
+              className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center shadow-sm transition-colors cursor-pointer"
+            >
+              Issue
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onToggleExtend(bookKey)}
+            className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            title="Extend existing book with +N new copies in strict series order"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Copy</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 text-slate-400">
+          <button
+            type="button"
+            onClick={() => onCopyBarcode(book.barcode, bookKey)}
+            className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
+            title="Copy Barcode"
+          >
+            {isCopied ? (
+              <Check className="w-3 h-3 text-emerald-500" />
+            ) : (
+              <Copy className="w-3 h-3" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onEditBook && onEditBook(book)}
+            className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
+            title="Edit"
+          >
+            <Edit3 className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onDeleteBook) onDeleteBook(book);
+            }}
+            className="p-1 rounded hover:text-rose-600 cursor-pointer"
+            title="Delete Book"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+CatalogBookCard.displayName = 'CatalogBookCard';
+
+interface CatalogListRowProps {
+  entry: IndexedCatalogBook;
+  idx: number;
+  seqNo: number;
+  isSelected: boolean;
+  isExtendOpen: boolean;
+  extendCount: number;
+  nextSeriesAccession: number;
+  onSelectBook?: (book: Book) => void;
+  onToggleSelect: (bookKey: string, idx: number, shiftKey: boolean) => void;
+  onIssue: (book: Book) => void;
+  onReturn: (book: Book) => void;
+  onToggleExtend: (rowKey: string) => void;
+  onChangeExtendCount: (nextCount: number) => void;
+  onConfirmExtend: (book: Book) => void;
+  onEditBook?: (book: Book) => void;
+  onDeleteBook?: (book: Book) => void;
+}
+
+const CatalogListRow: React.FC<CatalogListRowProps> = React.memo(({
+  entry,
+  idx,
+  seqNo,
+  isSelected,
+  isExtendOpen,
+  extendCount,
+  nextSeriesAccession,
+  onSelectBook,
+  onToggleSelect,
+  onIssue,
+  onReturn,
+  onToggleExtend,
+  onChangeExtendCount,
+  onConfirmExtend,
+  onEditBook,
+  onDeleteBook,
+}) => {
+  const { book, bookKey, isUrduTitleOrAuthor, almariCode, shelfNo, isCheckedOut } = entry;
+  const totalCopies = book.total_copies ?? book.total_quantity ?? 1;
+  const callNo =
+    (book as Book & { dewey_call_no?: string }).dewey_call_no ||
+    book.dewey_call_number ||
+    '';
+
+  return (
+    <tr
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '64px' }}
+      className={`transition-colors hover:bg-purple-500/[0.05] dark:hover:bg-white/[0.04] divide-x divide-slate-200/30 dark:divide-white/[0.04] ${
+        isSelected ? 'bg-purple-500/[0.08] dark:bg-purple-500/[0.12]' : ''
+      }`}
+    >
+      {/* 1. Checkbox */}
+      <td className="w-10 px-3 py-2.5 text-center">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isSelected}
+          aria-label={`Select ${book.book_name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(bookKey, idx, e.shiftKey);
+          }}
+          className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-colors cursor-pointer ${
+            isSelected
+              ? 'bg-gradient-to-br from-[#FFD147] to-[#D4A02A] border-[#FFD147] text-slate-950 shadow-xs'
+              : 'bg-white/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/25 hover:border-amber-400'
+          }`}
+          title="Select volume (hold Shift to select a range)"
+        >
+          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+        </button>
+      </td>
+
+      {/* 2. Book Title & Author with Compact Spine */}
+      <td className="px-3.5 py-2.5 min-w-[180px] max-w-[260px]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-9 rounded-md shrink-0 bg-gradient-to-b from-[#541A72] to-[#2A0845] border border-[#FFD147]/45 flex flex-col items-center justify-between py-1 shadow-sm">
+            <span className="text-[7px] font-mono text-[#FFD147]/90 font-bold leading-none">
+              ULM
+            </span>
+            <span className="text-[7px] font-mono text-white/80 leading-none">
+              #{book.accession_no || seqNo}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div
+              onClick={() => onSelectBook && onSelectBook(book)}
+              className={`font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] ${
+                isUrduTitleOrAuthor ? 'urdu-text text-sm' : 'text-[13px]'
+              }`}
+            >
+              {book.book_name || 'Untitled Volume'}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              {book.author || 'Unknown Author'}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* 3. Category / Discipline Pill */}
+      <td className="px-3.5 py-2.5 whitespace-nowrap">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-purple-500/10 dark:bg-purple-500/15 text-purple-800 dark:text-purple-200 border border-purple-500/25">
+          {book.category || 'General'}
+        </span>
+      </td>
+
+      {/* 4. Language Pill */}
+      <td className="px-3.5 py-2.5 whitespace-nowrap">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-slate-900/[0.04] dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-white/10">
+          {book.language || 'English'}
+        </span>
+      </td>
+
+      {/* 5. Barcode / Call No */}
+      <td className="px-3.5 py-2.5 whitespace-nowrap">
+        <div className="font-mono text-[11.5px] font-semibold text-slate-800 dark:text-slate-200 tracking-tight">
+          {book.barcode}
+        </div>
+        <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+          {callNo ? `DDC: ${callNo}` : `Acc #${book.accession_no || seqNo}`}
+        </div>
+      </td>
+
+      {/* 6. Total Copies */}
+      <td className="px-3 py-2.5 text-center whitespace-nowrap font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+        {totalCopies}
+      </td>
+
+      {/* 7. Available */}
+      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+        {isCheckedOut ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/35 text-amber-600 dark:text-amber-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] shrink-0" />
+            CHECKED OUT
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.10] text-emerald-600 dark:text-emerald-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.75)] shrink-0" />
+            {(book.sibling_total_copies || 1) > 1
+              ? `IN STACK (${book.sibling_available_copies}/${book.sibling_total_copies})`
+              : 'IN STACK'}
+          </span>
+        )}
+      </td>
+
+      {/* 8. Shelf / Row Location */}
+      <td className="px-3.5 py-2.5 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+          <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
+          {almariCode
+            ? `${almariCode} · Shelf ${shelfNo || book.shelf_no || 1}`
+            : book.shelf || 'Unassigned'}
+        </span>
+      </td>
+
+      {/* 9. Actions */}
+      <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+        <div className="inline-flex items-center justify-end gap-1.5">
+          {isCheckedOut ? (
+            <button
+              type="button"
+              onClick={() => onReturn(book)}
+              className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-bold cursor-pointer inline-flex items-center gap-1"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>Return</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onIssue(book)}
+              className="px-2 py-0.5 rounded bg-[#C8963E] text-slate-950 font-bold hover:brightness-110 cursor-pointer"
+            >
+              Issue
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onToggleExtend(`row-${bookKey}`)}
+            className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-[#FFD147] border border-amber-500/35 font-bold cursor-pointer flex items-center gap-0.5"
+            title="Extend copies in series"
+          >
+            <Plus className="w-2.5 h-2.5" />
+            <span>Copy</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onEditBook && onEditBook(book)}
+            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-white/10 cursor-pointer"
+          >
+            <Edit3 className="w-3 h-3" />
+          </button>
+          {onDeleteBook && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteBook(book);
+              }}
+              className="p-1 rounded text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+              title="Delete Book"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        {isExtendOpen && (
+          <div className="mt-2 p-2 rounded-xl bg-amber-500/15 dark:bg-[#1E1136] border border-amber-500/45 flex items-center justify-end gap-2 text-[11px]">
+            <span className="font-mono text-slate-700 dark:text-slate-300">
+              #{nextSeriesAccession}→#{nextSeriesAccession + extendCount - 1}:
+            </span>
+            <div className="flex items-center h-6 border border-amber-500/40 rounded overflow-hidden bg-white dark:bg-[#121014]">
+              <button
+                type="button"
+                onClick={() => onChangeExtendCount(Math.max(1, extendCount - 1))}
+                className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={extendCount}
+                onChange={(e) =>
+                  onChangeExtendCount(Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1)))
+                }
+                className="w-9 text-center font-mono font-bold text-[11px] bg-transparent focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => onChangeExtendCount(Math.min(50, extendCount + 1))}
+                className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => onConfirmExtend(book)}
+              className="ulm-btn-tactile h-6 px-2 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono text-[10.5px] cursor-pointer"
+            >
+              + Add {extendCount}
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+});
+CatalogListRow.displayName = 'CatalogListRow';
 
 export interface BooksCatalogViewProps {
   books: Book[];
@@ -259,10 +903,15 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     return 'spin';
   };
 
-  const handleSelectCatalogView = (mode: 'grid' | 'list' | 'almaris' | 'analytics') => {
+  const [isPending, startTransition] = useTransition();
+  const [almariSyncTick, setAlmariSyncTick] = useState(0);
+
+  const handleSelectCatalogView = useCallback((mode: 'grid' | 'list' | 'almaris' | 'analytics') => {
     setAnimTick((t) => t + 1);
-    setCatalogView(mode);
-  };
+    startTransition(() => {
+      setCatalogView(mode);
+    });
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -271,9 +920,11 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setCurrentPage(1);
-    }, 180);
+      startTransition(() => {
+        setDebouncedSearch(searchQuery);
+        setCurrentPage(1);
+      });
+    }, 150);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -295,6 +946,82 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
   const [extendPopoverBookId, setExtendPopoverBookId] = useState<string | null>(null);
   const [extendPopoverCount, setExtendPopoverCount] = useState<number>(1);
 
+  // Non-blocking React 18 transition filter handlers (zero main-thread freeze on click)
+  const handleDisciplineChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSelectedDiscipline(val);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleLanguageChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSelectedLanguage(val);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleAlmariChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSelectedAlmari(val);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleSortChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSortBy(val as 'newest' | 'title' | 'author' | 'accession' | 'almari_order' | 'dewey_decimal');
+    });
+  }, []);
+
+  const handleStatusChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSelectedStatus(val);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleGroupFilterChange = useCallback((val: string) => {
+    startTransition(() => {
+      setSelectedGroupFilter(val);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleDateFromChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    startTransition(() => {
+      setDateFrom(next);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleDateToChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    startTransition(() => {
+      setDateTo(next);
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handleResetSecondaryFilters = useCallback(() => {
+    startTransition(() => {
+      setSelectedStatus('all');
+      setSelectedGroupFilter('all');
+      setDateFrom('');
+      setDateTo('');
+      setCurrentPage(1);
+    });
+  }, []);
+
+  const handlePageSizeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextSize = Number(e.target.value);
+    startTransition(() => {
+      setPageSize(nextSize);
+      setCurrentPage(1);
+    });
+  }, []);
+
   // Quick keyboard shortcut: Pressing "/" or Ctrl+F focuses the spotlight search input
   useEffect(() => {
     const handleGlobalSearchKey = (e: KeyboardEvent) => {
@@ -314,7 +1041,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalSearchKey);
   }, []);
 
-  // 1. Authoritative Master Placements Sync
+  // 1. Authoritative Master Placements Sync (decoupled from catalogView and all filters!)
   const masterPlacements = useMemo<Record<string, any>>(() => {
     try {
       const raw = localStorage.getItem('ulm_almari_placements_master_v3');
@@ -322,7 +1049,16 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     } catch {
       return {};
     }
-  }, [books, catalogView]);
+  }, [books, almariSyncTick]);
+
+  const manualShelfOverrides = useMemo<Record<string, any>>(() => {
+    try {
+      const raw = localStorage.getItem('ulm_manual_shelf_assignments_v2');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, [books, almariSyncTick]);
 
   // 2. Resolved Books with Placements Applied + Reconciled Against Active Loans (skip cloning if already reconciled)
   const booksWithPlacements = useMemo(() => {
@@ -364,14 +1100,14 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
 
   const activeAlmarisList = useMemo(
     () => AlmariService.getAlmaris().filter((a) => a.is_active),
-    [books, catalogView]
+    [books, almariSyncTick]
   );
   const activeGroupsList = useMemo(
     () => AlmariService.getGroups().filter((g) => g.is_active),
-    [books, catalogView]
+    [books, almariSyncTick]
   );
 
-  // Single O(N) useMemo Pass for ALL 4 KPIs, Disciplines, Languages, and Next Series Accession
+  // Single O(N) useMemo Pass for ALL 4 KPIs, Disciplines, Languages, and Next Series Accession (decoupled from filters)
   const catalogAggregates = useMemo(() => {
     const distinctTitles = new Set<string>();
     const disciplineSet = new Set<string>();
@@ -429,117 +1165,360 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     nextSeriesAccession,
   } = catalogAggregates;
 
-  // High-speed O(N) filtering against pre-computed _searchKey using debounced + deferred query
-  const filteredBooks = useMemo(() => {
+  // Memoized dropdown option lists (independent from active filter selections)
+  const disciplineOptions = useMemo<CatalogGlassOption[]>(
+    () => [
+      { value: 'all', label: 'All Disciplines' },
+      ...disciplines.map((d) => ({ value: d, label: d })),
+    ],
+    [disciplines]
+  );
+
+  const languageOptions = useMemo<CatalogGlassOption[]>(
+    () => [
+      { value: 'all', label: 'All Languages' },
+      ...languages.map((l) => ({ value: l, label: l })),
+    ],
+    [languages]
+  );
+
+  const almariOptions = useMemo<CatalogGlassOption[]>(
+    () => [
+      { value: 'all', label: 'All Almaris' },
+      { value: 'unassigned', label: 'Unassigned' },
+      ...activeAlmarisList.map((alm) => ({
+        value: alm.id,
+        label: `${alm.code} — ${alm.name_en}`,
+      })),
+    ],
+    [activeAlmarisList]
+  );
+
+  const groupOptions = useMemo<CatalogGlassOption[]>(
+    () => [
+      { value: 'all', label: 'All Groups' },
+      { value: 'NO_GROUP', label: 'Unassigned Group' },
+      ...activeGroupsList.map((g) => ({
+        value: g.id,
+        label: g.name_en,
+      })),
+    ],
+    [activeGroupsList]
+  );
+
+  // Pre-index ONCE in O(N) using O(1) Map lookups — ZERO localStorage/JSON.parse/find inside filter clicks!
+  const indexedBooks = useMemo<IndexedCatalogBook[]>(() => {
+    const almariByKey = new Map<string, (typeof activeAlmarisList)[number]>();
+    const almariCodeEntries: Array<{ codeUpper: string; almari: (typeof activeAlmarisList)[number] }> = [];
+    for (let i = 0; i < activeAlmarisList.length; i++) {
+      const a = activeAlmarisList[i];
+      const idKey = String(a.id).trim().toUpperCase();
+      const codeKey = String(a.code).trim().toUpperCase();
+      const nameKey = String(a.name_en).trim().toUpperCase();
+      if (idKey) almariByKey.set(idKey, a);
+      if (codeKey) {
+        almariByKey.set(codeKey, a);
+        almariCodeEntries.push({ codeUpper: codeKey, almari: a });
+      }
+      if (nameKey && !almariByKey.has(nameKey)) almariByKey.set(nameKey, a);
+    }
+
+    const groupById = new Map<string, (typeof activeGroupsList)[number]>();
+    const groupByNameLower = new Map<string, (typeof activeGroupsList)[number]>();
+    const groupFirstWordEntries: Array<{ firstWord: string; group: (typeof activeGroupsList)[number] }> = [];
+    for (let i = 0; i < activeGroupsList.length; i++) {
+      const g = activeGroupsList[i];
+      groupById.set(g.id, g);
+      const nameLower = g.name_en.toLowerCase();
+      groupByNameLower.set(nameLower, g);
+      const firstWord = nameLower.split(' ')[0];
+      if (firstWord) groupFirstWordEntries.push({ firstWord, group: g });
+    }
+
+    const hasManualV2 = manualShelfOverrides && Object.keys(manualShelfOverrides).length > 0;
+    const len = activeBooks.length;
+    const result = new Array<IndexedCatalogBook>(len);
+
+    for (let i = 0; i < len; i++) {
+      const b = activeBooks[i];
+      const bookRec = b as Record<string, any>;
+      const bookKey = b.id || b.barcode;
+
+      const manualOverride =
+        hasManualV2 && b.id && !b.almari_id && !b.almari_code
+          ? manualShelfOverrides[String(b.id)]
+          : undefined;
+      const eff = manualOverride ? { ...bookRec, ...manualOverride } : bookRec;
+
+      const rawTitle = String(b.book_name || b.title || '');
+      const rawAuthor = String(b.author || '');
+      const rawCat = String(eff.group || eff.discipline || eff.category || eff.subject || '').trim();
+      const rawLang = String(eff.language || '').trim();
+
+      // 1. O(1) Almari resolution matching resolveBookAlmariAndShelf
+      const rawAlmariKey = String(
+        eff.almari_id || eff.almariId || eff.almari_code || eff.cupboard || eff.almari || ''
+      )
+        .trim()
+        .toUpperCase();
+      const rawShelfStr = String(eff.shelf || eff.shelf_label || eff.shelfLabel || '').trim();
+
+      let matchedAlmari = rawAlmariKey ? almariByKey.get(rawAlmariKey) : undefined;
+      if (!matchedAlmari && rawShelfStr && almariCodeEntries.length > 0) {
+        const isGeneric = !rawAlmariKey && RE_GENERIC_PLACEHOLDER.test(rawShelfStr);
+        if (!isGeneric) {
+          const shelfUpper = rawShelfStr.toUpperCase();
+          for (let j = 0; j < almariCodeEntries.length; j++) {
+            const { codeUpper, almari } = almariCodeEntries[j];
+            if (
+              shelfUpper === codeUpper ||
+              shelfUpper.startsWith(`${codeUpper} `) ||
+              shelfUpper.startsWith(`${codeUpper}-`) ||
+              shelfUpper.startsWith(`${codeUpper}·`) ||
+              shelfUpper.startsWith(`${codeUpper},`)
+            ) {
+              matchedAlmari = almari;
+              break;
+            }
+          }
+        }
+      }
+
+      let shelfNo = 0;
+      if (matchedAlmari) {
+        const shelfCount = Math.max(1, matchedAlmari.shelf_count || 5);
+        shelfNo = Number(eff.shelf_no ?? eff.shelfNo ?? 0);
+        if (!shelfNo || shelfNo < 1) {
+          const shelfMatch =
+            rawShelfStr.match(RE_SHELF_NUM) || String(eff.row || '').match(RE_ROW_NUM);
+          if (shelfMatch) {
+            const parsed = parseInt(shelfMatch[1], 10);
+            if (parsed >= 1) shelfNo = Math.min(parsed, shelfCount);
+          } else if (RE_DIGITS_ONLY.test(rawShelfStr)) {
+            const parsed = parseInt(rawShelfStr, 10);
+            if (parsed >= 1) shelfNo = Math.min(parsed, shelfCount);
+          }
+        }
+        if (!shelfNo || shelfNo < 1) shelfNo = 1;
+        else if (shelfNo > shelfCount) shelfNo = shelfCount;
+      }
+
+      const almariId = matchedAlmari?.id || b.almari_id || '';
+      const almariCode = b.almari_code || matchedAlmari?.code || '';
+      const shelfLabel = shelfNo
+        ? `Shelf ${shelfNo}`
+        : b.shelf_no
+        ? `Shelf ${b.shelf_no}`
+        : b.shelf || 'Shelf 1';
+
+      // 2. Group resolution matching resolveBookAlmariAndShelf
+      let groupId = String(eff.group_id || '').trim();
+      let displayGroup = rawCat && rawCat.toLowerCase() !== 'general' ? rawCat : '';
+      if (!groupId || !groupById.has(groupId)) {
+        const combinedText = `${rawCat} ${rawLang} ${rawTitle}`.toLowerCase();
+        if (RE_CS.test(combinedText)) {
+          groupId = groupId || 'grp-cs';
+          displayGroup = displayGroup || 'Computer Science';
+        } else if (RE_SCI.test(combinedText)) {
+          if (RE_PHY.test(combinedText)) {
+            groupId = groupId || 'grp-phy';
+            displayGroup = displayGroup || 'Physics';
+          } else if (RE_CHEM.test(combinedText)) {
+            groupId = groupId || 'grp-chem';
+            displayGroup = displayGroup || 'Chemistry & Engineering';
+          } else {
+            groupId = groupId || 'grp-math';
+            displayGroup = displayGroup || 'Mathematics';
+          }
+        } else if (RE_ISL.test(combinedText)) {
+          groupId = groupId || 'grp-isl';
+          displayGroup = displayGroup || 'Islamic Studies';
+        } else if (RE_LIT.test(combinedText) || RE_LIT_LANG.test(rawLang)) {
+          if (RE_PASHTO.test(combinedText)) {
+            groupId = groupId || 'grp-ps';
+            displayGroup = displayGroup || 'Pashto Literature';
+          } else {
+            groupId = groupId || 'grp-ur';
+            displayGroup = displayGroup || 'Urdu Literature';
+          }
+        } else if (RE_LAW_EDU.test(combinedText)) {
+          if (RE_LAW.test(combinedText)) {
+            groupId = groupId || 'grp-law';
+            displayGroup = displayGroup || 'Law & Governance';
+          } else if (RE_EDU.test(combinedText)) {
+            groupId = groupId || 'grp-edu';
+            displayGroup = displayGroup || 'Education';
+          } else {
+            groupId = groupId || 'grp-gen';
+            displayGroup = displayGroup || 'General Reference';
+          }
+        }
+
+        if (activeGroupsList.length > 0) {
+          let matchedGroup = groupId ? groupById.get(groupId) : undefined;
+          if (!matchedGroup && displayGroup) {
+            const dgLower = displayGroup.toLowerCase();
+            matchedGroup = groupByNameLower.get(dgLower);
+            if (!matchedGroup) {
+              for (let j = 0; j < groupFirstWordEntries.length; j++) {
+                if (dgLower.includes(groupFirstWordEntries[j].firstWord)) {
+                  matchedGroup = groupFirstWordEntries[j].group;
+                  break;
+                }
+              }
+            }
+          }
+          if (matchedGroup) {
+            groupId = matchedGroup.id;
+          }
+        }
+      }
+      const finalGroupId = groupId || 'grp-gen';
+
+      // 3. Status, Search Blob, Urdu Script, Date, and Accession Number
+      const statusUpper = String(b.status || '').trim().toUpperCase();
+      const isBookIssued = Boolean(b.is_checked_out) || statusUpper === 'ISSUED';
+      const isAvailable = !isBookIssued && (b.available_quantity ?? 1) > 0;
+      const isCheckedOut =
+        isBookIssued || Number(b.available_copies ?? b.available_quantity ?? 1) === 0;
+      const isUrduTitle = isArabicOrUrduScript(rawTitle);
+      const isUrduTitleOrAuthor = isUrduTitle || isArabicOrUrduScript(rawAuthor);
+      const searchBlob =
+        b._searchKey ||
+        b.search_text ||
+        `${rawTitle} ${rawAuthor} ${b.barcode || ''} ${b.accession_no || ''} ${b.isbn || ''}`.toLowerCase();
+      const bookDate =
+        b.date_added || (b.created_at ? b.created_at.split(' ')[0] : '') || '';
+
+      result[i] = {
+        book: b,
+        bookKey,
+        searchBlob,
+        category: b.category || '',
+        language: b.language || '',
+        languageLower: rawLang.toLowerCase(),
+        isUrduTitle,
+        isUrduTitleOrAuthor,
+        isCheckedOut,
+        isAvailable,
+        almariId,
+        almariCode,
+        shelfNo,
+        shelfLabel,
+        groupId: finalGroupId,
+        bookDate,
+        accessionNum: parseSerialNumber(b.accession_no || b.barcode),
+      };
+    }
+
+    return result;
+  }, [activeBooks, activeAlmarisList, activeGroupsList, manualShelfOverrides]);
+
+  // Ultra-fast O(N) filtering against pre-indexed primitives (< 5ms on 50,000 books!)
+  const filteredEntries = useMemo<IndexedCatalogBook[]>(() => {
     const q = deferredSearch.trim();
     const qLower = q.toLowerCase();
     const hasUrduQuery = q.length > 0 && /[\u0600-\u06FF]/.test(q);
-    const needsPlacementCheck = selectedAlmari !== 'all' || selectedGroupFilter !== 'all';
+    const hasSearch = qLower.length > 0;
+    const hasDisc = selectedDiscipline !== 'all';
+    const hasLang = selectedLanguage !== 'all';
+    const isUrduFilter = selectedLanguage === 'Urdu';
+    const hasStatus = selectedStatus !== 'all';
+    const wantAvailable = selectedStatus === 'AVAILABLE';
+    const hasAlmari = selectedAlmari !== 'all';
+    const wantUnassignedAlmari = selectedAlmari === 'unassigned';
+    const hasGroup = selectedGroupFilter !== 'all';
+    const wantNoGroup = selectedGroupFilter === 'NO_GROUP';
+    const hasDate = Boolean(dateFrom) || Boolean(dateTo);
 
     const hasAnyFilter =
-      qLower.length > 0 ||
-      selectedDiscipline !== 'all' ||
-      selectedLanguage !== 'all' ||
-      needsPlacementCheck ||
-      selectedStatus !== 'all' ||
-      Boolean(dateFrom) ||
-      Boolean(dateTo);
+      hasSearch || hasDisc || hasLang || hasStatus || hasAlmari || hasGroup || hasDate;
 
-    let filtered: Book[];
+    let matched: IndexedCatalogBook[];
     if (!hasAnyFilter) {
-      filtered = activeBooks;
+      matched = indexedBooks;
     } else {
-      filtered = [];
-      for (let i = 0; i < activeBooks.length; i++) {
-        const b = activeBooks[i];
+      matched = [];
+      for (let i = 0; i < indexedBooks.length; i++) {
+        const item = indexedBooks[i];
 
-        if (qLower.length > 0) {
-          const searchKey =
-            b._searchKey ||
-            b.search_text ||
-            `${b.book_name || ''} ${b.author || ''} ${b.barcode || ''} ${b.accession_no || ''} ${b.isbn || ''}`.toLowerCase();
-          const fastHit = searchKey.includes(qLower);
-          if (!fastHit && !(hasUrduQuery && matchesUrduSearch(q, searchKey))) {
+        if (hasDisc && item.category !== selectedDiscipline) continue;
+
+        if (hasLang) {
+          if (isUrduFilter) {
+            if (item.languageLower !== 'urdu' && !item.isUrduTitle) continue;
+          } else if (item.language !== selectedLanguage) {
             continue;
           }
         }
 
-        if (selectedDiscipline !== 'all' && b.category !== selectedDiscipline) {
-          continue;
+        if (hasStatus) {
+          if (wantAvailable ? !item.isAvailable : item.isAvailable) continue;
         }
 
-        if (selectedLanguage !== 'all') {
-          const matchLang =
-            selectedLanguage === 'Urdu'
-              ? (b.language || '').toLowerCase() === 'urdu' ||
-                isArabicOrUrduScript(b.book_name || '')
-              : b.language === selectedLanguage;
-          if (!matchLang) continue;
-        }
-
-        if (selectedStatus !== 'all') {
-          const isBookIssued =
-            Boolean(b.is_checked_out) ||
-            String(b.status || '').trim().toUpperCase() === 'ISSUED';
-          const isBookAvailable = !isBookIssued && (b.available_quantity ?? 1) > 0;
-          if (selectedStatus === 'AVAILABLE' && !isBookAvailable) continue;
-          if (selectedStatus === 'LOANED' && isBookAvailable) continue;
-        }
-
-        if (needsPlacementCheck) {
-          const placement = resolveBookAlmariAndShelf(b, activeAlmarisList, activeGroupsList);
-          const almariCode = b.almari_code || placement?.almariCode || '';
-          const resolvedAlmId = placement?.almari_id || b.almari_id || '';
-          if (selectedAlmari !== 'all') {
-            const matchAlmari =
-              (selectedAlmari === 'unassigned' && !almariCode && !resolvedAlmId) ||
-              almariCode === selectedAlmari ||
-              resolvedAlmId === selectedAlmari;
-            if (!matchAlmari) continue;
-          }
-          if (selectedGroupFilter !== 'all') {
-            const resolvedGrpId = placement?.group_id || b.group_id || '';
-            const matchGroup =
-              (selectedGroupFilter === 'NO_GROUP' && !resolvedGrpId) ||
-              resolvedGrpId === selectedGroupFilter;
-            if (!matchGroup) continue;
+        if (hasAlmari) {
+          if (wantUnassignedAlmari) {
+            if (item.almariCode || item.almariId) continue;
+          } else if (item.almariCode !== selectedAlmari && item.almariId !== selectedAlmari) {
+            continue;
           }
         }
 
-        if (dateFrom || dateTo) {
-          const bookDate =
-            b.date_added || (b.created_at ? b.created_at.split(' ')[0] : '') || '';
-          if (dateFrom && (!bookDate || bookDate < dateFrom)) continue;
-          if (dateTo && (!bookDate || bookDate > dateTo)) continue;
+        if (hasGroup) {
+          if (wantNoGroup) {
+            if (item.groupId) continue;
+          } else if (item.groupId !== selectedGroupFilter) {
+            continue;
+          }
         }
 
-        filtered.push(b);
+        if (hasDate) {
+          if (dateFrom && (!item.bookDate || item.bookDate < dateFrom)) continue;
+          if (dateTo && (!item.bookDate || item.bookDate > dateTo)) continue;
+        }
+
+        if (hasSearch) {
+          if (
+            !item.searchBlob.includes(qLower) &&
+            !(hasUrduQuery && matchesUrduSearch(q, item.searchBlob))
+          ) {
+            continue;
+          }
+        }
+
+        matched.push(item);
       }
     }
 
     if (sortBy === 'newest') {
-      return filtered;
+      return matched;
     }
 
     if (sortBy === 'almari_order' || sortBy === 'dewey_decimal') {
       const groupsMap = new Map(activeGroupsList.map((g) => [g.id, g]));
       const almarisMap = new Map(activeAlmarisList.map((a) => [a.id, a]));
-      return sortBooksCatalog(filtered, sortBy, groupsMap, almarisMap);
+      const sortedBooks = sortBooksCatalog(
+        matched.map((e) => e.book),
+        sortBy,
+        groupsMap,
+        almarisMap
+      );
+      const entryByBook = new Map<Book, IndexedCatalogBook>();
+      for (let i = 0; i < matched.length; i++) entryByBook.set(matched[i].book, matched[i]);
+      return sortedBooks.map((b) => entryByBook.get(b)!);
     }
 
-    return [...filtered].sort((a, b) => {
-      if (sortBy === 'title') return (a.book_name || '').localeCompare(b.book_name || '');
-      if (sortBy === 'author') return (a.author || '').localeCompare(b.author || '');
+    return [...matched].sort((a, b) => {
+      if (sortBy === 'title') return (a.book.book_name || '').localeCompare(b.book.book_name || '');
+      if (sortBy === 'author') return (a.book.author || '').localeCompare(b.book.author || '');
       if (sortBy === 'accession') {
-        const numA = parseSerialNumber(a.accession_no || a.barcode);
-        const numB = parseSerialNumber(b.accession_no || b.barcode);
-        if (numA !== numB) return numA - numB;
-        return (a.barcode || '').localeCompare(b.barcode || '');
+        if (a.accessionNum !== b.accessionNum) return a.accessionNum - b.accessionNum;
+        return (a.book.barcode || '').localeCompare(b.book.barcode || '');
       }
       return 0;
     });
   }, [
-    activeBooks,
+    indexedBooks,
     deferredSearch,
     selectedDiscipline,
     selectedLanguage,
@@ -553,25 +1532,18 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     activeGroupsList,
   ]);
 
-  // Strict Pagination Cap (24, 48, 96 per page — never mounts 50,000 DOM nodes)
-  const safePageSize = pageSize === 48 || pageSize === 96 ? pageSize : 24;
-  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / safePageSize));
+  // Strict Pagination Cap (24, 36, 48 per page — keeps DOM lightweight & instant in WebView2/Chromium)
+  const safePageSize = pageSize === 36 || pageSize === 48 ? pageSize : 24;
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / safePageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
 
-  const paginatedBooks = useMemo(() => {
+  const paginatedEntries = useMemo(() => {
     const start = (safeCurrentPage - 1) * safePageSize;
-    return filteredBooks.slice(start, start + safePageSize);
-  }, [filteredBooks, safeCurrentPage, safePageSize]);
+    return filteredEntries.slice(start, start + safePageSize);
+  }, [filteredEntries, safeCurrentPage, safePageSize]);
 
-  // Resolve Almari placements lazily ONLY for the 24–96 visible cards/rows on the active page
-  const placementByBookId = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof resolveBookAlmariAndShelf>>();
-    for (let i = 0; i < paginatedBooks.length; i++) {
-      const b = paginatedBooks[i];
-      map.set(b.id, resolveBookAlmariAndShelf(b, activeAlmarisList, activeGroupsList));
-    }
-    return map;
-  }, [paginatedBooks, activeAlmarisList, activeGroupsList]);
+  const paginatedEntriesRef = useRef(paginatedEntries);
+  paginatedEntriesRef.current = paginatedEntries;
 
   // Auto-prune deleted book IDs from selection when catalog mutates
   useEffect(() => {
@@ -588,84 +1560,93 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     });
   }, [activeBooks]);
 
-  // Immediately clear multi-select state after any cascade deletion event
+  // Listen to explicit library sync events (deletions & almari/placement mutations)
   useEffect(() => {
-    const handleDeleteSync = (e: Event) => {
+    const handleLibrarySync = (e: Event) => {
       const custom = e as CustomEvent<{ reason?: string; deletedCount?: number }>;
       if (custom.detail?.reason === 'delete' || (custom.detail?.deletedCount ?? 0) > 0) {
         setSelectedBookIds(new Set());
         lastSelectedIndexRef.current = null;
       }
+      setAlmariSyncTick((v) => v + 1);
     };
-    window.addEventListener('ulm-library-sync', handleDeleteSync);
-    return () => window.removeEventListener('ulm-library-sync', handleDeleteSync);
+    window.addEventListener('ulm-library-sync', handleLibrarySync);
+    return () => window.removeEventListener('ulm-library-sync', handleLibrarySync);
   }, []);
 
-  const handleToggleSelectAll = () => {
-    const pageKeys = paginatedBooks.map((b) => b.id || b.barcode);
-    const allPageSelected =
-      pageKeys.length > 0 && pageKeys.every((key) => selectedBookIds.has(key));
-    if (allPageSelected) {
-      const next = new Set(selectedBookIds);
-      pageKeys.forEach((k) => next.delete(k));
-      setSelectedBookIds(next);
-    } else {
-      const next = new Set(selectedBookIds);
-      pageKeys.forEach((k) => next.add(k));
-      setSelectedBookIds(next);
-    }
-  };
+  const allPageSelected = useMemo(
+    () =>
+      paginatedEntries.length > 0 &&
+      paginatedEntries.every((e) => selectedBookIds.has(e.bookKey)),
+    [paginatedEntries, selectedBookIds]
+  );
 
-  const handleSelectAllFiltered = () => {
-    setSelectedBookIds(new Set(filteredBooks.map((b) => b.id || b.barcode)));
-  };
-
-  const handleToggleSelectOne = (
-    id: string,
-    pageIndex?: number,
-    shiftKey: boolean = false
-  ) => {
-    const next = new Set(selectedBookIds);
-    if (
-      shiftKey &&
-      typeof pageIndex === 'number' &&
-      lastSelectedIndexRef.current !== null &&
-      paginatedBooks.length > 0
-    ) {
-      const start = Math.min(lastSelectedIndexRef.current, pageIndex);
-      const end = Math.max(lastSelectedIndexRef.current, pageIndex);
-      const shouldSelect = !next.has(id);
-      for (let i = start; i <= end; i++) {
-        const b = paginatedBooks[i];
-        if (!b) continue;
-        const k = b.id || b.barcode;
-        if (shouldSelect) next.add(k);
-        else next.delete(k);
+  const handleToggleSelectAll = useCallback(() => {
+    const currentEntries = paginatedEntriesRef.current;
+    const pageKeys = currentEntries.map((e) => e.bookKey);
+    setSelectedBookIds((prev) => {
+      const allSelected = pageKeys.length > 0 && pageKeys.every((key) => prev.has(key));
+      const next = new Set(prev);
+      if (allSelected) {
+        pageKeys.forEach((k) => next.delete(k));
+      } else {
+        pageKeys.forEach((k) => next.add(k));
       }
-    } else {
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-    }
-    if (typeof pageIndex === 'number') {
-      lastSelectedIndexRef.current = pageIndex;
-    }
-    setSelectedBookIds(next);
-  };
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllFiltered = useCallback(() => {
+    setSelectedBookIds(new Set(filteredEntries.map((e) => e.bookKey)));
+  }, [filteredEntries]);
+
+  const handleToggleSelectOne = useCallback(
+    (id: string, pageIndex?: number, shiftKey: boolean = false) => {
+      const currentEntries = paginatedEntriesRef.current;
+      setSelectedBookIds((prev) => {
+        const next = new Set(prev);
+        if (
+          shiftKey &&
+          typeof pageIndex === 'number' &&
+          lastSelectedIndexRef.current !== null &&
+          currentEntries.length > 0
+        ) {
+          const start = Math.min(lastSelectedIndexRef.current, pageIndex);
+          const end = Math.max(lastSelectedIndexRef.current, pageIndex);
+          const shouldSelect = !next.has(id);
+          for (let i = start; i <= end; i++) {
+            const entry = currentEntries[i];
+            if (!entry) continue;
+            if (shouldSelect) next.add(entry.bookKey);
+            else next.delete(entry.bookKey);
+          }
+        } else {
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+        }
+        return next;
+      });
+      if (typeof pageIndex === 'number') {
+        lastSelectedIndexRef.current = pageIndex;
+      }
+    },
+    []
+  );
 
   const selectedBooksList = useMemo(() => {
     if (selectedBookIds.size === 0) return [];
     return activeBooks.filter((b) => selectedBookIds.has(b.id || b.barcode));
   }, [activeBooks, selectedBookIds]);
 
-  const handleIssueBookAction = (book: Book) => {
+  const handleIssueBookAction = useCallback((book: Book) => {
     if (onOpenIssueModal) {
       onOpenIssueModal(book);
     } else if (onQuickLoan) {
       onQuickLoan(book);
     }
-  };
+  }, [onOpenIssueModal, onQuickLoan]);
 
-  const handleReturnCopyAction = (book: Book) => {
+  const handleReturnCopyAction = useCallback((book: Book) => {
     const targetId = book.active_loan_id || book.id || book.barcode;
     if (onReturnBook) {
       onReturnBook(targetId);
@@ -677,7 +1658,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         onBooksUpdated?.(freshBooks, res.message);
       }
     }
-  };
+  }, [onReturnBook, onUpdateBooks, onBooksUpdated]);
 
   const handleImportExcelAction = () => {
     if (onImportExcel) {
@@ -710,7 +1691,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     });
   };
 
-  const handleCopyBarcode = (barcode: string, bookKey: string) => {
+  const handleCopyBarcode = useCallback((barcode: string, bookKey: string) => {
     if (!barcode) return;
     navigator.clipboard?.writeText(barcode).catch(() => {});
     setCopiedBarcodeId(bookKey);
@@ -723,13 +1704,30 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     setTimeout(() => {
       setCopiedBarcodeId((prev) => (prev === bookKey ? null : prev));
     }, 1500);
-  };
+  }, []);
+
+  const handleToggleExtendPopover = useCallback((key: string) => {
+    setExtendPopoverBookId((prev) => {
+      if (prev === key) return null;
+      setExtendPopoverCount(1);
+      return key;
+    });
+  }, []);
+
+  const handleCloseExtendPopover = useCallback(() => {
+    setExtendPopoverBookId(null);
+  }, []);
+
+  const extendPopoverCountRef = useRef(extendPopoverCount);
+  extendPopoverCountRef.current = extendPopoverCount;
+  const booksRef = useRef(books);
+  booksRef.current = books;
 
   // PIPELINE B (Trigger 1): Extend existing book copies in strict series order from Catalog Card or Row
-  const handleConfirmExtendBookCopies = (book: Book) => {
-    const countToAdd = Math.max(1, Math.min(50, Number(extendPopoverCount) || 1));
+  const handleConfirmExtendBookCopies = useCallback((book: Book) => {
+    const countToAdd = Math.max(1, Math.min(50, Number(extendPopoverCountRef.current) || 1));
     const executeExtend = () => {
-      const res = AccessionSeriesEngine.addOrExtendBookInSeries(books, {
+      const res = AccessionSeriesEngine.addOrExtendBookInSeries(booksRef.current, {
         baseBook: book,
         copiesToAdd: countToAdd,
       });
@@ -758,7 +1756,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
     } else {
       executeExtend();
     }
-  };
+  }, [onUpdateBooks, onBooksUpdated]);
 
   const activeSecondaryFilterCount =
     (selectedStatus !== 'all' ? 1 : 0) +
@@ -868,7 +1866,6 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setCurrentPage(1);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape' && searchQuery) {
@@ -902,70 +1899,41 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             {/* Compact Dropdown 1: Disciplines */}
             <CatalogGlassDropdown
               value={selectedDiscipline}
-              onChange={(val) => {
-                setSelectedDiscipline(val);
-                setCurrentPage(1);
-              }}
+              onChange={handleDisciplineChange}
               ariaLabel="Filter by Academic Discipline"
               minWidthClass="min-w-[142px]"
               maxWidthClass="max-w-[172px]"
-              options={[
-                { value: 'all', label: 'All Disciplines' },
-                ...disciplines.map((d) => ({ value: d, label: d })),
-              ]}
+              options={disciplineOptions}
             />
 
             {/* Compact Dropdown 2: Languages */}
             <CatalogGlassDropdown
               value={selectedLanguage}
-              onChange={(val) => {
-                setSelectedLanguage(val);
-                setCurrentPage(1);
-              }}
+              onChange={handleLanguageChange}
               ariaLabel="Filter by Language"
               minWidthClass="min-w-[134px]"
               maxWidthClass="max-w-[158px]"
-              options={[
-                { value: 'all', label: 'All Languages' },
-                ...languages.map((l) => ({ value: l, label: l })),
-              ]}
+              options={languageOptions}
             />
 
             {/* Compact Dropdown 3: Almaris */}
             <CatalogGlassDropdown
               value={selectedAlmari}
-              onChange={(val) => {
-                setSelectedAlmari(val);
-                setCurrentPage(1);
-              }}
+              onChange={handleAlmariChange}
               ariaLabel="Filter by Almari Cupboard"
               minWidthClass="min-w-[132px]"
               maxWidthClass="max-w-[168px]"
-              options={[
-                { value: 'all', label: 'All Almaris' },
-                { value: 'unassigned', label: 'Unassigned' },
-                ...activeAlmarisList.map((alm) => ({
-                  value: alm.id,
-                  label: `${alm.code} — ${alm.name_en}`,
-                })),
-              ]}
+              options={almariOptions}
             />
 
             {/* Compact Dropdown 4: Sort */}
             <CatalogGlassDropdown
               value={sortBy}
-              onChange={(val) => setSortBy(val as any)}
+              onChange={handleSortChange}
               ariaLabel="Sort Catalog Records"
               minWidthClass="min-w-[138px]"
               maxWidthClass="max-w-[168px]"
-              options={[
-                { value: 'newest', label: 'Sort: Newest' },
-                { value: 'title', label: 'Sort: Title' },
-                { value: 'author', label: 'Sort: Author' },
-                { value: 'accession', label: 'Sort: Accession' },
-                { value: 'almari_order', label: 'Sort: Almari' },
-                { value: 'dewey_decimal', label: 'Sort: Dewey Call #' },
-              ]}
+              options={SORT_OPTIONS}
             />
 
             {/* Filter Toggle Button */}
@@ -994,38 +1962,21 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <CatalogGlassDropdown
                 compact
                 value={selectedStatus}
-                onChange={(val) => {
-                  setSelectedStatus(val);
-                  setCurrentPage(1);
-                }}
+                onChange={handleStatusChange}
                 ariaLabel="Filter by Availability Status"
                 minWidthClass="min-w-[126px]"
                 maxWidthClass="max-w-[156px]"
-                options={[
-                  { value: 'all', label: 'All Copies' },
-                  { value: 'AVAILABLE', label: 'Available Now' },
-                  { value: 'LOANED', label: 'Fully Loaned' },
-                ]}
+                options={STATUS_OPTIONS}
               />
 
               <CatalogGlassDropdown
                 compact
                 value={selectedGroupFilter}
-                onChange={(val) => {
-                  setSelectedGroupFilter(val);
-                  setCurrentPage(1);
-                }}
+                onChange={handleGroupFilterChange}
                 ariaLabel="Filter by Almari Subject Group"
                 minWidthClass="min-w-[132px]"
                 maxWidthClass="max-w-[172px]"
-                options={[
-                  { value: 'all', label: 'All Groups' },
-                  { value: 'NO_GROUP', label: 'Unassigned Group' },
-                  ...activeGroupsList.map((g) => ({
-                    value: g.id,
-                    label: g.name_en,
-                  })),
-                ]}
+                options={groupOptions}
               />
 
               <div className="h-8 flex items-center gap-1.5 bg-white/80 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-lg px-2.5 text-xs">
@@ -1034,7 +1985,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={handleDateFromChange}
                   style={{ width: 'auto', height: '26px' }}
                   className="ulm-compact-control bg-transparent text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none cursor-pointer"
                 />
@@ -1042,7 +1993,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={handleDateToChange}
                   style={{ width: 'auto', height: '26px' }}
                   className="ulm-compact-control bg-transparent text-[11px] font-mono text-slate-800 dark:text-white focus:outline-none cursor-pointer"
                 />
@@ -1051,12 +2002,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               {activeSecondaryFilterCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedStatus('all');
-                    setSelectedGroupFilter('all');
-                    setDateFrom('');
-                    setDateTo('');
-                  }}
+                  onClick={handleResetSecondaryFilters}
                   className="text-xs text-[#C8963E] hover:underline font-semibold cursor-pointer ml-auto"
                 >
                   Reset Filters
@@ -1194,8 +2140,8 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 onClick={() => {
                   if (onOpenBatchLabelPrint) {
                     onOpenBatchLabelPrint();
-                  } else if (onPrintBarcode && paginatedBooks[0]) {
-                    onPrintBarcode(paginatedBooks[0]);
+                  } else if (onPrintBarcode && paginatedEntries[0]) {
+                    onPrintBarcode(paginatedEntries[0].book);
                   }
                 }}
                 className="ulm-btn-tactile h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/70 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-white/15 cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0"
@@ -1246,13 +2192,13 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                 Select Page
               </button>
 
-              {selectedBookIds.size < filteredBooks.length && (
+              {selectedBookIds.size < filteredEntries.length && (
                 <button
                   type="button"
                   onClick={handleSelectAllFiltered}
                   className="ulm-btn-tactile h-8 px-2.5 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.10] dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-700 dark:text-slate-200 text-[11px] font-semibold transition-colors cursor-pointer tabular-nums"
                 >
-                  Select All ({filteredBooks.length.toLocaleString()})
+                  Select All ({filteredEntries.length.toLocaleString()})
                 </button>
               )}
             </div>
@@ -1325,336 +2271,36 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
         {/* =========================================================================
             3. CONDITIONAL VIEWS (GRID VIEW FIRST)
             ========================================================================= */}
-        <div key={catalogView} className="ulm-page-enter">
+        <div
+          key={catalogView}
+          className={`ulm-page-enter transition-opacity duration-150 ${isPending ? 'opacity-75' : 'opacity-100'}`}
+        >
         {/* VIEW A: IPHONE LIQUID-GLASS GRID VIEW (DEFAULT) */}
         {catalogView === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-            {paginatedBooks.map((book, cardIdx) => {
-              const bookKey = book.id || book.barcode;
-              const isSelected = selectedBookIds.has(bookKey);
-              const isUrdu = /[\u0600-\u06FF]/.test(book.book_name || '');
-              const placement = placementByBookId.get(book.id);
-              const almariCode =
-                (book as Book & { almari_code?: string }).almari_code ||
-                placement?.almariCode ||
-                '';
-              const shelfLabel =
-                placement?.shelfNo
-                  ? `Shelf ${placement.shelfNo}`
-                  : book.shelf_no
-                  ? `Shelf ${book.shelf_no}`
-                  : book.shelf || 'Shelf 1';
-              const isCheckedOut =
-                Boolean(book.is_checked_out) ||
-                String(book.status || '').toLowerCase() === 'issued' ||
-                Number(book.available_copies ?? book.available_quantity ?? 1) === 0;
-
-              return (
-                <div
-                  key={bookKey}
-                  style={{
-                    contentVisibility: 'auto',
-                    containIntrinsicSize: '220px',
-                    animationDelay: `${Math.min(cardIdx, 11) * 28}ms`,
-                  }}
-                  className={`ulm-preserve-glass ulm-stagger-card ulm-card-hover group relative rounded-[22px] bg-gradient-to-br from-white/50 via-white/30 to-white/15 dark:from-white/[0.07] dark:via-white/[0.03] dark:to-white/[0.015] backdrop-blur-xl backdrop-saturate-[175%] border p-3.5 flex flex-col justify-between shadow-[inset_1px_1px_1.5px_rgba(255,255,255,0.45),inset_-1px_-1px_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(0,0,0,0.16)] hover:border-[#FFD147]/60 ${
-                    isSelected
-                      ? 'border-[#FFD147] ring-1.5 ring-[#FFD147]/40'
-                      : 'border-white/60 dark:border-white/[0.14]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start gap-3">
-                      {/* Compact 3D Leather Volume Spine */}
-                      <div
-                        onClick={() => onSelectBook && onSelectBook(book)}
-                        className="w-[52px] h-[70px] rounded-lg bg-gradient-to-br from-[#240836] via-[#3B1054] to-[#1E0730] border border-[#FFD147]/40 shadow-xs flex flex-col items-center justify-between p-1 shrink-0 relative overflow-hidden cursor-pointer"
-                      >
-                        <div className="absolute left-1 top-0 bottom-0 w-[1.5px] bg-black/40" />
-                        <span className="text-[6.5px] font-mono font-bold text-[#FFD147] tracking-widest uppercase">
-                          ULM
-                        </span>
-                        <BookMarked className="w-3.5 h-3.5 text-[#FFD147]" />
-                        <span className="text-[5.5px] font-extrabold uppercase text-white/80 tracking-widest">
-                          PRESS
-                        </span>
-                      </div>
-
-                      {/* Book Metadata */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] border border-[#541A72]/30">
-                              {book.category || 'General'}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                              {book.language || 'English'}
-                            </span>
-                            {book.edition && (
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                                {book.edition}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Custom Frosted Crystal Checkbox with Shift+Click Range Support */}
-                          <button
-                            type="button"
-                            role="checkbox"
-                            aria-checked={isSelected}
-                            aria-label={`Select ${book.book_name}`}
-                            title="Click to select (Shift+Click for range)"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleSelectOne(bookKey, cardIdx, e.shiftKey);
-                            }}
-                            style={{ padding: 0, width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }}
-                            className={`w-5 h-5 rounded-md flex items-center justify-center transition-all cursor-pointer shrink-0 border ${
-                              isSelected
-                                ? 'bg-gradient-to-br from-[#D49B27] to-[#B8731B] border-[#FFD147] text-slate-950 shadow-xs'
-                                : 'bg-white/75 dark:bg-white/[0.06] border-slate-300/90 dark:border-white/25 hover:border-amber-500/70 text-transparent'
-                            }`}
-                          >
-                            <Check className="w-3 h-3 stroke-[3]" />
-                          </button>
-                        </div>
-
-                        <h3
-                          onClick={() => onSelectBook && onSelectBook(book)}
-                          dir="auto"
-                          className={`font-extrabold text-[13px] text-slate-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] transition-colors leading-snug ${
-                            isUrdu ? 'font-urdu text-sm leading-relaxed' : ''
-                          }`}
-                          title={book.book_name}
-                        >
-                          {book.book_name}
-                        </h3>
-
-                        <p
-                          dir="auto"
-                          className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate"
-                        >
-                          by {book.author || 'Unknown'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Accession & Barcode Strip */}
-                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2 text-[10px]">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold text-[9px] shrink-0">
-                          {book.accession_no || book.dewey_call_number || '000 ULM'}
-                        </span>
-                        <span className="font-mono text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[110px] text-[9.5px]">
-                          #{book.barcode}
-                        </span>
-                        {(book.copy_total_in_batch || 1) > 1 && (
-                          <span className="px-1.5 py-0.5 rounded bg-[#541A72]/15 text-[#541A72] dark:text-[#FFD147] font-mono font-bold text-[8.5px] shrink-0">
-                            Copy {book.copy_number || 1} of {book.copy_total_in_batch}
-                          </span>
-                        )}
-                      </div>
-
-                      {isCheckedOut ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/35 text-amber-600 dark:text-amber-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] shrink-0" />
-                          CHECKED OUT
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.10] text-emerald-600 dark:text-emerald-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.75)] shrink-0" />
-                          {(book.sibling_total_copies || 1) > 1
-                            ? `IN STACK (${book.sibling_available_copies}/${book.sibling_total_copies})`
-                            : 'IN STACK'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Shelf Location */}
-                    <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-slate-600 dark:text-slate-300">
-                      <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
-                      <span className="truncate font-medium">
-                        {almariCode ? `${almariCode} • ${shelfLabel}` : 'Unassigned (No Almari)'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Inline + Copy Series Extension Popover */}
-                  {extendPopoverBookId === bookKey && (
-                    <div
-                      style={{ animationDuration: '200ms' }}
-                      className="ulm-stagger-card mt-2.5 !rounded-2xl p-3 bg-amber-500/[0.08] dark:bg-amber-500/[0.07] border border-amber-400/35 backdrop-blur-md space-y-2.5"
-                    >
-                      {/* Header Row with Cleanly Contained Close Button */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="inline-flex items-center gap-1.5 min-w-0">
-                          <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shrink-0" />
-                          <span className="ulm-kpi-label text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 font-['Plus_Jakarta_Sans'] truncate">
-                            Extend Copies in Series
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setExtendPopoverBookId(null)}
-                          className="!w-6 !h-6 !min-h-0 !p-0 !rounded-lg hover:bg-amber-500/20 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors shrink-0 cursor-pointer"
-                          aria-label="Close extend copies panel"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {/* Clean Non-Redundant Series Allocation Telemetry */}
-                      <div className="px-2.5 py-1.5 rounded-xl bg-white/60 dark:bg-[#0F081E]/65 border border-slate-200/80 dark:border-white/[0.08] font-['JetBrains_Mono'] ulm-kpi-label text-[10.5px] text-slate-700 dark:text-slate-200 leading-relaxed">
-                        {extendPopoverCount === 1 ? (
-                          <span>
-                            Next:{' '}
-                            <strong className="text-amber-600 dark:text-amber-300">
-                              #{nextSeriesAccession}
-                            </strong>{' '}
-                            ·{' '}
-                            <span className="text-slate-500 dark:text-slate-400">
-                              {AccessionSeriesEngine.formatBarcode(nextSeriesAccession)}
-                            </span>
-                          </span>
-                        ) : (
-                          <span>
-                            Range:{' '}
-                            <strong className="text-amber-600 dark:text-amber-300">
-                              #{nextSeriesAccession} → #{nextSeriesAccession + extendPopoverCount - 1}
-                            </strong>{' '}
-                            <span className="text-slate-500 dark:text-slate-400">
-                              ({extendPopoverCount} vols)
-                            </span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Compact Single-Row Stepper + Submit Button (Zero Overflow) */}
-                      <div className="flex items-center gap-2">
-                        <div className="inline-flex items-center h-8 rounded-xl bg-white dark:bg-[#0E071C] border border-amber-400/40 p-0.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setExtendPopoverCount(Math.max(1, extendPopoverCount - 1))}
-                            className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            min={1}
-                            max={50}
-                            value={extendPopoverCount}
-                            onChange={(e) =>
-                              setExtendPopoverCount(
-                                Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1))
-                              )
-                            }
-                            className="ulm-scanner-bare-input w-10 h-7 text-center bg-transparent font-['Space_Grotesk'] text-[12.5px] font-bold text-slate-900 dark:text-white focus:outline-none p-0"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setExtendPopoverCount(Math.min(50, extendPopoverCount + 1))}
-                            className="ulm-btn-tactile !w-7 !h-7 !min-h-0 !p-0 !rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.10] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmExtendBookCopies(book)}
-                          className="ulm-btn-tactile ulm-kpi-label flex-1 h-8 px-3 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-[11.5px] font-['Plus_Jakarta_Sans'] whitespace-nowrap shadow-sm transition-all cursor-pointer inline-flex items-center justify-center"
-                        >
-                          + Add {extendPopoverCount} in Series
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Footer Actions */}
-                  <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onSelectBook && onSelectBook(book)}
-                        className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-slate-900/[0.06] dark:bg-white/[0.07] hover:bg-slate-900/[0.11] dark:hover:bg-white/[0.12] border border-slate-300/70 dark:border-white/[0.12] text-slate-800 dark:text-slate-100 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center transition-all cursor-pointer"
-                      >
-                        Details
-                      </button>
-                      {isCheckedOut ? (
-                        <button
-                          type="button"
-                          onClick={() => handleReturnCopyAction(book)}
-                          className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer"
-                          title={book.borrower_name ? `Checked out to ${book.borrower_name} — Click to Return` : 'Return this copy to shelf'}
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>Return</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleIssueBookAction(book)}
-                          className="ulm-btn-tactile ulm-kpi-label h-8 px-3.5 !rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11.5px] font-bold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center shadow-sm transition-all cursor-pointer"
-                        >
-                          Issue
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (extendPopoverBookId === bookKey) {
-                            setExtendPopoverBookId(null);
-                          } else {
-                            setExtendPopoverBookId(bookKey);
-                            setExtendPopoverCount(1);
-                          }
-                        }}
-                        className="ulm-btn-tactile ulm-kpi-label h-8 px-3 !rounded-xl bg-amber-500/12 hover:bg-amber-500/22 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[11.5px] font-semibold font-['Plus_Jakarta_Sans'] inline-flex items-center justify-center gap-1 transition-all cursor-pointer"
-                        title="Extend existing book with +N new copies in strict series order"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Copy</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-slate-400">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyBarcode(book.barcode, bookKey)}
-                        className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
-                        title="Copy Barcode"
-                      >
-                        {copiedBarcodeId === bookKey ? (
-                          <Check className="w-3 h-3 text-emerald-500" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onEditBook && onEditBook(book)}
-                        className="p-1 rounded hover:text-slate-900 dark:hover:text-white cursor-pointer"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onDeleteBook) onDeleteBook(book);
-                        }}
-                        className="p-1 rounded hover:text-rose-600 cursor-pointer"
-                        title="Delete Book"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {paginatedEntries.map((entry, cardIdx) => (
+              <CatalogBookCard
+                key={entry.bookKey}
+                entry={entry}
+                cardIdx={cardIdx}
+                isSelected={selectedBookIds.has(entry.bookKey)}
+                isCopied={copiedBarcodeId === entry.bookKey}
+                isExtendOpen={extendPopoverBookId === entry.bookKey}
+                extendCount={extendPopoverBookId === entry.bookKey ? extendPopoverCount : 1}
+                nextSeriesAccession={nextSeriesAccession}
+                onSelectBook={onSelectBook}
+                onToggleSelect={handleToggleSelectOne}
+                onIssue={handleIssueBookAction}
+                onReturn={handleReturnCopyAction}
+                onToggleExtend={handleToggleExtendPopover}
+                onCloseExtend={handleCloseExtendPopover}
+                onChangeExtendCount={setExtendPopoverCount}
+                onConfirmExtend={handleConfirmExtendBookCopies}
+                onCopyBarcode={handleCopyBarcode}
+                onEditBook={onEditBook}
+                onDeleteBook={onDeleteBook}
+              />
+            ))}
           </div>
         )}
 
@@ -1673,23 +2319,16 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                       <button
                         type="button"
                         role="checkbox"
-                        aria-checked={
-                          paginatedBooks.length > 0 &&
-                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode))
-                        }
+                        aria-checked={allPageSelected}
                         aria-label="Select all volumes on current page"
                         onClick={handleToggleSelectAll}
-                        className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-all cursor-pointer ${
-                          paginatedBooks.length > 0 &&
-                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode))
+                        className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-colors cursor-pointer ${
+                          allPageSelected
                             ? 'bg-gradient-to-br from-[#FFD147] to-[#D4A02A] border-[#FFD147] text-slate-950 shadow-xs'
                             : 'bg-white/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/25 hover:border-amber-400'
                         }`}
                       >
-                        {paginatedBooks.length > 0 &&
-                          paginatedBooks.every((b) => selectedBookIds.has(b.id || b.barcode)) && (
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          )}
+                        {allPageSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       </button>
                     </th>
                     <th className="px-3.5 py-3 min-w-[180px] max-w-[260px]">Book Title & Author</th>
@@ -1703,253 +2342,27 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/60 dark:divide-white/[0.06] text-xs">
-                  {paginatedBooks.map((book, idx) => {
-                    const bookKey = book.id || book.barcode;
-                    const seqNo = (safeCurrentPage - 1) * pageSize + idx + 1;
-                    const totalCopies = book.total_copies ?? book.total_quantity ?? 1;
-                    const availCopies =
-                      book.available_copies ?? book.available_quantity ?? totalCopies;
-                    const isUrdu = isArabicOrUrduScript(
-                      `${book.book_name || ''} ${book.author || ''}`
-                    );
-                    const placement = placementByBookId.get(book.id);
-                    const almariCode =
-                      (book as Book & { almari_code?: string }).almari_code ||
-                      placement?.almariCode ||
-                      '';
-                    const callNo =
-                      (book as Book & { dewey_call_no?: string }).dewey_call_no ||
-                      book.dewey_call_number ||
-                      '';
-
-                    return (
-                      <tr
-                        key={bookKey}
-                        style={{ contentVisibility: 'auto', containIntrinsicSize: '64px' }}
-                        className={`transition-colors hover:bg-purple-500/[0.05] dark:hover:bg-white/[0.04] divide-x divide-slate-200/30 dark:divide-white/[0.04] ${
-                          selectedBookIds.has(bookKey)
-                            ? 'bg-purple-500/[0.08] dark:bg-purple-500/[0.12]'
-                            : ''
-                        }`}
-                      >
-                        {/* 1. Checkbox */}
-                        <td className="w-10 px-3 py-2.5 text-center">
-                          <button
-                            type="button"
-                            role="checkbox"
-                            aria-checked={selectedBookIds.has(bookKey)}
-                            aria-label={`Select ${book.book_name}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleSelectOne(bookKey, idx, e.shiftKey);
-                            }}
-                            className={`w-5 h-5 mx-auto rounded-md border flex items-center justify-center transition-all cursor-pointer ${
-                              selectedBookIds.has(bookKey)
-                                ? 'bg-gradient-to-br from-[#FFD147] to-[#D4A02A] border-[#FFD147] text-slate-950 shadow-xs'
-                                : 'bg-white/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/25 hover:border-amber-400'
-                            }`}
-                            title="Select volume (hold Shift to select a range)"
-                          >
-                            {selectedBookIds.has(bookKey) && (
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            )}
-                          </button>
-                        </td>
-
-                        {/* 2. Book Title & Author with Compact Spine */}
-                        <td className="px-3.5 py-2.5 min-w-[180px] max-w-[260px]">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-9 rounded-md shrink-0 bg-gradient-to-b from-[#541A72] to-[#2A0845] border border-[#FFD147]/45 flex flex-col items-center justify-between py-1 shadow-sm">
-                              <span className="text-[7px] font-mono text-[#FFD147]/90 font-bold leading-none">
-                                ULM
-                              </span>
-                              <span className="text-[7px] font-mono text-white/80 leading-none">
-                                #{book.accession_no || seqNo}
-                              </span>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div
-                                onClick={() => onSelectBook && onSelectBook(book)}
-                                className={`font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-[#541A72] dark:hover:text-[#FFD147] ${
-                                  isUrdu ? 'urdu-text text-sm' : 'text-[13px]'
-                                }`}
-                              >
-                                {book.book_name || 'Untitled Volume'}
-                              </div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {book.author || 'Unknown Author'}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 3. Category / Discipline Pill */}
-                        <td className="px-3.5 py-2.5 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-purple-500/10 dark:bg-purple-500/15 text-purple-800 dark:text-purple-200 border border-purple-500/25">
-                            {book.category || 'General'}
-                          </span>
-                        </td>
-
-                        {/* 4. Language Pill */}
-                        <td className="px-3.5 py-2.5 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-slate-900/[0.04] dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-white/10">
-                            {book.language || 'English'}
-                          </span>
-                        </td>
-
-                        {/* 5. Barcode / Call No */}
-                        <td className="px-3.5 py-2.5 whitespace-nowrap">
-                          <div className="font-mono text-[11.5px] font-semibold text-slate-800 dark:text-slate-200 tracking-tight">
-                            {book.barcode}
-                          </div>
-                          <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                            {callNo ? `DDC: ${callNo}` : `Acc #${book.accession_no || seqNo}`}
-                          </div>
-                        </td>
-
-                        {/* 6. Total Copies */}
-                        <td className="px-3 py-2.5 text-center whitespace-nowrap font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
-                          {totalCopies}
-                        </td>
-
-                        {/* 7. Available (Refined Architectural Micro-Tag) */}
-                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                          {Boolean(book.is_checked_out) ||
-                          String(book.status || '').toLowerCase() === 'issued' ||
-                          availCopies === 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/35 text-amber-600 dark:text-amber-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] shrink-0" />
-                              CHECKED OUT
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300/70 dark:border-white/[0.10] text-emerald-600 dark:text-emerald-400 font-['JetBrains_Mono'] text-[10px] font-semibold uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-[1.5px] bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.75)] shrink-0" />
-                              {(book.sibling_total_copies || 1) > 1
-                                ? `IN STACK (${book.sibling_available_copies}/${book.sibling_total_copies})`
-                                : 'IN STACK'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 8. Shelf / Row Location */}
-                        <td className="px-3.5 py-2.5 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                            <MapPin className="w-3 h-3 text-[#C8963E] shrink-0" />
-                            {almariCode
-                              ? `${almariCode} · Shelf ${placement?.shelfNo || book.shelf_no || 1}`
-                              : book.shelf || 'Unassigned'}
-                          </span>
-                        </td>
-
-                        {/* 9. Actions (Dynamic Issue vs Return + Existing Handlers) */}
-                        <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1.5">
-                            {Boolean(book.is_checked_out) ||
-                            String(book.status || '').toLowerCase() === 'issued' ||
-                            availCopies === 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => handleReturnCopyAction(book)}
-                                className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-bold cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <RotateCcw className="w-2.5 h-2.5" />
-                                <span>Return</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleIssueBookAction(book)}
-                                className="px-2 py-0.5 rounded bg-[#C8963E] text-slate-950 font-bold hover:brightness-110 cursor-pointer"
-                              >
-                                Issue
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (extendPopoverBookId === `row-${bookKey}`) {
-                                  setExtendPopoverBookId(null);
-                                } else {
-                                  setExtendPopoverBookId(`row-${bookKey}`);
-                                  setExtendPopoverCount(1);
-                                }
-                              }}
-                              className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-[#FFD147] border border-amber-500/35 font-bold cursor-pointer flex items-center gap-0.5"
-                              title="Extend copies in series"
-                            >
-                              <Plus className="w-2.5 h-2.5" />
-                              <span>Copy</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onEditBook && onEditBook(book)}
-                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-white/10 cursor-pointer"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                            </button>
-                            {onDeleteBook && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteBook(book);
-                                }}
-                                className="p-1 rounded text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                                title="Delete Book"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                          {extendPopoverBookId === `row-${bookKey}` && (
-                            <div
-                              style={{ animationDuration: '200ms' }}
-                              className="ulm-stagger-card mt-2 p-2 rounded-xl bg-amber-500/15 dark:bg-[#1E1136]/95 border border-amber-500/45 flex items-center justify-end gap-2 text-[11px]"
-                            >
-                              <span className="font-mono text-slate-700 dark:text-slate-300">
-                                #{nextSeriesAccession}→#{nextSeriesAccession + extendPopoverCount - 1}:
-                              </span>
-                              <div className="flex items-center h-6 border border-amber-500/40 rounded overflow-hidden bg-white dark:bg-[#121014]">
-                                <button
-                                  type="button"
-                                  onClick={() => setExtendPopoverCount(Math.max(1, extendPopoverCount - 1))}
-                                  className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={50}
-                                  value={extendPopoverCount}
-                                  onChange={(e) =>
-                                    setExtendPopoverCount(
-                                      Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 1))
-                                    )
-                                  }
-                                  className="w-9 text-center font-mono font-bold text-[11px] bg-transparent focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setExtendPopoverCount(Math.min(50, extendPopoverCount + 1))}
-                                  className="ulm-btn-tactile w-5 h-full font-bold cursor-pointer"
-                                >
-                                  +
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleConfirmExtendBookCopies(book)}
-                                className="ulm-btn-tactile h-6 px-2 rounded bg-[#C8963E] text-slate-950 font-extrabold font-mono text-[10.5px] cursor-pointer"
-                              >
-                                + Add {extendPopoverCount}
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {paginatedEntries.map((entry, idx) => (
+                    <CatalogListRow
+                      key={entry.bookKey}
+                      entry={entry}
+                      idx={idx}
+                      seqNo={(safeCurrentPage - 1) * safePageSize + idx + 1}
+                      isSelected={selectedBookIds.has(entry.bookKey)}
+                      isExtendOpen={extendPopoverBookId === `row-${entry.bookKey}`}
+                      extendCount={extendPopoverBookId === `row-${entry.bookKey}` ? extendPopoverCount : 1}
+                      nextSeriesAccession={nextSeriesAccession}
+                      onSelectBook={onSelectBook}
+                      onToggleSelect={handleToggleSelectOne}
+                      onIssue={handleIssueBookAction}
+                      onReturn={handleReturnCopyAction}
+                      onToggleExtend={handleToggleExtendPopover}
+                      onChangeExtendCount={setExtendPopoverCount}
+                      onConfirmExtend={handleConfirmExtendBookCopies}
+                      onEditBook={onEditBook}
+                      onDeleteBook={onDeleteBook}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1975,10 +2388,13 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
             books={books}
             transactions={transactions}
             onSelectCategory={(cat) => {
-              setSelectedDiscipline(cat);
-              setCatalogView('grid');
+              startTransition(() => {
+                setSelectedDiscipline(cat);
+                setCurrentPage(1);
+                setCatalogView('grid');
+              });
             }}
-            onSwitchView={(mode) => setCatalogView(mode)}
+            onSwitchView={(mode) => handleSelectCatalogView(mode)}
           />
         )}
         </div>
@@ -1992,30 +2408,27 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <span>
                 Showing{' '}
                 <strong>
-                  {filteredBooks.length === 0
+                  {filteredEntries.length === 0
                     ? 0
                     : ((safeCurrentPage - 1) * safePageSize + 1).toLocaleString()}
                 </strong>{' '}
                 to{' '}
                 <strong>
-                  {Math.min(safeCurrentPage * safePageSize, filteredBooks.length).toLocaleString()}
+                  {Math.min(safeCurrentPage * safePageSize, filteredEntries.length).toLocaleString()}
                 </strong>{' '}
-                of <strong>{filteredBooks.length.toLocaleString()}</strong> books
+                of <strong>{filteredEntries.length.toLocaleString()}</strong> books
               </span>
               <div className="flex items-center gap-1.5">
                 <span>Per page:</span>
                 <select
                   value={safePageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
+                  onChange={handlePageSizeChange}
                   style={{ width: 'auto', height: '28px' }}
                   className="ulm-compact-control w-auto h-7 px-1.5 rounded-lg bg-white/80 dark:bg-black/35 border border-slate-300 dark:border-white/15 text-slate-900 dark:text-white text-[11px] cursor-pointer"
                 >
                   <option value={24}>24</option>
+                  <option value={36}>36</option>
                   <option value={48}>48</option>
-                  <option value={96}>96</option>
                 </select>
               </div>
             </div>
@@ -2024,7 +2437,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 disabled={safeCurrentPage <= 1}
-                onClick={() => setCurrentPage(1)}
+                onClick={() => startTransition(() => setCurrentPage(1))}
                 className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
                 <ChevronsLeft className="w-3.5 h-3.5" />
@@ -2032,7 +2445,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 disabled={safeCurrentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={() => startTransition(() => setCurrentPage((p) => Math.max(1, p - 1)))}
                 className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -2043,7 +2456,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => startTransition(() => setCurrentPage((p) => Math.min(totalPages, p + 1)))}
                 className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -2051,7 +2464,7 @@ export const BooksCatalogView: React.FC<BooksCatalogViewProps> = ({
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
-                onClick={() => setCurrentPage(totalPages)}
+                onClick={() => startTransition(() => setCurrentPage(totalPages))}
                 className="p-1 rounded-md border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:bg-black/5 cursor-pointer"
               >
                 <ChevronsRight className="w-3.5 h-3.5" />

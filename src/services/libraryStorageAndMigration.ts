@@ -2342,6 +2342,36 @@ export interface ResolvedAlmariPlacement {
  * (by book.almari_id, book.almariId, book.almari, or an explicit shelf string matching a manual Almari's code).
  * Never auto-distributes unassigned books into dummy Almaris.
  */
+let _cachedMasterV3Raw: string | null | undefined = undefined;
+let _cachedMasterV3Obj: Record<string, any> | null = null;
+let _cachedManualV2Raw: string | null | undefined = undefined;
+let _cachedManualV2Obj: Record<string, any> | null = null;
+
+function readCachedPlacementMap(
+  key: 'ulm_almari_placements_master_v3' | 'ulm_manual_shelf_assignments_v2'
+): Record<string, any> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (key === 'ulm_almari_placements_master_v3') {
+      if (raw !== _cachedMasterV3Raw) {
+        _cachedMasterV3Raw = raw;
+        const parsed = raw ? JSON.parse(raw) : null;
+        _cachedMasterV3Obj = parsed && typeof parsed === 'object' ? parsed : null;
+      }
+      return _cachedMasterV3Obj;
+    } else {
+      if (raw !== _cachedManualV2Raw) {
+        _cachedManualV2Raw = raw;
+        const parsed = raw ? JSON.parse(raw) : null;
+        _cachedManualV2Obj = parsed && typeof parsed === 'object' ? parsed : null;
+      }
+      return _cachedManualV2Obj;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export function resolveBookAlmariAndShelf(
   book: Record<string, any>,
   indexOrAlmaris?: number | Array<{ id: string; code: string; name_en: string; shelf_count?: number }>,
@@ -2362,26 +2392,18 @@ export function resolveBookAlmariAndShelf(
   // 0. Check persistent manual overrides in localStorage ('ulm_almari_placements_master_v3' and 'ulm_manual_shelf_assignments_v2')
   let overrideData: Record<string, any> | undefined;
   if (typeof window !== 'undefined' && (book.id || book.barcode)) {
-    try {
-      const rawMasterV3 = localStorage.getItem('ulm_almari_placements_master_v3');
-      if (rawMasterV3) {
-        const parsedV3 = JSON.parse(rawMasterV3);
-        if (parsedV3 && typeof parsedV3 === 'object') {
-          overrideData =
-            (book.id ? parsedV3[String(book.id)] : undefined) ||
-            (book.barcode ? parsedV3[String(book.barcode)] : undefined);
-        }
+    const parsedV3 = readCachedPlacementMap('ulm_almari_placements_master_v3');
+    if (parsedV3) {
+      overrideData =
+        (book.id ? parsedV3[String(book.id)] : undefined) ||
+        (book.barcode ? parsedV3[String(book.barcode)] : undefined);
+    }
+    if (!overrideData && book.id) {
+      const parsedMap = readCachedPlacementMap('ulm_manual_shelf_assignments_v2');
+      if (parsedMap && parsedMap[String(book.id)]) {
+        overrideData = parsedMap[String(book.id)];
       }
-      if (!overrideData && book.id) {
-        const rawMap = localStorage.getItem('ulm_manual_shelf_assignments_v2');
-        if (rawMap) {
-          const parsedMap = JSON.parse(rawMap);
-          if (parsedMap && typeof parsedMap === 'object' && parsedMap[String(book.id)]) {
-            overrideData = parsedMap[String(book.id)];
-          }
-        }
-      }
-    } catch {}
+    }
   }
 
   const effectiveBook = overrideData ? { ...book, ...overrideData } : book;

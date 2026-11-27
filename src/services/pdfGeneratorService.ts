@@ -892,23 +892,38 @@ export class PdfGeneratorService {
       doc.setLineWidth(0.45);
       doc.roundedRect(photoX, photoY, photoW, photoH, 1.5, 1.5, 'FD');
 
-      const initials = name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-      drawSmartPdfText(doc, initials, photoX + photoW / 2, photoY + 11, photoW - 2, {
-        fontSizePt: 11,
-        bold: true,
-        color: '#3b1054',
-        align: 'center',
-        font: 'times',
-      });
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(4.5);
-      doc.setTextColor(71, 85, 105);
-      doc.text('ULM MEMBER', photoX + photoW / 2, photoY + 15.5, { align: 'center' });
+      const memberPhoto =
+        m.photo_url || m.photo_path || m.photoDataUrl || m.photoUrl || m.photo || '';
+      let drewPhoto = false;
+      if (memberPhoto && memberPhoto.startsWith('data:image/')) {
+        try {
+          const imgFmt = memberPhoto.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(memberPhoto, imgFmt, photoX + 0.35, photoY + 0.35, photoW - 0.7, photoH - 0.7);
+          drewPhoto = true;
+        } catch {
+          drewPhoto = false;
+        }
+      }
+
+      if (!drewPhoto) {
+        const initials = name
+          .split(' ')
+          .map((n) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase();
+        drawSmartPdfText(doc, initials, photoX + photoW / 2, photoY + 11, photoW - 2, {
+          fontSizePt: 11,
+          bold: true,
+          color: '#3b1054',
+          align: 'center',
+          font: 'times',
+        });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(4.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text('ULM MEMBER', photoX + photoW / 2, photoY + 15.5, { align: 'center' });
+      }
 
       // Crimson Blood Group Badge (#DC2626)
       doc.setFillColor(220, 38, 38);

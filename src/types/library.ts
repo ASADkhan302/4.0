@@ -94,6 +94,9 @@ export interface Borrower {
   address?: string;
   photo_path?: string;
   photo_url?: string;
+  photoUrl?: string;
+  photoDataUrl?: string;
+  photo?: string;
   borrow_limit: number; // Student 3, Faculty 10, Staff 5
   joined_date: string;
   valid_until?: string | null;

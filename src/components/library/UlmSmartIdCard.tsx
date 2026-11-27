@@ -262,7 +262,13 @@ export function borrowerToCardMemberData(
     phone: member.phone || '0342-5252555',
     validTill: formatExpiryDateDisplay(member.valid_until, member.role),
     status: member.status || 'active',
-    photoUrl: member.photo_url || member.photo_path || undefined,
+    photoUrl:
+      member.photo_url ||
+      member.photo_path ||
+      member.photoDataUrl ||
+      member.photoUrl ||
+      member.photo ||
+      undefined,
   };
 }
 

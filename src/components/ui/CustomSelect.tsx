@@ -248,9 +248,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
           const item = filteredOptions[activeIndex];
           if (!item.disabled) {
-            onChange(item.value);
             setIsOpen(false);
             triggerRef.current?.focus();
+            if (item.value !== value) {
+              onChange(item.value);
+            }
           }
         }
         break;
@@ -268,9 +270,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
   const handleSelect = (opt: SelectOption) => {
     if (opt.disabled) return;
-    onChange(opt.value);
     setIsOpen(false);
     triggerRef.current?.focus();
+    if (opt.value !== value) {
+      onChange(opt.value);
+    }
   };
 
   const handleCreateNew = (e: React.FormEvent) => {

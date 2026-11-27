@@ -15,13 +15,13 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
-  Crop
 } from 'lucide-react';
 import { Borrower, BorrowerRole, BorrowerStatus } from '../../types/library';
 import CustomSelect from '../ui/CustomSelect';
 import { MemberCard } from '../cards/MemberCard';
 import { PhotoCropModal } from '../shared/PhotoCropModal';
 import { resolveMemberCardStanding } from '../../utils/memberStanding';
+import { notifyGlassToast } from '../ui/LiquidGlassToast';
 
 interface AddEditBorrowerModalProps {
   isOpen: boolean;
@@ -152,9 +152,10 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
   const [previewSide, setPreviewSide] = useState<'front' | 'back'>('front');
   const [showMobilePreview, setShowMobilePreview] = useState(false);
 
-  // Photo Crop Modal State
+  // Photo Crop Modal & Dropzone State
   const [rawPhotoToCrop, setRawPhotoToCrop] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isPhotoDragActive, setIsPhotoDragActive] = useState(false);
 
   // Last entered values (for "Save & Next" & "Same as above")
   const [lastSaved, setLastSaved] = useState<Record<string, any>>(() => {
@@ -191,7 +192,14 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       setPhone(borrowerToEdit.phone || '');
       setEmail(borrowerToEdit.email || '');
       setAddress(borrowerToEdit.address || '');
-      setPhotoUrl(borrowerToEdit.photo_url || borrowerToEdit.photo_path || '');
+      setPhotoUrl(
+        borrowerToEdit.photo_url ||
+          borrowerToEdit.photo_path ||
+          borrowerToEdit.photoDataUrl ||
+          borrowerToEdit.photoUrl ||
+          borrowerToEdit.photo ||
+          ''
+      );
       setJoinedDate(borrowerToEdit.joined_date || new Date().toISOString().split('T')[0]);
       setValidUntil(borrowerToEdit.valid_until || '');
       setBorrowLimit(borrowerToEdit.borrow_limit || (borrowerToEdit.role === 'Faculty' ? 10 : borrowerToEdit.role === 'Staff' ? 5 : 3));
@@ -427,21 +435,55 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
     }
   }, [name, phone, allBorrowers, borrowerToEdit]);
 
-  // Browse photo and open Drag-and-Zoom Crop Modal
-  const handlePhotoBrowse = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Validate & read portrait image via FileReader (Data URL) and open 4:5 Cropper Portal
+  const processSelectedPhotoFile = (file?: File | null) => {
     if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Invalid Photo File',
+        message: 'Please choose a valid JPG, PNG, or WebP portrait image.',
+      });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const rawData = event.target?.result as string;
-      if (rawData) {
-        setRawPhotoToCrop(rawData);
-        setIsCropModalOpen(true);
+      const rawData = typeof event.target?.result === 'string' ? event.target.result : '';
+      if (!rawData) {
+        notifyGlassToast({
+          type: 'danger',
+          title: 'Photo Load Failed',
+          message: 'Could not read the selected image file. Please try another photo.',
+        });
+        return;
       }
+      setRawPhotoToCrop(rawData);
+      setIsCropModalOpen(true);
+    };
+    reader.onerror = () => {
+      notifyGlassToast({
+        type: 'danger',
+        title: 'Photo Load Failed',
+        message: 'Could not read the selected image file. Please try another photo.',
+      });
     };
     reader.readAsDataURL(file);
+  };
+
+  const handlePhotoFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset input immediately so re-selecting the same photo always triggers onChange
     e.target.value = '';
+    processSelectedPhotoFile(file);
+  };
+
+  const handlePhotoDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPhotoDragActive(false);
+    const file = e.dataTransfer?.files?.[0];
+    processSelectedPhotoFile(file);
   };
 
   // "Same as above" helper: copies value from last saved entry
@@ -542,6 +584,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       address: address.trim() || undefined,
       photo_url: photoUrl || undefined,
       photo_path: photoUrl || undefined,
+      photoUrl: photoUrl || undefined,
+      photoDataUrl: photoUrl || undefined,
+      photo: photoUrl || undefined,
       joined_date: joinedDate || new Date().toISOString().split('T')[0],
       valid_until: validUntil ? validUntil : null,
       borrow_limit: borrowLimit,
@@ -606,6 +651,8 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
         setPhone('');
         setEmail('');
         setPhotoUrl('');
+        setRawPhotoToCrop(null);
+        setIsCropModalOpen(false);
         setNotes('');
         setDuplicateError(null);
         setSamePersonWarning(null);
@@ -626,8 +673,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
     }
   };
 
-  // Keyboard navigation: Enter = "Save & Next" when adding
+  // Keyboard navigation: Enter = "Save & Next" when adding (paused while photo cropper is open)
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isCropModalOpen) return;
     if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
       e.preventDefault();
       if (isEditMode) {
@@ -666,6 +714,9 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
       address: address || undefined,
       photo_url: photoUrl || undefined,
       photo_path: photoUrl || undefined,
+      photoUrl: photoUrl || undefined,
+      photoDataUrl: photoUrl || undefined,
+      photo: photoUrl || undefined,
       joined_date: joinedDate,
       valid_until: validUntil || (role === 'Student' ? '2027-06-30' : 'PERMANENT'),
       borrow_limit: borrowLimit,
@@ -1140,11 +1191,48 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
               </div>
 
               {/* 8. Compact Frosted Crystal Passport Photo Dropzone */}
-              <div className="flex items-center justify-between gap-3.5 p-3 rounded-2xl bg-white/70 dark:bg-white/[0.03] border border-dashed border-slate-300 dark:border-white/[0.16]">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isPhotoDragActive) setIsPhotoDragActive(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsPhotoDragActive(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setIsPhotoDragActive(false);
+                  }
+                }}
+                onDrop={handlePhotoDrop}
+                className={`flex items-center justify-between gap-3.5 p-3 rounded-2xl border border-dashed transition-colors ${
+                  isPhotoDragActive
+                    ? 'bg-amber-500/12 border-[#C8963E] dark:border-[#FFD147]'
+                    : 'bg-white/70 dark:bg-white/[0.03] border-slate-300 dark:border-white/[0.16]'
+                }`}
+              >
+                {/* Dedicated hidden file input triggered directly via ref (zero nested label/button bugs) */}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/*"
+                  onChange={handlePhotoFileSelected}
+                  className="hidden"
+                />
+
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-[60px] rounded-xl overflow-hidden bg-slate-100 dark:bg-[#110A20] border border-amber-500/45 flex items-center justify-center shrink-0">
                     {photoUrl ? (
-                      <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <img
+                        src={photoUrl}
+                        alt="Member portrait"
+                        className="w-full h-full object-cover rounded-lg"
+                      />
                     ) : (
                       <div className="text-[9px] font-mono text-slate-500 dark:text-slate-400 text-center p-1 leading-tight">
                         4:5 Photo
@@ -1156,33 +1244,37 @@ export const AddEditBorrowerModal: React.FC<AddEditBorrowerModalProps> = ({
                       Member Portrait Photo (4:5 · 300 × 375 px)
                     </span>
                     <p className="text-[11px] text-slate-500 dark:text-[#B3AABD] mt-0.5 truncate">
-                      Drag-and-zoom crop ready for CR80 Smart Card printing
+                      {isPhotoDragActive
+                        ? 'Drop image here to open 4:5 portrait cropper'
+                        : 'Click Upload or drop photo · 4:5 crop ready for CR80 Smart Card'}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <input
-                    ref={photoInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoBrowse}
-                    className="hidden"
-                    id="borrower-modal-photo-input"
-                  />
-                  <label
-                    htmlFor="borrower-modal-photo-input"
-                    className="!mb-0 !inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white border border-slate-300/90 dark:border-white/[0.14] text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      photoInputRef.current?.click();
+                    }}
+                    className="!inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white border border-slate-300/90 dark:border-white/[0.14] text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap"
                   >
                     <Upload className="w-3.5 h-3.5 text-amber-600 dark:text-[#FFD147]" />
                     <span>{photoUrl ? 'Change' : 'Upload'}</span>
-                  </label>
+                  </button>
                   {photoUrl && (
                     <button
                       type="button"
-                      onClick={() => setPhotoUrl('')}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPhotoUrl('');
+                      }}
                       className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/12 border border-rose-400/35 cursor-pointer transition-colors"
                       title="Remove photo"
+                      aria-label="Remove portrait photo"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
